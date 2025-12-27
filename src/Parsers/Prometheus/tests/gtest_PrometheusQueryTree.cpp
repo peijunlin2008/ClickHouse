@@ -942,3 +942,75 @@ PrometheusQueryTree(RANGE_VECTOR):
 )");
 
 }
+
+
+TEST(PrometheusQueryTree, ParseStringLiterals)
+{
+    EXPECT_EQ(parseAndDumpTree(R"(
+        "this is a string"
+        )"), R"(
+PrometheusQueryTree(STRING):
+    StringLiteral('this is a string')
+)");
+
+    EXPECT_EQ(parseAndDumpTree(R"(
+        "\n"
+        )"), R"(
+PrometheusQueryTree(STRING):
+    StringLiteral('\n')
+)");
+
+#if 0 /// FIXME
+    EXPECT_EQ(parseAndDumpTree(R"(
+        "these are unescaped: \n \\ ' \" ` \t"
+        )"), R"(
+PrometheusQueryTree(STRING):
+    StringLiteral('these are unescaped: \n \\ \' " ` \t')
+)");
+
+    EXPECT_EQ(parseAndDumpTree(R"(
+        'these are unescaped: \n \\ \' " ` \t'
+        )"), R"(
+PrometheusQueryTree(STRING):
+    StringLiteral('these are unescaped: \n \\ \' " ` \t')
+)");
+
+    EXPECT_EQ(parseAndDumpTree(R"(
+        `these are not unescaped: \n \\ ' " \t`
+        )"), R"(
+PrometheusQueryTree(STRING):
+    StringLiteral('these are not unescaped: \n \\ \' " \\t')
+)");
+
+    EXPECT_EQ(parseAndDumpTree(R"(
+        "日本語"
+        )"), R"(
+PrometheusQueryTree(STRING):
+    StringLiteral('日本語')
+)");
+#endif
+
+    EXPECT_EQ(parseAndDumpTree(R"(
+        "\u65e5\u672c\u8a9e" 
+        )"), R"(
+PrometheusQueryTree(STRING):
+    StringLiteral('日本語')
+)");
+
+    EXPECT_EQ(parseAndDumpTree(R"(
+        "\U000065e5\U0000672c\U00008a9e" 
+        )"), R"(
+PrometheusQueryTree(STRING):
+    StringLiteral('日本語')
+)");
+
+#if 0 /// FIXME
+    EXPECT_EQ(parseAndDumpTree(R"(
+        "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"
+        )"), R"(
+PrometheusQueryTree(STRING):
+    StringLiteral('日本語')
+)");
+#endif
+
+}
