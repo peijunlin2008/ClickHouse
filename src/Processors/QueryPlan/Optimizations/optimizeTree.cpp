@@ -15,6 +15,7 @@
 #include <Processors/QueryPlan/UnionStep.h>
 #include <Poco/Logger.h>
 #include <Common/Exception.h>
+#include <Common/Logger.h>
 #include <Common/logger_useful.h>
 #include <Common/typeid_cast.h>
 
@@ -411,7 +412,6 @@ void considerEnablingParallelReplicas(
     if (!source_reading_step)
         return;
 
-    /// TODO(nickitat): reuse index analysis result in the plan with PRs (if it will be chosen later by the heuristic)
     const auto analysis
         = source_reading_step->getAnalyzedResult() ? source_reading_step->getAnalyzedResult() : source_reading_step->selectRangesToRead();
     if (!analysis)
