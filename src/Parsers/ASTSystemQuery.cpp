@@ -71,7 +71,7 @@ void ASTSystemQuery::setDatabase(const String & name)
 
     if (!name.empty())
     {
-        database = std::make_shared<ASTIdentifier>(name);
+        database = make_intrusive<ASTIdentifier>(name);
         children.push_back(database);
     }
 }
@@ -86,7 +86,7 @@ void ASTSystemQuery::setTable(const String & name)
 
     if (!name.empty())
     {
-        table = std::make_shared<ASTIdentifier>(name);
+        table = make_intrusive<ASTIdentifier>(name);
         children.push_back(table);
     }
 }
@@ -602,6 +602,7 @@ void ASTSystemQuery::formatImpl(WriteBuffer & ostr, const FormatSettings & setti
         case Type::STOP_REPLICATED_DDL_QUERIES:
         case Type::START_REPLICATED_DDL_QUERIES:
         case Type::RECONNECT_ZOOKEEPER:
+        case Type::RESET_DDL_WORKER:
             break;
         case Type::UNKNOWN:
         case Type::END:
