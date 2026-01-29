@@ -318,7 +318,7 @@ class Runner:
                         )
                         Shell.check(f"mkdir -p {volume}", verbose=True, strict=True)
             Shell.check(
-                "docker ps -a --format '{{.Names}}' | grep -q praktika && docker rm -f praktika",
+                "docker ps -a --format '{{.Names}}' | grep -q praktika && docker rm -f praktika ||:",
                 verbose=True,
             )
             if job.enable_gh_auth:

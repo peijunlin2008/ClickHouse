@@ -313,6 +313,7 @@ class Shell:
         stdin_str=None,
         timeout=None,
         retries=1,
+        retry_sleep=2,
         retry_errors: Union[List[str], str] = "",
         **kwargs,
     ):
@@ -363,7 +364,7 @@ class Shell:
                     # Process both stdout and stderr in real-time
                     def stream_output(stream, output_fp, output=None):
                         for line in iter(stream.readline, ""):
-                            sys.stdout.write(line)
+                            if verbose: sys.stdout.write(line)
                             output_fp.write(line)
                             if output is not None:
                                 output.append(line)
@@ -386,34 +387,46 @@ class Shell:
 
                     if proc.returncode == 0:
                         break  # Exit retry loop if success
-                    else:
-                        if verbose:
+
+                    if verbose:
+                        if retries == 1:
                             print(
-                                f"ERROR: command failed, exit code: {proc.returncode}, retry: {retry+1}/{retries}"
+                                f"ERROR: command failed, exit code: {proc.returncode}"
                             )
-                        if retry_errors:
-                            should_retry = False
-                            for err in retry_errors:
-                                if any(err in err_line for err_line in err_output):
-                                    print(
-                                        f"Retryable error occurred: [{err}], [{retry+1}/{retries}]"
-                                    )
-                                    should_retry = True
-                                    break
-                            if not should_retry:
-                                print(
-                                    f"No retryable errors found, stopping retry attempts"
+                        else:
+                            print(
+                                f"Retry {retry+1}/{retries}: command failed, exit code: {proc.returncode}"
                                 )
+                    if retry_errors:
+                        should_retry = False
+                        for err in retry_errors:
+                            if any(err in err_line for err_line in err_output):
+                                print(
+                                    f"Retryable error occurred: [{err}], [{retry+1}/{retries}]"
+                                )
+                                should_retry = True
                                 break
+                        if not should_retry:
+                            print(
+                                f"No retryable errors found, stopping retry attempts"
+                            )
+                            break
             except Exception as e:
                 if verbose:
-                    print(
-                        f"ERROR: command failed, exception: {e}, retry: {retry}/{retries}"
-                    )
+                    if retries == 1:
+                        print(
+                            f"ERROR: command failed, exit code: {proc.returncode}"
+                        )
+                    else:
+                        print(
+                            f"Retry {retry+1}/{retries}: command failed, exit code: {proc.returncode}"
+                        )
                 if proc:
                     proc.kill()
                 if strict and retry == retries - 1:
                     raise e
+            if retry_sleep:
+                time.sleep(retry_sleep)
 
         if strict and (not proc or proc.returncode != 0):
             err = "\n   ".join(err_output).strip()

@@ -131,17 +131,15 @@ class ClickHouseProc:
         with open(self.MINIO_LOG, "w") as log_file:
             self.minio_proc = subprocess.Popen(
                 command, stdout=log_file, stderr=subprocess.STDOUT
-            )
+        )
         print(f"Started setup_minio.sh asynchronously with PID {self.minio_proc.pid}")
 
-        for _ in range(20):
-            res = Shell.check(
+        if Shell.check(
                 "/mc ls clickminio/test | grep -q .",
-                verbose=True,
-            )
-            if res:
+                verbose=False,
+                retries=5
+            ):
                 return True
-            time.sleep(1)
         print("Failed to start minio")
         return False
 
@@ -686,7 +684,7 @@ clickhouse-client --query "SELECT count() FROM test.visits"
         ):
             if proc and pid:
                 if not Shell.check(
-                    f"cd {run_path} && clickhouse stop --pid-path {Path(pid_file).parent} --max-tries 300 --do-not-kill",
+                    f"cd {run_path} && clickhouse stop --pid-path {Path(pid_file).parent} --max-tries 5 --do-not-kill >/dev/null",
                     verbose=True,
                 ):
                     print(
@@ -980,9 +978,7 @@ disassemble /s
 p \"done\"
 detach
 quit
-""".format(
-            RTMIN=rtmin
-        )
+""".format(RTMIN=rtmin)
         with open(f"{temp_dir}/script.gdb", "w") as file:
             file.write(script)
         return f"{temp_dir}/script.gdb"
@@ -1099,9 +1095,16 @@ quit
                     f"Failed to dump system table: {table}\nError: {stderr}"
                 )
             else:
-                lines_count = int(Shell.get_output_or_raise(f"cd {self.run_path0} && wc -l < {temp_dir}/system_tables/{table}.tsv", verbose=True).strip())
+                lines_count = int(
+                    Shell.get_output_or_raise(
+                        f"cd {self.run_path0} && wc -l < {temp_dir}/system_tables/{table}.tsv",
+                        verbose=True,
+                    ).strip()
+                )
                 if lines_count > ROWS_COUNT_IN_SYSTEM_TABLE_LIMIT:
-                    scraping_system_table.set_info(f"System table {table} has too many rows {lines_count} > {ROWS_COUNT_IN_SYSTEM_TABLE_LIMIT}")
+                    scraping_system_table.set_info(
+                        f"System table {table} has too many rows {lines_count} > {ROWS_COUNT_IN_SYSTEM_TABLE_LIMIT}"
+                    )
 
             if "minio" in table:
                 # minio tables are not replicated
@@ -1121,9 +1124,16 @@ quit
                     )
                     res = False
                 else:
-                    lines_count = int(Shell.get_output_or_raise(f"cd {self.run_path1} && wc -l < {temp_dir}/system_tables/{table}.1.tsv", verbose=True).strip())
+                    lines_count = int(
+                        Shell.get_output_or_raise(
+                            f"cd {self.run_path1} && wc -l < {temp_dir}/system_tables/{table}.1.tsv",
+                            verbose=True,
+                        ).strip()
+                    )
                     if lines_count > ROWS_COUNT_IN_SYSTEM_TABLE_LIMIT:
-                        scraping_system_table.set_info(f"System table {table} on replica 1 has too many rows {lines_count} > {ROWS_COUNT_IN_SYSTEM_TABLE_LIMIT}")
+                        scraping_system_table.set_info(
+                            f"System table {table} on replica 1 has too many rows {lines_count} > {ROWS_COUNT_IN_SYSTEM_TABLE_LIMIT}"
+                        )
 
             if self.is_db_replicated:
                 path_arg = f" --path {self.run_path2}"
@@ -1140,9 +1150,16 @@ quit
                     )
                     res = False
                 else:
-                    lines_count = int(Shell.get_output_or_raise(f"cd {self.run_path2} && wc -l < {temp_dir}/system_tables/{table}.2.tsv", verbose=True).strip())
+                    lines_count = int(
+                        Shell.get_output_or_raise(
+                            f"cd {self.run_path2} && wc -l < {temp_dir}/system_tables/{table}.2.tsv",
+                            verbose=True,
+                        ).strip()
+                    )
                     if lines_count > ROWS_COUNT_IN_SYSTEM_TABLE_LIMIT:
-                        scraping_system_table.set_info(f"System table {table} on replica 2 has too many rows {lines_count} > {ROWS_COUNT_IN_SYSTEM_TABLE_LIMIT}")
+                        scraping_system_table.set_info(
+                            f"System table {table} on replica 2 has too many rows {lines_count} > {ROWS_COUNT_IN_SYSTEM_TABLE_LIMIT}"
+                        )
 
         if scraping_system_table.info:
             scraping_system_table.set_status(Result.StatusExtended.FAIL)
