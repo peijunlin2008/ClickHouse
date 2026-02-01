@@ -92,7 +92,7 @@ public:
 
     void recordAggregationKeySizes(const Aggregator & aggregator, const Block & block);
 
-    void recordInputColumns(const ColumnsWithTypeAndName & columns, const ColumnSizeByName & column_sizes, size_t read_bytes = 0);
+    void recordInputColumns(const ColumnsWithTypeAndName & columns, const ColumnSizeByName & column_sizes, size_t read_bytes);
 
     void markUnsupportedCase() { unsupported_case.store(true, std::memory_order_relaxed); }
 
