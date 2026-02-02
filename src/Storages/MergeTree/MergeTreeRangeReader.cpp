@@ -987,6 +987,26 @@ bool MergeTreeRangeReader::isCurrentRangeFinished() const
     return stream.isFinished();
 }
 
+static size_t getBytesInColumn(const IColumn & column)
+{
+    if (const auto * col_str = typeid_cast<const ColumnString *>(&column))
+    {
+        /// This function is used to estimate the number of bytes read from disk. For String column offsets might actually take
+        /// more memory than chars, so blindly assuming that each offset takes 8 bytes might overestimate the actual bytes read.
+        return col_str->getChars().size() + col_str->getOffsets().size() * getLengthOfVarUInt(col_str->getOffsets().back());
+    }
+    else if (const auto * col_sparse = typeid_cast<const ColumnSparse *>(&column))
+    {
+        /// Same logic as ColumnString for sparse columns.
+        const auto & values = col_sparse->getValuesColumn();
+        const auto & offsets = col_sparse->getOffsetsColumn();
+        return !offsets.empty() ? getBytesInColumn(values) + offsets.size() * getLengthOfVarInt(offsets.getInt(offsets.size() - 1)) : 0;
+    }
+    else
+    {
+        return column.byteSize();
+    }
+}
 
 static size_t getTotalBytesInColumns(const Columns & columns)
 {
@@ -994,26 +1014,7 @@ static size_t getTotalBytesInColumns(const Columns & columns)
     for (const auto & column : columns)
     {
         if (column)
-        {
-            if (const auto * col_str = typeid_cast<const ColumnString *>(column.get()))
-            {
-                /// This function is used to estimate the number of bytes read from disk. For String column offsets might actually take
-                /// more memory than chars, so blindly assuming that each offset takes 8 bytes might overestimate the actual bytes read.
-                total_bytes += col_str->getChars().size() + col_str->getOffsets().size() * getLengthOfVarUInt(col_str->getOffsets().back());
-            }
-            else if (const auto * col_sparse = typeid_cast<const ColumnSparse *>(column.get()))
-            {
-                /// Same logic as ColumnString for sparse columns.
-                const auto & values = col_sparse->getValuesColumn();
-                const auto & offsets = col_sparse->getOffsetsColumn();
-                if (!offsets.empty())
-                    total_bytes += values.byteSize() + offsets.size() * getLengthOfVarInt(offsets.getInt(offsets.size() - 1)) + sizeof(size_t);
-            }
-            else
-            {
-                total_bytes += column->byteSize();
-            }
-        }
+            total_bytes += getBytesInColumn(*column);
     }
     return total_bytes;
 }
