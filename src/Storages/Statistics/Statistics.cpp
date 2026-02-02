@@ -7,6 +7,7 @@
 #include <Functions/FunctionFactory.h>
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
+#include <IO/ReadBufferFromString.h>
 #include <Interpreters/convertFieldToType.h>
 #include <Storages/ColumnsDescription.h>
 #include <Storages/Statistics/ConditionSelectivityEstimator.h>
@@ -39,6 +40,7 @@ enum StatisticsFileVersion : UInt16
 {
     V0 = 0,
     V1 = 1, /// modify the format of uniq, https://github.com/ClickHouse/ClickHouse/pull/90311
+    V2 = 2,
 };
 
 std::optional<Float64> StatisticsUtils::tryConvertToFloat64(const Field & value, const DataTypePtr & data_type)
@@ -61,8 +63,7 @@ IStatistics::IStatistics(const SingleStatisticsDescription & stat_)
 {
 }
 
-ColumnStatistics::ColumnStatistics(const ColumnStatisticsDescription & stats_desc_, DataTypePtr data_type_)
-    : stats_desc(stats_desc_), data_type(data_type_)
+ColumnStatistics::ColumnStatistics(const ColumnStatisticsDescription & stats_desc_) : stats_desc(stats_desc_)
 {
 }
 
@@ -90,6 +91,28 @@ void ColumnStatistics::merge(const ColumnStatisticsPtr & other)
             stats.insert(stat_it);
         }
     }
+}
+
+bool ColumnStatistics::structureEquals(const ColumnStatistics & other) const
+{
+    if (stats.size() != other.stats.size())
+        return false;
+
+    auto i = stats.begin();
+    auto j = other.stats.begin();
+
+    for (; i != stats.end(); ++i, ++j)
+    {
+        if (i->first != j->first)
+            return false;
+    }
+
+    return true;
+}
+
+std::shared_ptr<ColumnStatistics> ColumnStatistics::cloneEmpty() const
+{
+    return std::make_shared<ColumnStatistics>(stats_desc);
 }
 
 UInt64 IStatistics::estimateCardinality() const
@@ -235,12 +258,10 @@ Estimate ColumnStatistics::getEstimate() const
 
 void ColumnStatistics::serialize(WriteBuffer & buf) const
 {
-    writeIntBinary(V1, buf);
+    writeIntBinary(V2, buf);
 
-    UInt64 stat_types_mask = 0;
-    for (const auto & [type, _]: stats)
-        stat_types_mask |= 1LL << UInt8(type);
-    writeIntBinary(stat_types_mask, buf);
+    auto stats_str = serializeColumnStatisticsToString(stats_desc.types_to_desc);
+    writeStringBinary(stats_str, buf);
 
     /// As the column row count is always useful, save it in any case
     writeIntBinary(rows, buf);
@@ -250,46 +271,28 @@ void ColumnStatistics::serialize(WriteBuffer & buf) const
         stat_ptr->serialize(buf);
 }
 
-void ColumnStatistics::deserialize(ReadBuffer &buf)
+std::shared_ptr<ColumnStatistics> ColumnStatistics::deserialize(ReadBuffer & buf, const DataTypePtr & data_type)
 {
     UInt16 version;
     readIntBinary(version, buf);
+
     /// TODO: we should check the version of statistics format when we start clickhouse server, and do materialize statistics automatically.
-    if (version != V1)
+    if (version != V2)
         throw Exception(ErrorCodes::ILLEGAL_STATISTICS, "We try to read stale file format version: {}. Please run `ALTER TABLE [db.]table MATERIALIZE STATISTICS ALL` to regenerate the statistics", version);
 
-    UInt64 stat_types_mask = 0;
-    readIntBinary(stat_types_mask, buf);
-    readIntBinary(rows, buf);
+    String stats_str;
+    readStringBinary(stats_str, buf);
+    ColumnStatisticsDescription parsed_desc;
+    parsed_desc.data_type = data_type;
+    parsed_desc.types_to_desc = parseColumnStatisticsFromString(stats_str);
 
-    for (UInt8 i = 0; i < static_cast<UInt8>(StatisticsType::Max); i++)
-    {
-        if (stat_types_mask & 1LL << i)
-        {
-            StatisticsType cur_type = static_cast<StatisticsType>(i);
-            auto it = stats.find(cur_type);
-            if (it == stats.end())
-            {
-                /// we found a statistics dropped already, but we still need to read it to skip it
-                auto mock_stats = MergeTreeStatisticsFactory::instance().getSingleStats(SingleStatisticsDescription(cur_type, nullptr, false), data_type);
-                mock_stats->deserialize(buf);
-            }
-            else
-            {
-                it->second->deserialize(buf);
-            }
-        }
-    }
+    auto result = MergeTreeStatisticsFactory::instance().get(parsed_desc);
+    readIntBinary(result->rows, buf);
 
-    for (auto it = stats.begin(); it != stats.end();)
-    {
-        if (!(stat_types_mask & 1LL << UInt8(it->first)))
-        {
-            stats.erase(it++);
-        }
-        else
-            it++;
-    }
+    for (const auto & [_, desc] : result->stats)
+        desc->deserialize(buf);
+
+    return result;
 }
 
 String ColumnStatistics::getNameForLogs() const
@@ -319,10 +322,7 @@ ColumnsStatistics ColumnsStatistics::cloneEmpty() const
 {
     ColumnsStatistics result;
     for (const auto & [column_name, stat] : *this)
-    {
-        auto new_stat = MergeTreeStatisticsFactory::instance().get(stat->getDescription());
-        result.emplace(column_name, std::move(new_stat));
-    }
+        result.emplace(column_name, stat->cloneEmpty());
     return result;
 }
 
@@ -342,7 +342,7 @@ void ColumnsStatistics::serialize(WriteBuffer & buf) const
 }
 
 /// TODO: change format to packed.
-void ColumnsStatistics::deserialize(ReadBuffer & buf)
+ColumnsStatistics ColumnsStatistics::deserialize(ReadBuffer & buf, const ColumnsDescription & columns)
 {
     UInt8 version;
     readIntBinary(version, buf);
@@ -352,29 +352,17 @@ void ColumnsStatistics::deserialize(ReadBuffer & buf)
 
     size_t size;
     readIntBinary(size, buf);
-    NameSet loaded_stats;
+    ColumnsStatistics result;
 
     for (size_t i = 0; i < size; ++i)
     {
         String column_name;
         readStringBinary(column_name, buf);
-
-        auto it = find(column_name);
-
-        if (it == end())
-            continue;
-
-        it->second->deserialize(buf);
-        loaded_stats.insert(column_name);
+        auto stat = ColumnStatistics::deserialize(buf, columns.get(column_name).type);
+        result.emplace(column_name, stat);
     }
 
-    for (auto it = begin(); it != end();)
-    {
-        if (loaded_stats.contains(it->first))
-            ++it;
-        else
-            erase(it++);
-    }
+    return result;
 }
 
 void ColumnsStatistics::build(const Block & block)
@@ -485,7 +473,7 @@ ColumnStatisticsPtr MergeTreeStatisticsFactory::get(const ColumnDescription & co
 
 ColumnStatisticsPtr MergeTreeStatisticsFactory::get(const ColumnStatisticsDescription & stats_desc) const
 {
-    auto column_stat = std::make_shared<ColumnStatistics>(stats_desc, stats_desc.data_type);
+    auto column_stat = std::make_shared<ColumnStatistics>(stats_desc);
 
     for (const auto & [type, desc] : stats_desc.types_to_desc)
     {
@@ -500,15 +488,21 @@ ColumnStatisticsPtr MergeTreeStatisticsFactory::get(const ColumnStatisticsDescri
     return column_stat;
 }
 
-StatisticsPtr MergeTreeStatisticsFactory::getSingleStats(const SingleStatisticsDescription & desc, DataTypePtr data_type) const
+String serializeColumnStatisticsToString(const ColumnStatisticsDescription::StatisticsTypeDescMap & stats_desc_map)
 {
-    auto it = creators.find(desc.type);
-    if (it == creators.end())
-        throw Exception(ErrorCodes::INCORRECT_QUERY, "Unknown statistic type '{}'. Available types: 'countmin', 'minmax', 'tdigest' and 'uniq'", desc.type);
-    return (it->second)(desc, data_type);
+    WriteBufferFromOwnString buf;
+    for (auto it = stats_desc_map.begin(); it != stats_desc_map.end(); ++it)
+    {
+        if (it != stats_desc_map.begin())
+            writeString(", ", buf);
+
+        IAST::FormatSettings format_settings(/*one_line=*/true);
+        it->second.ast->format(buf, format_settings);
+    }
+    return buf.str();
 }
 
-static ColumnStatisticsDescription::StatisticsTypeDescMap parseColumnStatisticsFromString(const String & str)
+ColumnStatisticsDescription::StatisticsTypeDescMap parseColumnStatisticsFromString(const String & str)
 {
     ParserStatisticsType stat_type_parser;
     auto stats_ast = parseQuery(stat_type_parser, "(" + str + ")", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS);

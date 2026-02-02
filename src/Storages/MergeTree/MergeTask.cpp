@@ -650,17 +650,11 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::prepare() const
             for (const auto & [column_name, column_stats] : result_statistics)
             {
                 auto it = part_statistics.find(column_name);
-                const auto & stat_desc = column_stats->getDescription();
 
-                if (it == part_statistics.end() || column_stats->getDescription() != it->second->getDescription())
-                {
-                    auto new_stat_ptr = std::make_shared<ColumnStatistics>(stat_desc, stat_desc.data_type);
-                    global_ctx->statistics_to_build_by_part[part->name].emplace(column_name, std::move(new_stat_ptr));
-                }
+                if (it == part_statistics.end() || !column_stats->structureEquals(*it->second))
+                    global_ctx->statistics_to_build_by_part[part->name].emplace(column_name, column_stats->cloneEmpty());
                 else
-                {
                     column_stats->merge(it->second);
-                }
             }
         }
     }

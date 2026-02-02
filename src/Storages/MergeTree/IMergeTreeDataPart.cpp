@@ -901,50 +901,47 @@ String IMergeTreeDataPart::getColumnNameWithMinimumCompressedSize(const NamesAnd
 
 ColumnsStatistics IMergeTreeDataPart::loadStatistics() const
 {
-    auto metadata_snaphost = getMetadataSnapshot();
-    ColumnsStatistics result(metadata_snaphost->getColumns());
-
     if (auto all_stats_file = readFileIfExists(String(ColumnsStatistics::FILENAME)))
     {
         // CompressedReadBuffer compressed_buffer(*all_stats_file);
         // result.deserialize(compressed_buffer);
-        result.deserialize(*all_stats_file);
+        return ColumnsStatistics::deserialize(*all_stats_file, *columns_description);
     }
-    else
-    {
-        NameSet names_to_remove;
+    // else
+    // {
+    //     NameSet names_to_remove;
 
-        for (const auto & [column_name, statistics] : result)
-        {
-            auto escaped_name = escapeForFileName(ColumnsStatistics::getStatisticName(column_name));
-            auto stream_name = getStreamNameOrHash(escaped_name, STATS_FILE_SUFFIX, checksums);
+    //     for (auto & [column_name, statistics] : result)
+    //     {
+    //         auto escaped_name = escapeForFileName(ColumnsStatistics::getStatisticName(column_name));
+    //         auto stream_name = getStreamNameOrHash(escaped_name, STATS_FILE_SUFFIX, checksums);
 
-            if (!stream_name.has_value())
-            {
-                LOG_INFO(storage.log, "File for statistics with name '{}' is not found", escaped_name);
-                continue;
-            }
+    //         if (!stream_name.has_value())
+    //         {
+    //             LOG_INFO(storage.log, "File for statistics with name '{}' is not found", escaped_name);
+    //             continue;
+    //         }
 
-            String file_name = *stream_name + STATS_FILE_SUFFIX;
+    //         String file_name = *stream_name + STATS_FILE_SUFFIX;
 
-            if (auto stat_file = readFileIfExists(file_name))
-            {
-                CompressedReadBuffer compressed_buffer(*stat_file);
-                statistics->deserialize(compressed_buffer);
-            }
-            else
-            {
-                String file_path = fs::path(getDataPartStorage().getRelativePath()) / file_name;
-                LOG_INFO(storage.log, "Cannot read stats file {}", file_path);
-                names_to_remove.insert(column_name);
-            }
-        }
+    //         if (auto stat_file = readFileIfExists(file_name))
+    //         {
+    //             CompressedReadBuffer compressed_buffer(*stat_file);
+    //             statistics = ColumnStatistics::deserialize(compressed_buffer, column_name, columns_description->get(column_name).type);
+    //         }
+    //         else
+    //         {
+    //             String file_path = fs::path(getDataPartStorage().getRelativePath()) / file_name;
+    //             LOG_INFO(storage.log, "Cannot read stats file {}", file_path);
+    //             names_to_remove.insert(column_name);
+    //         }
+    //     }
 
-        for (const auto & column_name : names_to_remove)
-            result.erase(column_name);
-    }
+    //     for (const auto & column_name : names_to_remove)
+    //         result.erase(column_name);
+    // }
 
-    return result;
+    return {};
 }
 
 Estimates IMergeTreeDataPart::getEstimates() const

@@ -45,6 +45,8 @@ SingleStatisticsDescription & SingleStatisticsDescription::operator=(SingleStati
 
 StatisticsType stringToStatisticsType(String type)
 {
+    type = Poco::toLower(type);
+
     if (type == "tdigest")
         return StatisticsType::TDigest;
     if (type == "uniq")

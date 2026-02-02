@@ -233,6 +233,7 @@ MergedBlockOutputStream::Finalizer MergedBlockOutputStream::finalizePartAsync(
     new_part->setBytesUncompressedOnDisk(checksums.getTotalSizeUncompressedOnDisk());
     new_part->index_granularity = writer->getIndexGranularity();
     new_part->calculateColumnsAndSecondaryIndicesSizesOnDisk();
+    new_part->setEstimates(gathered_data.part_statistics.statistics.getEstimates());
 
     if ((*new_part->storage.getSettings())[MergeTreeSetting::enable_index_granularity_compression])
     {
@@ -243,9 +244,6 @@ MergedBlockOutputStream::Finalizer MergedBlockOutputStream::finalizePartAsync(
     /// It's important to set index after index granularity.
     if (auto computed_index = writer->releaseIndexColumns())
         new_part->setIndex(std::move(*computed_index));
-
-    if (!gathered_data.part_statistics.statistics.empty())
-        new_part->setEstimates(gathered_data.part_statistics.statistics.getEstimates());
 
     /// In mutation, existing_rows_count is already calculated in PartMergerWriter
     /// In merge situation, lightweight deleted rows was physically deleted, existing_rows_count equals rows_count

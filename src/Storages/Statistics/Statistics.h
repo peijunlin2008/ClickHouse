@@ -76,10 +76,10 @@ class ColumnStatistics
 {
 public:
     using StatsMap = std::map<StatisticsType, StatisticsPtr>;
-    ColumnStatistics(const ColumnStatisticsDescription & stats_desc_, DataTypePtr data_type_);
+    explicit ColumnStatistics(const ColumnStatisticsDescription & stats_desc_);
 
     void serialize(WriteBuffer & buf) const;
-    void deserialize(ReadBuffer & buf);
+    static std::shared_ptr<ColumnStatistics> deserialize(ReadBuffer & buf, const DataTypePtr & data_type);
 
     void build(const ColumnPtr & column);
     void merge(const ColumnStatisticsPtr & other);
@@ -93,16 +93,17 @@ public:
     Float64 estimateEqual(const Field & val) const;
     Float64 estimateRange(const Range & range) const;
 
-    const StatsMap & getStats() const { return stats; }
-    const ColumnStatisticsDescription & getDescription() const { return stats_desc; }
     Estimate getEstimate() const;
     String getNameForLogs() const;
+
+    const StatsMap & getStats() const { return stats; }
+    bool structureEquals(const ColumnStatistics & other) const;
+    std::shared_ptr<ColumnStatistics> cloneEmpty() const;
 
 private:
     friend class MergeTreeStatisticsFactory;
     ColumnStatisticsDescription stats_desc;
     StatsMap stats;
-    DataTypePtr data_type;
     UInt64 rows = 0; /// the number of rows in the column
 };
 
@@ -119,7 +120,7 @@ public:
     ColumnsStatistics cloneEmpty() const;
 
     void serialize(WriteBuffer & buf) const;
-    void deserialize(ReadBuffer & buf);
+    static ColumnsStatistics deserialize(ReadBuffer & buf, const ColumnsDescription & columns);
     void build(const Block & block);
     void buildIfExists(const Block & block);
     void merge(const ColumnsStatistics & other);
@@ -145,8 +146,6 @@ public:
     ColumnStatisticsPtr get(const ColumnDescription & column_desc) const;
     ColumnStatisticsPtr get(const ColumnStatisticsDescription & stats_desc) const;
 
-    StatisticsPtr getSingleStats(const SingleStatisticsDescription & stats_desc, DataTypePtr data_type) const;
-
     void registerValidator(StatisticsType type, Validator validator);
     void registerCreator(StatisticsType type, Creator creator);
 
@@ -159,6 +158,9 @@ private:
     Validators validators;
     Creators creators;
 };
+
+String serializeColumnStatisticsToString(const ColumnStatisticsDescription::StatisticsTypeDescMap & stats_desc_map);
+ColumnStatisticsDescription::StatisticsTypeDescMap parseColumnStatisticsFromString(const String & str);
 
 void removeImplicitStatistics(ColumnsDescription & columns);
 void addImplicitStatistics(ColumnsDescription & columns, const String & statistics_types_str);
