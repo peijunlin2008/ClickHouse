@@ -887,7 +887,7 @@ def test_mv_settings(started_cluster, mode, limit):
     keeper_path = f"/clickhouse/test_{table_name}"
     files_path = f"{table_name}_data"
     if limit == 9999999999:
-        expected_parts_num = 1
+        expected_parts_num = 5 # used to be 1, but 5 because of how deduplication affects it
     else:
         expected_parts_num = 5
 
@@ -911,6 +911,16 @@ def test_mv_settings(started_cluster, mode, limit):
 
     num_rows = 10
 
+    mv_table_name = f"{table_name}_mv"
+    create_mv(
+        node,
+        table_name,
+        dst_table_name,
+        mv_name=mv_table_name,
+        format=format,
+    )
+    node.query(f"SYSTEM STOP MERGES {dst_table_name}")
+
     def insert():
         files_to_generate = 5
         table_name_suffix = f"{uuid.uuid4()}"
@@ -922,16 +932,6 @@ def test_mv_settings(started_cluster, mode, limit):
             )
 
     insert()
-
-    mv_table_name = f"{table_name}_mv"
-    create_mv(
-        node,
-        table_name,
-        dst_table_name,
-        mv_name=mv_table_name,
-        format=format,
-    )
-    node.query(f"SYSTEM STOP MERGES {dst_table_name}")
 
     def get_count():
         return int(node.query(f"SELECT count() FROM {dst_table_name}"))
