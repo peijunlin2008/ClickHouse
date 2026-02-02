@@ -1050,10 +1050,6 @@ bool CachedOnDiskReadBufferFromFile::nextImplStep()
         info.file_segments->front().increasePriority();
     }
 
-    chassert(!internal_buffer.empty());
-    /// We don't support state.buf implementations that use nextimpl_working_buffer_offset.
-    chassert(!nextimpl_working_buffer_offset);
-
     auto & file_segment = info.file_segments->front();
     const auto & current_read_range = file_segment.range();
 
@@ -1097,6 +1093,9 @@ bool CachedOnDiskReadBufferFromFile::nextImplStep()
         chassert(state->buf->buffer().begin() == internal_buffer.begin());
         chassert(state->buf->available() == size);
     }
+
+    /// We don't support state.buf implementations that use nextimpl_working_buffer_offset.
+    chassert(!nextimpl_working_buffer_offset);
 
     if (size)
     {
@@ -1222,10 +1221,8 @@ size_t CachedOnDiskReadBufferFromFile::readFromFileSegment(
     }
 
     if (size)
-        chassert(state.buf->available());
-
-    if (size)
     {
+        chassert(state.buf->available());
         bool download_current_segment_succeeded = false;
         if (do_download)
         {
