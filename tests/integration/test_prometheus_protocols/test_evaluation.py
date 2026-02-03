@@ -34,51 +34,58 @@ def send_data(time_series):
 
 
 # Executes a query in the "prometheus_reader" service. This service uses the RemoteRead protocol to get data from ClickHouse.
-def execute_query_in_prometheus_reader(query, timestamp):
+def execute_query_in_prometheus_reader(query, timestamp=None, expect_error=False):
     return execute_query_via_http_api(
         cluster.prometheus_reader_ip,
         cluster.prometheus_reader_port,
         "/api/v1/query",
         query,
-        timestamp,
+        timestamp=timestamp,
+        expect_error=expect_error,
     )
 
 
 # Executes a query in the "prometheus_receiver" service. We sent data to this service earlier via the RemoteWrite protocol.
-def execute_query_in_prometheus_receiver(query, timestamp):
+def execute_query_in_prometheus_receiver(query, timestamp, expect_error=False):
     return execute_query_via_http_api(
         cluster.prometheus_receiver_ip,
         cluster.prometheus_receiver_port,
         "/api/v1/query",
         query,
-        timestamp,
+        timestamp=timestamp,
+        expect_error=expect_error,
     )
 
 
 # Executes a query in both prometheus services - results should be the same.
-def execute_query_in_prometheus(query, timestamp):
-    r1 = execute_query_in_prometheus_reader(query, timestamp)
-    r2 = execute_query_in_prometheus_receiver(query, timestamp)
+def execute_query_in_prometheus(query, timestamp, expect_error=False):
+    r1 = execute_query_in_prometheus_reader(query, timestamp, expect_error=expect_error)
+    r2 = execute_query_in_prometheus_receiver(
+        query, timestamp, expect_error=expect_error
+    )
     assert r1 == r2
     return r1
 
 
 # Executes a prometheus query in ClickHouse via HTTP API
-def execute_query_in_clickhouse_http_api(query, timestamp):
+def execute_query_in_clickhouse_http_api(query, timestamp, expect_error=False):
     return execute_query_via_http_api(
         node.ip_address,
         9093,
         "/api/v1/query",
         query,
-        timestamp,
+        timestamp=timestamp,
+        expect_error=expect_error,
     )
 
 
 # Executes a prometheus query in ClickHouse via SQL query
-def execute_query_in_clickhouse_sql(query, timestamp):
-    return node.query(
-        f"SELECT * FROM prometheusQuery(prometheus, '{query}', {timestamp})"
-    )
+def execute_query_in_clickhouse_sql(query, timestamp, expect_error=False):
+    quoted_query = "'" + query.replace("'", "''") + "'"
+    sql_query = f"SELECT * FROM prometheusQuery(prometheus, {quoted_query}, {timestamp})"
+    if expect_error:
+        return node.query_and_get_error(sql_query)
+    return node.query(sql_query)
 
 
 # Executes a range query in both prometheus services.
@@ -148,6 +155,32 @@ def send_test_data():
         ]
     )
 
+    send_data(
+        [
+            (
+                {"__name__": "http_errors", "http_code": "401"},
+                {
+                    150: 0,
+                    200: 4,
+                },
+            ),
+            (
+                {"__name__": "http_errors", "http_code": "404"},
+                {
+                    110: 1,
+                    120: 5,
+                },
+            ),
+            (
+                {"__name__": "download_failures", "http_code": "404"},
+                {
+                    130: 0,
+                    150: 1,
+                },
+            ),
+        ]
+    )
+
 
 @pytest.fixture(scope="module", autouse=True)
 def start_cluster():
@@ -175,6 +208,23 @@ def do_query_test(
         assert chresult_via_http_api == result
     else:
         assert chresult_via_http_api != result
+
+
+def do_query_test_expect_error(
+    query,
+    timestamp,
+    expected_error,
+    expected_cherror,
+):
+    assert expected_error in execute_query_in_prometheus(
+        query, timestamp, expect_error=True
+    )
+    assert expected_cherror in execute_query_in_clickhouse_sql(
+        query, timestamp, expect_error=True
+    )
+    assert expected_cherror in execute_query_in_clickhouse_http_api(
+        query, timestamp, expect_error=True
+    )
 
 
 # Evaluates the same range query in Prometheus and in ClickHouse and compare the results.
@@ -433,3 +483,55 @@ def test_range_query():
             ]
         ],
     )
+
+
+def test_multiple_series_in_same_resultset():
+    do_query_test(
+        "rate(http_errors[100])[1:1]",
+        200,
+        '{"resultType": "matrix", "result": [{"metric": {"http_code": "401"}, "values": [[200, "0.04"]]}, {"metric": {"http_code": "404"}, "values": [[200, "0.07"]]}]}',
+        [
+            [
+                "[('http_code','401')]",
+                "[('1970-01-01 00:03:20.000',0.04)]",
+            ],
+            [
+                "[('http_code','404')]",
+                "[('1970-01-01 00:03:20.000',0.07)]",
+            ],
+        ],
+    )
+
+    # FIXME: Function sort_by_label() is not implemented yet.
+    # do_query_test(
+    #     "sort_by_label(rate(http_errors[100]), 'http_code')",
+    #     200,
+    #     '{"resultType": "vector", "result": [{"metric": {"http_code": "401"}, "value": [200, "0.04"]}, {"metric": {"http_code": "404"}, "value": [200, "0.07"]}]}',
+    #     [
+    #         [
+    #             "[('http_code','401')]",
+    #             "1970-01-01 00:03:20.000",
+    #             "0.04",
+    #         ],
+    #         [
+    #             "[('http_code','404')]",
+    #             "1970-01-01 00:03:20.000",
+    #             "0.07",
+    #         ],
+    #     ]
+    # )
+
+    do_query_test_expect_error(
+        "rate({http_code='404'}[100])",
+        200,
+        "vector cannot contain metrics with the same labelset",
+        "Multiple series have the same tags {'http_code': '404'}",
+    )
+
+    # FIXME: Function count_over_time() is not implemented yet.
+    # do_query_test_expect_error(
+    #     "count_over_time({http_code='404'}[10])[100:10]",
+    #     200,
+    #     "vector cannot contain metrics with the same labelset",
+    #     "Multiple series have the same tags {'http_code': '404'}",
+    # )
