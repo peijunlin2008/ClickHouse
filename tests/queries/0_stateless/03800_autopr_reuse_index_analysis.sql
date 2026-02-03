@@ -30,9 +30,9 @@ SELECT sum(length(URL)) FROM test.hits WHERE CounterID IN (SELECT a % 100000 FRO
 set send_logs_level='none', send_logs_source_regexp='';
 
 -- TODO(nickitat): figure out this test with both types of sets: useful for PK analysis and actually delayed until reading data
--- set send_logs_level='trace', send_logs_source_regexp='';
--- SELECT sum(length(URL)) FROM test.hits WHERE CounterID IN (SELECT a % 100000 FROM t) AND UserID IN (SELECT a % 1000000 FROM t) SETTINGS log_comment='query_3';
--- set send_logs_level='none', send_logs_source_regexp='';
+set send_logs_level='trace', send_logs_source_regexp='';
+SELECT sum(length(URL)) FROM test.hits WHERE CounterID IN (SELECT a % 100000 FROM t) AND UserID IN (SELECT a % 1000000 FROM t) SETTINGS log_comment='query_3';
+set send_logs_level='none', send_logs_source_regexp='';
 
 SET enable_parallel_replicas=0, automatic_parallel_replicas_mode=0;
 

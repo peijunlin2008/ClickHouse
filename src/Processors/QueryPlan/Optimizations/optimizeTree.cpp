@@ -360,6 +360,122 @@ static ReadFromMergeTree * findReadingStep(const QueryPlan::Node & top_of_single
     return nullptr;
 }
 
+static void explainStep(
+    IQueryPlanStep & step,
+    IQueryPlanStep::FormatSettings & settings,
+    const ExplainPlanOptions & options,
+    size_t max_description_length,
+    UInt64 hash)
+{
+    const std::string prefix(settings.offset, ' ');
+    settings.out << prefix;
+    settings.out << step.getName();
+
+    auto description = step.getStepDescription();
+    if (max_description_length)
+        description = description.substr(0, max_description_length);
+    if (options.description && !description.empty())
+        settings.out << " (" << description << ')';
+    settings.out << " [hash: " << hash << ']';
+
+    settings.out.write('\n');
+
+    const auto dump_column = [&out = settings.out, dump_structure = options.column_structure](const ColumnWithTypeAndName & column)
+    {
+        if (dump_structure)
+            column.dumpStructure(out);
+        else
+            column.dumpNameAndType(out);
+    };
+
+    if (options.header)
+    {
+        settings.out << prefix;
+
+        if (!step.hasOutputHeader())
+            settings.out << "No header";
+        else if (!step.getOutputHeader())
+            settings.out << "Empty header";
+        else
+        {
+            settings.out << "Header: ";
+            bool first = true;
+
+            for (const auto & elem : *step.getOutputHeader())
+            {
+                if (!first)
+                    settings.out << '\n' << prefix << "        ";
+
+                first = false;
+                dump_column(elem);
+            }
+        }
+        settings.out.write('\n');
+    }
+
+    if (options.input_headers)
+    {
+        const std::string_view input_headers_title = "Input headers: ";
+        const std::string_view input_header_indent = "               ";
+        settings.out << prefix << input_headers_title;
+
+        bool first_input_header = true;
+        size_t input_header_index = 0;
+
+        if (step.getInputHeaders().empty())
+        {
+            settings.out << "No input headers";
+        }
+        else
+        {
+            for (const auto & input_header : step.getInputHeaders())
+            {
+                if (!first_input_header)
+                    settings.out << '\n' << prefix << input_header_indent;
+                first_input_header = false;
+
+                settings.out << fmt::format("#{}", input_header_index);
+                ++input_header_index;
+
+                if (input_header->empty())
+                {
+                    settings.out << " Empty header";
+                    continue;
+                }
+
+                for (const auto & elem : *input_header)
+                {
+                    settings.out << '\n' << prefix << input_header_indent;
+                    dump_column(elem);
+                }
+            }
+        }
+        settings.out.write('\n');
+    }
+
+    if (options.sorting)
+    {
+        if (const auto & sort_description = step.getSortDescription(); !sort_description.empty())
+        {
+            settings.out << prefix << "Sorting: ";
+            dumpSortDescription(sort_description, settings.out);
+            settings.out.write('\n');
+        }
+    }
+
+    if (options.actions)
+        step.describeActions(settings);
+
+    if (options.indexes)
+        step.describeIndexes(settings);
+
+    if (options.projections)
+        step.describeProjections(settings);
+
+    if (options.distributed)
+        step.describeDistributedPlan(settings, options);
+}
+
 
 /// Heuristic-based algorithm to decide whether to enable parallel replicas for the given query
 void considerEnablingParallelReplicas(
@@ -451,8 +567,51 @@ void considerEnablingParallelReplicas(
 
     auto dump = [&](const QueryPlan & plan)
     {
+        const auto hashes = calculateHashTableCacheKeys(*plan.getRootNode());
+
         WriteBufferFromOwnString wb;
-        plan.explainPlan(wb, ExplainPlanOptions{});
+        ExplainPlanOptions options;
+        IQueryPlanStep::FormatSettings settings{.out = wb, .write_header = options.header};
+
+        struct Frame
+        {
+            QueryPlan::Node * node = {};
+            bool is_description_printed = false;
+            size_t next_child = 0;
+        };
+
+        const auto indent = 0;
+        const auto max_description_length = 1000;
+        std::stack<Frame> stack2;
+        stack2.push(Frame{.node = plan.getRootNode()});
+
+        while (!stack2.empty())
+        {
+            auto & frame = stack2.top();
+
+            if (!frame.is_description_printed)
+            {
+                settings.offset = (indent + stack2.size() - 1) * settings.indent;
+                explainStep(*frame.node->step, settings, options, max_description_length, hashes.at(frame.node));
+                frame.is_description_printed = true;
+            }
+
+            if (frame.next_child < frame.node->children.size())
+            {
+                stack2.push(Frame{frame.node->children[frame.next_child]});
+                ++frame.next_child;
+            }
+            else
+            {
+                auto child_plans = frame.node->step->getChildPlans();
+
+                for (const auto & child_plan : child_plans)
+                    child_plan->explainPlan(wb, options, indent + stack2.size());
+
+                stack2.pop();
+            }
+        }
+
         LOG_DEBUG(&Poco::Logger::get("debug"), "query plan={}", wb.str());
     };
 
