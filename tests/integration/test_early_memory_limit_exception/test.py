@@ -38,7 +38,6 @@ def test_early_memory_limit():
         "default",
         "default , Alex ",
     )
-
     instance.query("system reload config", user="default")
 
     assert "(total) memory limit exceeded" not in instance.exec_in_container(["bash", "-c", f"curl {endpoint}"])
@@ -54,3 +53,4 @@ def test_early_memory_limit():
         "default , Alex ",
         "default",
     )
+    instance.query("system reload config", user="default")
