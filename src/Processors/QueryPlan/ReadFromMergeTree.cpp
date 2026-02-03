@@ -1638,10 +1638,16 @@ Pipe ReadFromMergeTree::spreadMarkRangesAmongStreamsFinal(
 
     if (query_info.prewhere_info || query_info.row_level_filter)
     {
-        NameSet sorting_columns;
+        NameSet columns_to_restore;
         for (const auto & column : storage_snapshot->metadata->getSortingKey().expression->getRequiredColumnsWithTypes())
-            sorting_columns.insert(column.name);
-        restorePrewhereInputs(query_info.row_level_filter.get(), query_info.prewhere_info.get(), sorting_columns);
+            columns_to_restore.insert(column.name);
+        if (!data.merging_params.version_column.empty())
+            columns_to_restore.insert(data.merging_params.version_column);
+        if (!data.merging_params.sign_column.empty())
+            columns_to_restore.insert(data.merging_params.sign_column);
+        if (!data.merging_params.is_deleted_column.empty())
+            columns_to_restore.insert(data.merging_params.is_deleted_column);
+        restorePrewhereInputs(query_info.row_level_filter.get(), query_info.prewhere_info.get(), columns_to_restore);
     }
 
     for (size_t range_index = 0; range_index < parts_to_merge_ranges.size() - 1; ++range_index)
