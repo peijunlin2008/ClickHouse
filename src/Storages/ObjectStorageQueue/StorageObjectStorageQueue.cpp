@@ -845,9 +845,9 @@ bool StorageObjectStorageQueue::streamToViews(size_t streaming_tasks_index)
             insert,
             queue_context,
             /*allow_materialized_=*/ false,
-            /*no_squash_=*/ true,
+            /*no_squash_=*/ false,
             /*no_destination=*/ true,
-            /*async_insert_=*/ false);
+            /*async_insert_=*/ true);
         auto block_io = interpreter.execute();
         auto read_from_format_info = prepareReadingFromFormat(
             block_io.pipeline.getHeader().getNames(),
