@@ -48,3 +48,9 @@ def test_early_memory_limit():
     instance.query("system free memory")
     instance.query("DROP USER IF EXISTS Alex")
     instance.query("DROP USER IF EXISTS Bob")
+
+    instance.replace_in_config(
+        "/etc/clickhouse-server/config.d/users_to_ignore_early_memory_limit_check.xml",
+        "default , Alex ",
+        "default",
+    )
