@@ -66,6 +66,15 @@ CachedOnDiskReadBufferFromFile::ReadInfo::ReadInfo(
 {
 }
 
+void CachedOnDiskReadBufferFromFile::ReadInfo::reset()
+{
+    remote_file_reader.reset();
+    cache_file_reader.reset();
+
+    file_segments = {};
+    current_file_segment_counters.reset();
+}
+
 CachedOnDiskReadBufferFromFile::CachedOnDiskReadBufferFromFile(
     const String & source_file_path_,
     const FileCache::Key & cache_key_,
@@ -1441,7 +1450,6 @@ size_t CachedOnDiskReadBufferFromFile::readBigAt(
         if (offset == file_segment.range().right + 1)
         {
             current_info.cache_file_reader.reset();
-            current_info.file_segments->front().increasePriority();
             current_info.file_segments->completeAndPopFront(
                 info.settings.filesystem_cache_allow_background_download,
                 /* force_shrink_to_downloaded_size */false);
@@ -1455,8 +1463,15 @@ size_t CachedOnDiskReadBufferFromFile::readBigAt(
             fmt::format("Current offset: {}, file segment: {}", offset, file_segment.getInfoForLog()));
 
         if (!current_state)
+        {
+            file_segment.increasePriority();
             current_state = prepareReadFromFileSegmentState(
-                file_segment, offset, current_info, const_cast<CachedOnDiskReadBufferFromFile &>(*this).getFileSize(), log);
+                file_segment,
+                offset,
+                current_info,
+                const_cast<CachedOnDiskReadBufferFromFile &>(*this).getFileSize(),
+                log);
+        }
 
         [[maybe_unused]] size_t remaining_size_in_file_segment = file_segment.range().right - offset + 1;
         current_state->buf->set(to + read_bytes, n - read_bytes);
@@ -1542,10 +1557,9 @@ off_t CachedOnDiskReadBufferFromFile::seek(off_t offset, int whence)
     }
 
     first_offset = file_offset_of_buffer_end = new_pos;
-    info.file_segments = nullptr;
+
+    info.reset();
     state.reset();
-    info.cache_file_reader.reset();
-    info.remote_file_reader.reset();
     initialized = false;
 
     LOG_TEST(log, "Reset state for seek to position {} (allow_seeks_after_first_reader = {})", new_pos, allow_seeks_after_first_read);
@@ -1578,14 +1592,12 @@ void CachedOnDiskReadBufferFromFile::setReadUntilPosition(size_t position)
         return;
 
     file_offset_of_buffer_end = getPosition();
-    info.file_segments = nullptr;
+
+    info.reset();
     state.reset();
     initialized = false;
-    info.cache_file_reader.reset();
-    info.remote_file_reader.reset();
 
     info.read_until_position = position;
-
     LOG_TEST(log, "Set read_until_position to {}", info.read_until_position);
 }
 

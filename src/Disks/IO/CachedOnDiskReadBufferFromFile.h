@@ -95,6 +95,8 @@ public:
             const ReadSettings & read_settings_,
             size_t read_until_position_);
 
+        /// The readers can be reused among different ReadFromFileSegmentState
+        /// objects, therefore they are stored here.
         std::shared_ptr<ReadBufferFromFileBase> remote_file_reader;
         std::shared_ptr<ReadBufferFromFileBase> cache_file_reader;
 
@@ -117,6 +119,8 @@ public:
         FileSegmentsHolderPtr file_segments;
         /// Profile counters collected separately for each file segment.
         ProfileEvents::Counters current_file_segment_counters;
+
+        void reset();
     };
 
 private:
