@@ -42,7 +42,12 @@ namespace
     {
         auto users_to_ignore_early_memory_limit_check = context->getUsersToIgnoreEarlyMemoryLimitCheck();
         if (!(users_to_ignore_early_memory_limit_check && users_to_ignore_early_memory_limit_check->contains(user_name)))
+        {
+            LOG_TEST(getLogger("authenticateUserByHTTP"), "Checking memory limit for user: {}", user_name);
             CurrentMemoryTracker::check();
+        }
+        else
+            LOG_TEST(getLogger("authenticateUserByHTTP"), "Skipping memory limit check for user: {}", user_name);
 
         if (user_name.empty())
             throw Exception(ErrorCodes::AUTHENTICATION_FAILED, "Got an empty user name from {}", method);
