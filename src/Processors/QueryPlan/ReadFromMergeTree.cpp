@@ -1460,7 +1460,10 @@ static NameSet getColumnsRequiredForMergingFinal(const SortDescription & sort_de
             break;
         }
         case MergeTreeData::MergingParams::Graphite:
-            /// TODO(antaljanosbenjamin): add required columns for Graphite
+            required_columns.insert(merging_params.graphite_params.path_column_name);
+            required_columns.insert(merging_params.graphite_params.time_column_name);
+            required_columns.insert(merging_params.graphite_params.version_column_name);
+            required_columns.insert(merging_params.graphite_params.value_column_name);
             break;
     }
     required_columns.erase(""); // remove empty column names
@@ -3954,6 +3957,11 @@ ConditionSelectivityEstimatorPtr ReadFromMergeTree::getConditionSelectivityEstim
 
 bool ReadFromMergeTree::canRemoveUnusedColumns() const
 {
+    /// The existing logic is not correct for Graphite, e.g. reading from graphite while having PREWHERE filter on the
+    /// time column results in NOT_FOUND_COLUMN_IN_BLOCK
+    if (data.merging_params.mode == MergeTreeData::MergingParams::Graphite)
+        return false;
+
     if (query_info.row_level_filter && hasDuplicatedNamesInInputOrOutputs(query_info.row_level_filter->actions))
         return false;
 
