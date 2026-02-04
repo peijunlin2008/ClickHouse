@@ -69,7 +69,7 @@ void ReadFromTableStep::serialize(Serialization & ctx) const
         serializeRational(*table_expression_modifiers.getSampleOffsetRatio(), ctx.out);
 
     if (use_parallel_replicas)
-        writeChar(use_parallel_replicas, ctx.out);
+        writeIntBinary(use_parallel_replicas, ctx.out);
 }
 
 std::unique_ptr<IQueryPlanStep> ReadFromTableStep::deserialize(Deserialization & ctx)
@@ -95,7 +95,7 @@ std::unique_ptr<IQueryPlanStep> ReadFromTableStep::deserialize(Deserialization &
 
     char use_parallel_replicas = 0;
     if (flags & 8)
-        readChar(use_parallel_replicas, ctx.in);
+        readIntBinary(use_parallel_replicas, ctx.in);
 
     TableExpressionModifiers table_expression_modifiers(has_final, sample_size_ratio, sample_offset_ratio);
     return std::make_unique<ReadFromTableStep>(ctx.output_header, table_name, table_expression_modifiers, use_parallel_replicas);

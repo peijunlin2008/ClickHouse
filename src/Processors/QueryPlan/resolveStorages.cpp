@@ -228,7 +228,10 @@ static QueryPlanResourceHolder replaceReadingFromTable(QueryPlan::Node & node, Q
         select_query_info.storage_limits = std::move(storage_limits);
         select_query_info.query = std::move(query);
 
-        const bool use_parallel_replicas = reading_from_table->useParallelReplicas();
+        bool use_parallel_replicas = false;
+        if (reading_from_table)
+            use_parallel_replicas = reading_from_table->useParallelReplicas();
+
         auto mutable_context = Context::createCopy(context);
         mutable_context->setSetting("allow_experimental_parallel_reading_from_replicas", use_parallel_replicas);
 
