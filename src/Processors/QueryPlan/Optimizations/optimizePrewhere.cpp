@@ -234,7 +234,7 @@ void optimizePrewhere(QueryPlan::Node & parent_node, const bool remove_unused_co
 
     auto & parent_step = parent_node.step;
     if (source_step_with_filter->canRemoveUnusedColumns() && source_step_with_filter->canRemoveColumnsFromOutput()
-        && parent_step->canRemoveUnusedColumns() && parent_step->canRemoveColumnsFromOutput())
+        && parent_step->canRemoveUnusedColumns())
     {
         NameMultiSet required_outputs;
 
@@ -251,9 +251,11 @@ void optimizePrewhere(QueryPlan::Node & parent_node, const bool remove_unused_co
 
             source_step_with_filter->removeUnusedColumns(required_outputs, true);
 
-            // Currently the output of the source step should match the input of the parent step, however because of the general implementation of unused column removal,
-            // these functions cannot guarantee that. Because of that we cannot build on this. However, we can always throw a logical error, because this
-            // they should match based on the currently implemented logic in ReadFromMergeTree.
+            // Here the output of the source step should match the input of the parent step, even though that is not
+            // generally true after unused column removal. There might be outputs that are not removed in some step
+            // (e.g. JoinLogicalStep). However as currently the only source that implements unused column removal is
+            // ReadFromMergeTree, which can remove any columns, therefore let's throw a logical error in case this is
+            // not true.
             if (!blocksHaveEqualStructure(*parent_step->getInputHeaders().at(0), *source_step_with_filter->getOutputHeader()))
                 throw Exception(
                     ErrorCodes::LOGICAL_ERROR,
