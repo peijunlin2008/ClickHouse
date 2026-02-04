@@ -155,7 +155,7 @@ struct NumComparisonImpl
     using ContainerA = PaddedPODArray<A>;
     using ContainerB = PaddedPODArray<B>;
 
-    MULTITARGET_FUNCTION_AVX512BW_AVX512F_AVX2_SSE42(
+    MULTITARGET_FUNCTION_AVX512BW_AVX512F_AVX2(
     MULTITARGET_FUNCTION_HEADER(static void), vectorVectorImpl, MULTITARGET_FUNCTION_BODY(( /// NOLINT
         const ContainerA & a, const ContainerB & b, PaddedPODArray<UInt8> & c)
     {
@@ -199,19 +199,13 @@ struct NumComparisonImpl
             vectorVectorImplAVX2(a, b, c);
             return;
         }
-
-        if (isArchSupported(TargetArch::SSE42))
-        {
-            vectorVectorImplSSE42(a, b, c);
-            return;
-        }
 #endif
 
         vectorVectorImpl(a, b, c);
     }
 
 
-    MULTITARGET_FUNCTION_AVX512BW_AVX512F_AVX2_SSE42(
+    MULTITARGET_FUNCTION_AVX512BW_AVX512F_AVX2(
     MULTITARGET_FUNCTION_HEADER(static void), vectorConstantImpl, MULTITARGET_FUNCTION_BODY(( /// NOLINT
         const ContainerA & a, B b, PaddedPODArray<UInt8> & c)
     {
@@ -246,12 +240,6 @@ struct NumComparisonImpl
         if (isArchSupported(TargetArch::AVX2))
         {
             vectorConstantImplAVX2(a, b, c);
-            return;
-        }
-
-        if (isArchSupported(TargetArch::SSE42))
-        {
-            vectorConstantImplSSE42(a, b, c);
             return;
         }
 #endif

@@ -275,7 +275,7 @@ private:
         }
     }
 
-    MULTITARGET_FUNCTION_AVX512BW_AVX512F_AVX2_SSE42(
+    MULTITARGET_FUNCTION_AVX512BW_AVX512F_AVX2(
     MULTITARGET_FUNCTION_HEADER(
     template <bool check_overflow, bool scale_left, bool scale_right> static void NO_INLINE
     ), vectorConstantImpl, MULTITARGET_FUNCTION_BODY(( /// NOLINT
@@ -313,12 +313,6 @@ private:
         if (isArchSupported(TargetArch::AVX2))
         {
             vectorConstantImplAVX2<check_overflow, scale_left, scale_right>(a, b, c, scale);
-            return;
-        }
-
-        if (isArchSupported(TargetArch::SSE42))
-        {
-            vectorConstantImplSSE42<check_overflow, scale_left, scale_right>(a, b, c, scale);
             return;
         }
 #endif

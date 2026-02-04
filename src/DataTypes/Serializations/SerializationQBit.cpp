@@ -470,7 +470,7 @@ DECLARE_AVX512F_SPECIFIC_CODE(
         }
     })
 
-DECLARE_AVX512VL_SPECIFIC_CODE(
+DECLARE_AVX512BW_SPECIFIC_CODE(
     void untransposeBitPlaneFloat32Impl(const UInt8 * __restrict src, UInt32 * __restrict dst, size_t stride_len, UInt32 bit_mask)
     {
         const size_t bytes_per_fs = stride_len / 8;
@@ -523,7 +523,7 @@ DECLARE_AVX512VL_SPECIFIC_CODE(
         }
     })
 
-DECLARE_AVX512VL_SPECIFIC_CODE(
+DECLARE_AVX512BW_SPECIFIC_CODE(
     void untransposeBitPlaneBFloat16Impl(const UInt8 * __restrict src, UInt16 * __restrict dst, size_t stride_len, UInt16 bit_mask)
     {
         const size_t bytes_per_fs = stride_len / 8;
@@ -580,13 +580,13 @@ void SerializationQBit::untransposeBitPlane(const UInt8 * __restrict src, T * __
     }
     else if constexpr (std::is_same_v<T, UInt32>)
     {
-        if (isArchSupported(TargetArch::AVX512VL))
-            return TargetSpecific::AVX512VL::untransposeBitPlaneFloat32Impl(src, dst, stride_len, bit_mask);
+        if (isArchSupported(TargetArch::AVX512BW))
+            return TargetSpecific::AVX512BW::untransposeBitPlaneFloat32Impl(src, dst, stride_len, bit_mask);
     }
     else if constexpr (std::is_same_v<T, UInt16>)
     {
-        if (isArchSupported(TargetArch::AVX512VL))
-            return TargetSpecific::AVX512VL::untransposeBitPlaneBFloat16Impl(src, dst, stride_len, bit_mask);
+        if (isArchSupported(TargetArch::AVX512BW))
+            return TargetSpecific::AVX512BW::untransposeBitPlaneBFloat16Impl(src, dst, stride_len, bit_mask);
     }
 #endif
     return TargetSpecific::Default::untransposeBitPlaneImpl(src, dst, stride_len, bit_mask);

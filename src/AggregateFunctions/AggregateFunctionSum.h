@@ -59,7 +59,7 @@ struct AggregateFunctionSumData
     }
 
     /// Vectorized version
-    MULTITARGET_FUNCTION_AVX512BW_AVX512F_AVX2_SSE42(
+    MULTITARGET_FUNCTION_AVX512BW_AVX512F_AVX2(
     MULTITARGET_FUNCTION_HEADER(
     template <typename Value>
     void NO_SANITIZE_UNDEFINED NO_INLINE
@@ -124,18 +124,12 @@ struct AggregateFunctionSumData
             addManyImplAVX2(ptr, start, end);
             return;
         }
-
-        if (isArchSupported(TargetArch::SSE42))
-        {
-            addManyImplSSE42(ptr, start, end);
-            return;
-        }
 #endif
 
         addManyImpl(ptr, start, end);
     }
 
-    MULTITARGET_FUNCTION_AVX512BW_AVX512F_AVX2_SSE42(
+    MULTITARGET_FUNCTION_AVX512BW_AVX512F_AVX2(
     MULTITARGET_FUNCTION_HEADER(
     template <typename Value, bool add_if_zero>
     void NO_SANITIZE_UNDEFINED NO_INLINE
@@ -239,12 +233,6 @@ struct AggregateFunctionSumData
         if (isArchSupported(TargetArch::AVX2))
         {
             addManyConditionalInternalImplAVX2<Value, add_if_zero>(ptr, condition_map, start, end);
-            return;
-        }
-
-        if (isArchSupported(TargetArch::SSE42))
-        {
-            addManyConditionalInternalImplSSE42<Value, add_if_zero>(ptr, condition_map, start, end);
             return;
         }
 #endif
