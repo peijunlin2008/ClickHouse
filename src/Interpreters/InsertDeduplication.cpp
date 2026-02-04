@@ -617,11 +617,6 @@ void DeduplicationInfo::truncateTokensForRetry()
                 ErrorCodes::LOGICAL_ERROR,
                 "Invalid deduplication token structure during retry, expected source/view number after source/view id, debug: {}",
                 debug());
-        if (std::get<TokenDefinition::Extra::Range>(next->value_variant).first > 0)
-            throw Exception(
-                ErrorCodes::LOGICAL_ERROR,
-                "Invalid deduplication token structure during retry, expected source/view number to be zero, debug: {}",
-                debug());
         ++next;
         token.extra_tokens.erase(next, token.extra_tokens.end());
     }

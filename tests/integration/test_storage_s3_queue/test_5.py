@@ -1425,15 +1425,24 @@ def test_deduplication(started_cluster, mode):
             "polling_max_timeout_ms": 200,
             "polling_backoff_ms": 100,
             "processing_threads_num": processing_threads,
+            # Set tracked files limit to 1, to make sure we try to read
+            # those files again and deduplicate
+            "s3queue_tracked_file_ttl_sec": 1,
+            "after_processing": "delete",
+            "deduplication_v2": 1,
         },
     )
     i = [0]
 
     num_rows = 5
 
-    def insert():
+    def insert(file_i=None):
         i[0] += 1
-        file_name = f"file_{table_name}_{i[0]}.csv"
+        if file_i is None:
+            file_name = f"file_{table_name}_{i[0]}.csv"
+        else:
+            file_name = f"file_{table_name}_{file_i}.csv"
+
         s3_function = f"s3('http://{started_cluster.minio_host}:{started_cluster.minio_port}/{started_cluster.minio_bucket}/{files_path}/{file_name}', 'minio', '{minio_secret_key}')"
         node.query(
             f"INSERT INTO FUNCTION {s3_function} select number, toString({i[0]}) FROM numbers({num_rows})"
@@ -1451,7 +1460,7 @@ def test_deduplication(started_cluster, mode):
     """
     )
 
-    node.query(f"SYSTEM ENABLE FAILPOINT object_storage_queue_fail_commit")
+    node.query(f"SYSTEM ENABLE FAILPOINT object_storage_queue_fail_after_insert")
     node.query(
         f"""
         CREATE MATERIALIZED VIEW {mv_name} TO {dst_table_name} AS SELECT *, _path FROM {table_name};
@@ -1461,19 +1470,22 @@ def test_deduplication(started_cluster, mode):
     found = False
     for _ in range(50):
         if node.contains_in_log(
-            f"StorageS3Queue (default.{table_name}): Failed to commit processed files at try 16/16"
+            f"StorageS3Queue (default.{table_name}): Failed to process data: Code: 710. DB::Exception: Failed after insert"
         ):
             found = True
             break
         time.sleep(1)
     assert found
 
-    node.query(f"SYSTEM DISABLE FAILPOINT object_storage_queue_fail_commit")
+    expected_rows = files_num * num_rows
+    assert expected_rows == int(node.query(f"SELECT count() FROM {dst_table_name}"))
+
+    node.query(f"SYSTEM DISABLE FAILPOINT object_storage_queue_fail_after_insert")
 
     found = False
     for _ in range(50):
         if node.contains_in_log(
-            f"StorageS3Queue (default.{table_name}): Successfully committed"
+            f"StorageS3Queue (default.{table_name}): Successfully committed 10 files"
         ):
             found = True
             break
@@ -1483,8 +1495,51 @@ def test_deduplication(started_cluster, mode):
     assert node.contains_in_log(
         f"StorageS3Queue (default.{table_name}): Failed to process data:"
     )
-    expected_rows = files_num * num_rows
     assert expected_rows == int(node.query(f"SELECT count() FROM {dst_table_name}"))
+
+    node.query(
+        f"""
+        ALTER TABLE {table_name} MODIFY SETTING after_processing='keep'
+    """
+    )
+
+    insert(1)
+
+    found = False
+    for _ in range(50):
+        if node.contains_in_log(
+            f"StorageS3Queue (default.{table_name}): Successfully committed 1 files"
+        ):
+            found = True
+            break
+        time.sleep(1)
+    assert found
+
+    # etag changed, we should not deduplicate the file
+    files_num += 1
+    expected_rows = files_num * num_rows
+    # We processed the file above, but it was deduplicated, so nothing in destination table.
+    assert expected_rows == int(node.query(f"SELECT count() FROM {dst_table_name}"))
+
+    # wait for node ttl to expire and we will process the file again,
+    # but now that after_processing=keep, we will deduplicate it,
+    # as etag did not change.
+    found = False
+    for _ in range(50):
+        node.query("SYSTEM FLUSH LOGS")
+        if 1 < int(
+            node.query(
+                f"SELECT count() FROM system.text_log WHERE message ilike '%Successfully committed 1 files%' and logger_name ilike '%{table_name}%'"
+            )
+        ):
+            found = True
+            break
+        time.sleep(1)
+    assert found
+
+    assert files_num * num_rows == int(
+        node.query(f"SELECT count() FROM {dst_table_name}")
+    )
 
 
 @pytest.mark.parametrize("mode", ["unordered"])
@@ -1502,6 +1557,8 @@ def test_deduplication_with_multiple_chunks(started_cluster, mode):
     format = "a Int32, b String"
 
     processing_threads = 16
+    num_rows = 500000
+    files_num = 5
 
     create_table(
         started_cluster,
@@ -1517,26 +1574,32 @@ def test_deduplication_with_multiple_chunks(started_cluster, mode):
             "polling_backoff_ms": 1000,
             "use_persistent_processing_nodes": 1,
             "persistent_processing_node_ttl_seconds": 60,
-            "cleanup_interval_min_ms": 10000,
-            "cleanup_interval_max_ms": 10000,
+            "cleanup_interval_min_ms": 100,
+            "cleanup_interval_max_ms": 200,
             "polling_max_timeout_ms": 200,
             "polling_backoff_ms": 100,
             "processing_threads_num": processing_threads,
+            # Set tracked files limit to 1, to make sure we try to read
+            # those files again and deduplicate
+            "s3queue_tracked_file_ttl_sec": 1,
+            "after_processing": "delete",
+            "deduplication_v2": 1,
         },
     )
     i = [0]
 
-    num_rows = 500000
-
-    def insert():
+    def insert(file_i=None):
         i[0] += 1
-        file_name = f"file_{table_name}_{i[0]}.parquet"
+        if file_i is None:
+            file_name = f"file_{table_name}_{i[0]}.parquet"
+        else:
+            file_name = f"file_{table_name}_{file_i}.parquet"
+
         s3_function = f"s3('http://{started_cluster.minio_host}:{started_cluster.minio_port}/{started_cluster.minio_bucket}/{files_path}/{file_name}', 'minio', '{minio_secret_key}')"
         node.query(
             f"INSERT INTO FUNCTION {s3_function} select number, randomString(100) FROM numbers({num_rows})"
         )
 
-    files_num = 5
     for _ in range(files_num):
         insert()
 
@@ -1548,7 +1611,7 @@ def test_deduplication_with_multiple_chunks(started_cluster, mode):
     """
     )
 
-    node.query(f"SYSTEM ENABLE FAILPOINT object_storage_queue_fail_commit")
+    node.query(f"SYSTEM ENABLE FAILPOINT object_storage_queue_fail_after_insert")
     node.query(
         f"""
         CREATE MATERIALIZED VIEW {mv_name} TO {dst_table_name} AS SELECT *, _path FROM {table_name};
@@ -1559,20 +1622,25 @@ def test_deduplication_with_multiple_chunks(started_cluster, mode):
     found = False
     for _ in range(100):
         if node.contains_in_log(
-            f"StorageS3Queue (default.{table_name}): Failed to commit processed files at try 16/16"
+            f"StorageS3Queue (default.{table_name}): Failed to process data: Code: 710. DB::Exception: Failed after insert"
         ):
             found = True
             break
         time.sleep(1)
     assert found
 
-    node.query(f"SYSTEM DISABLE FAILPOINT object_storage_queue_fail_commit")
+    # We must have successfully inserted all the data
+    assert files_num * num_rows == int(
+        node.query(f"SELECT count() FROM {dst_table_name}")
+    )
+
+    node.query(f"SYSTEM DISABLE FAILPOINT object_storage_queue_fail_after_insert")
 
     # Wait for successful commit after disabling failpoint
     found = False
     for _ in range(50):
         if node.contains_in_log(
-            f"StorageS3Queue (default.{table_name}): Successfully committed"
+            f"StorageS3Queue (default.{table_name}): Successfully committed {files_num} files"
         ):
             found = True
             break
@@ -1587,8 +1655,8 @@ def test_deduplication_with_multiple_chunks(started_cluster, mode):
         node.query(f"SELECT count() FROM {dst_table_name}")
     )
 
-    for i in range(files_num):
-        file_name = f"{files_path}/file_{table_name}_{i + 1}.parquet"
+    for ii in range(files_num):
+        file_name = f"{files_path}/file_{table_name}_{ii + 1}.parquet"
         step = 65409
 
         # We read at least 3 chunks per each file, each chunk will have size of 65409
@@ -1601,3 +1669,48 @@ def test_deduplication_with_multiple_chunks(started_cluster, mode):
         assert node.contains_in_log(
             f"StorageS3Queue (default.{table_name}): Read {step} rows from file {file_name} (file offset: {step * 2}"
         )
+
+    node.query(
+        f"""
+        ALTER TABLE {table_name} MODIFY SETTING after_processing='keep'
+    """
+    )
+
+    insert(1)
+
+    found = False
+    for _ in range(50):
+        if node.contains_in_log(
+            f"StorageS3Queue (default.{table_name}): Successfully committed 1 files"
+        ):
+            found = True
+            break
+        time.sleep(1)
+    assert found
+
+    # We inserted 2 files with the same name, but etag is now different,
+    # so it is treated as separate files.
+    files_num += 1
+    assert files_num * num_rows == int(
+        node.query(f"SELECT count() FROM {dst_table_name}")
+    )
+
+    # wait for node ttl to expire and we will process the file again,
+    # but now that after_processing=keep, we will deduplicate it,
+    # as etag did not change.
+    found = False
+    for _ in range(50):
+        node.query("SYSTEM FLUSH LOGS")
+        if 1 < int(
+            node.query(
+                f"SELECT count() FROM system.text_log WHERE message ilike '%Successfully committed 1 files%' and logger_name ilike '%{table_name}%'"
+            )
+        ):
+            found = True
+            break
+        time.sleep(1)
+    assert found
+
+    assert files_num * num_rows == int(
+        node.query(f"SELECT count() FROM {dst_table_name}")
+    )
