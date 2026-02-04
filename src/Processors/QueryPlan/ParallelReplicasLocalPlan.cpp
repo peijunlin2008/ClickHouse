@@ -32,10 +32,6 @@ std::shared_ptr<const QueryPlan> createRemotePlanForParallelReplicas(
 
     auto new_context = Context::createCopy(context);
 
-    /// Do not push down limit to local plan, as it will break `rows_before_limit_at_least` counter.
-    if (processed_stage == QueryProcessingStage::WithMergeableStateAfterAggregationAndLimit)
-        processed_stage = QueryProcessingStage::WithMergeableStateAfterAggregation;
-
     /// Do not apply AST optimizations, because query
     /// is already optimized and some optimizations
     /// can be applied only for non-distributed tables
