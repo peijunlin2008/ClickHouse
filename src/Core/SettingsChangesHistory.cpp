@@ -43,6 +43,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
         {
             {"deduplicate_insert", "backward_compatible_choice", "backward_compatible_choice", "New setting to control deduplication for INSERT queries."},
             {"parallel_replicas_filter_pushdown", false, false, "New setting"},
+            {"check_named_collection_dependencies", true, true, "New setting to check if dropping a named collection would break dependent tables."},
 
         });
         addSettingsChanges(settings_changes_history, "26.1",
