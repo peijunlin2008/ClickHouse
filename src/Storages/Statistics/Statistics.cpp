@@ -30,7 +30,6 @@ namespace ErrorCodes
 {
     extern const int BAD_ARGUMENTS;
     extern const int ILLEGAL_STATISTICS;
-    extern const int UNKNOWN_FORMAT_VERSION;
     extern const int INCORRECT_QUERY;
     extern const int NOT_IMPLEMENTED;
     extern const int LOGICAL_ERROR;
