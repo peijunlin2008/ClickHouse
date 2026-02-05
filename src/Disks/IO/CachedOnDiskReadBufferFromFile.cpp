@@ -79,7 +79,7 @@ CachedOnDiskReadBufferFromFile::CachedOnDiskReadBufferFromFile(
     const String & source_file_path_,
     const FileCache::Key & cache_key_,
     FileCachePtr cache_,
-    const FileCacheUserInfo & user_,
+    const FileCacheOriginInfo & origin_,
     ImplementationBufferCreator implementation_buffer_creator_,
     const ReadSettings & settings_,
     const String & query_id_,
@@ -100,7 +100,7 @@ CachedOnDiskReadBufferFromFile::CachedOnDiskReadBufferFromFile(
 #endif
     , cache(cache_)
     , query_id(query_id_)
-    , user(user_)
+    , origin(origin_)
     , current_buffer_id(getRandomASCIIString(8))
     , allow_seeks_after_first_read(allow_seeks_after_first_read_)
     , use_external_buffer(use_external_buffer_)
@@ -160,7 +160,7 @@ void CachedOnDiskReadBufferFromFile::appendFilesystemCacheLog(
         .read_buffer_id = current_buffer_id,
         .profile_counters = std::make_shared<ProfileEvents::Counters::Snapshot>(
             info.current_file_segment_counters.getPartiallyAtomicSnapshot()),
-        .user_id = user.user_id,
+        .user_id = origin.user_id,
     };
 
     info.current_file_segment_counters.reset();
@@ -197,7 +197,7 @@ bool CachedOnDiskReadBufferFromFile::nextFileSegmentsBatch()
             file_offset_of_buffer_end,
             size,
             info.settings.filesystem_cache_segments_batch_size,
-            user.user_id);
+            origin.user_id);
     }
     else
     {
@@ -211,7 +211,7 @@ bool CachedOnDiskReadBufferFromFile::nextFileSegmentsBatch()
             object_size,
             create_settings,
             info.settings.filesystem_cache_segments_batch_size,
-            user,
+            origin,
             info.settings.filesystem_cache_boundary_alignment);
     }
 
@@ -1408,7 +1408,7 @@ size_t CachedOnDiskReadBufferFromFile::readBigAt(
             /* offset */range_begin,
             /* size */n,
             /* batch_size */0,
-            user.user_id);
+            origin.user_id);
     }
     else
     {
@@ -1420,7 +1420,7 @@ size_t CachedOnDiskReadBufferFromFile::readBigAt(
             file_size.value(),
             create_settings,
             /* batch_size */0,
-            user);
+            origin);
     }
 
     if (current_info.file_segments->empty())

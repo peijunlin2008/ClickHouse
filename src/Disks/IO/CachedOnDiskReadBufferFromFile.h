@@ -9,7 +9,7 @@
 #include <IO/ReadBufferFromFileBase.h>
 #include <Interpreters/FilesystemCacheLog.h>
 #include <Interpreters/Cache/FileSegment.h>
-#include <Interpreters/Cache/UserInfo.h>
+#include <Interpreters/Cache/FileCacheOriginInfo.h>
 #include <IO/SwapHelper.h>
 
 
@@ -30,7 +30,7 @@ public:
         const String & source_file_path_,
         const FileCacheKey & cache_key_,
         FileCachePtr cache_,
-        const FileCacheUserInfo & user_,
+        const FileCacheOriginInfo & origin_,
         ImplementationBufferCreator implementation_buffer_creator_,
         const ReadSettings & settings_,
         const String & query_id_,
@@ -218,7 +218,7 @@ private:
     const LoggerPtr log;
     const FileCachePtr cache;
     const String query_id;
-    const FileCacheUserInfo user;
+    const FileCacheOriginInfo origin;
     const String current_buffer_id;
     const bool allow_seeks_after_first_read;
     const bool use_external_buffer;

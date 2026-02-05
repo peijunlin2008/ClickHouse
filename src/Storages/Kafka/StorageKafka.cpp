@@ -610,8 +610,6 @@ void StorageKafka::threadFunc(size_t idx)
     }
     catch (...)
     {
-        /// do bare minimum in catch block
-        LockMemoryExceptionInThread lock_memory_tracker(VariableContext::Global);
         exception_str = getCurrentExceptionMessage(true /* with_stacktrace */);
     }
 
@@ -721,7 +719,7 @@ bool StorageKafka::streamToViews()
 
     UInt64 milliseconds = watch.elapsedMilliseconds();
     LOG_DEBUG(log, "Pushing {} rows to {} took {} ms.",
-        formatReadableQuantity(rows), table_id.getNameForLogs(), milliseconds);
+        formatReadableQuantity(rows.load()), table_id.getNameForLogs(), milliseconds);
 
     return some_stream_is_stalled;
 }
