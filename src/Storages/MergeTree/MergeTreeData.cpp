@@ -7613,7 +7613,7 @@ void MergeTreeData::optimizeDryRun(
 
     std::ranges::sort(part_infos);
 
-    for (auto & part_info : part_infos)
+    for (const auto & part_info : part_infos)
     {
         auto part_name = part_info.getPartNameAndCheckFormat(format_version);
 
@@ -7624,7 +7624,7 @@ void MergeTreeData::optimizeDryRun(
                 part_name, part_info.getPartitionId(), part_infos.front().getPartNameAndCheckFormat(format_version), part_infos.front().getPartitionId());
         }
 
-        choice.range.push_back(PartProperties{.name = std::move(part_name), .info = std::move(part_info)});
+        choice.range.push_back(PartProperties{.name = std::move(part_name), .info = part_info});
     }
 
     if ((*getSettings())[MergeTreeSetting::apply_patches_on_merge])

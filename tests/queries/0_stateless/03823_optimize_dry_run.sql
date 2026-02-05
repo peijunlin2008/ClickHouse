@@ -21,7 +21,7 @@ SELECT * FROM t_dry_run ORDER BY key;
 -- Get part names and run DRY RUN on the first two parts.
 -- We use a subquery trick: build the OPTIMIZE statement dynamically isn't easy in .sql tests,
 -- so we rely on well-known part naming for non-partitioned MergeTree: all_1_1_0, all_2_2_0, all_3_3_0.
-OPTIMIZE TABLE t_dry_run DRY RUN PARTS 'all_1_1_0', 'all_2_2_0';
+OPTIMIZE TABLE t_dry_run DRY RUN PARTS 'all_1_1_0', 'all_2_2_0', 'all_3_3_0';
 
 -- After DRY RUN, parts must remain unchanged: no merge committed.
 SELECT 'parts after dry run';
