@@ -89,6 +89,11 @@
 #include <Storages/MergeTree/MergeTreeDataMergerMutator.h>
 #include <Storages/MergeTree/FutureMergedMutatedPart.h>
 #include <Storages/MergeTree/Compaction/CompactionStatistics.h>
+#include <Storages/MergeTree/Compaction/PartProperties.h>
+#include <Storages/MergeTree/Compaction/ConstructFuturePart.h>
+#include <Storages/MergeTree/Compaction/MergeSelectorApplier.h>
+#include <Storages/MergeTree/PatchParts/PatchPartsUtils.h>
+#include <Storages/MergeTree/Compaction/PartsCollectors/Common.h>
 
 #include <boost/algorithm/string/join.hpp>
 
@@ -263,6 +268,7 @@ namespace MergeTreeSetting
     extern const MergeTreeSettingsBool prewarm_primary_key_cache;
     extern const MergeTreeSettingsBool prewarm_mark_cache;
     extern const MergeTreeSettingsBool primary_key_lazy_load;
+    extern const MergeTreeSettingsBool apply_patches_on_merge;
     extern const MergeTreeSettingsBool enforce_index_structure_match_on_partition_manipulation;
     extern const MergeTreeSettingsUInt64 min_bytes_to_prewarm_caches;
     extern const MergeTreeSettingsBool enable_block_number_column;
@@ -7598,40 +7604,54 @@ void MergeTreeData::optimizeDryRun(
     if (part_names.empty())
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "OPTIMIZE DRY RUN requires at least one part name");
 
-    DataPartsVector parts;
-    parts.reserve(part_names.size());
+    MergeSelectorChoice choice;
+    choice.merge_type = MergeType::Regular;
 
+    std::vector<MergeTreePartInfo> part_infos;
     for (const auto & name : part_names)
-    {
-        auto part = getPartIfExists(name, {MergeTreeDataPartState::Active});
-        if (!part)
-            throw Exception(ErrorCodes::NO_SUCH_DATA_PART, "Part {} not found among active parts", name);
+        part_infos.push_back(MergeTreePartInfo::fromPartName(name, format_version));
 
-        parts.push_back(std::move(part));
-    }
+    std::ranges::sort(part_infos);
 
-    std::sort(parts.begin(), parts.end(), [](const auto & lhs, const auto & rhs)
+    for (auto & part_info : part_infos)
     {
-        return lhs->info < rhs->info;
-    });
+        auto part_name = part_info.getPartNameAndCheckFormat(format_version);
 
-    for (size_t i = 1; i < parts.size(); ++i)
-    {
-        if (parts[i]->info.getPartitionId() != parts[0]->info.getPartitionId())
+        if (part_info.getPartitionId() != part_infos.front().getPartitionId())
+        {
             throw Exception(ErrorCodes::BAD_ARGUMENTS,
-                "All parts for OPTIMIZE DRY RUN must belong to the same partition, "
-                "but part {} belongs to partition {} while part {} belongs to partition {}",
-                parts[i]->name, parts[i]->info.getPartitionId(), parts[0]->name, parts[0]->info.getPartitionId());
+                "All parts for OPTIMIZE DRY RUN must belong to the same partition, but part {} belongs to partition {} while part {} belongs to partition {}",
+                part_name, part_info.getPartitionId(), part_infos.front().getPartNameAndCheckFormat(format_version), part_infos.front().getPartitionId());
+        }
+
+        choice.range.push_back(PartProperties{.name = std::move(part_name), .info = std::move(part_info)});
     }
 
-    auto future_part = std::make_shared<FutureMergedMutatedPart>();
-    future_part->assign(parts, {}, nullptr);
+    if ((*getSettings())[MergeTreeSetting::apply_patches_on_merge])
+    {
+        const auto partition_id = choice.range.front().info.getPartitionId();
+        auto all_patch_parts = getPatchPartsVectorForPartition(partition_id);
 
-    UInt64 disk_space = CompactionStatistics::estimateNeededDiskSpace(parts);
+        if (!all_patch_parts.empty())
+        {
+            std::vector<MergeTreePartInfo> patch_infos;
+            patch_infos.reserve(all_patch_parts.size());
+
+            for (const auto & patch : all_patch_parts)
+                patch_infos.push_back(patch->info);
+
+            auto patch_infos_by_partition = getPatchPartsByPartition(patch_infos, std::numeric_limits<Int64>::max());
+            const auto & patches_for_partition = patch_infos_by_partition.at(partition_id);
+            choice.range_patches = getPatchesToApplyOnMerge(patches_for_partition, choice.range, 0);
+        }
+    }
+
+    auto future_part = constructFuturePart(*this, choice, {MergeTreeDataPartState::Active});
+    UInt64 disk_space = CompactionStatistics::estimateNeededDiskSpace(future_part->parts);
     ReservationSharedPtr reservation = getStoragePolicy()->reserveAndCheck(disk_space);
     future_part->updatePath(*this, reservation.get());
-    auto table_lock = lockForShare(local_context->getCurrentQueryId(), local_context->getSettingsRef()[Setting::lock_acquire_timeout]);
 
+    auto table_lock = lockForShare(local_context->getCurrentQueryId(), local_context->getSettingsRef()[Setting::lock_acquire_timeout]);
     MergeTreeDataMergerMutator merger_mutator(*this);
     auto task_context = Context::createCopy(local_context);
     task_context->makeQueryContextForMerge(*getSettings());
@@ -7659,8 +7679,9 @@ void MergeTreeData::optimizeDryRun(
     while (merge_task->execute()) {}
     auto new_part = merge_task->getFuture().get();
 
-    LOG_INFO(log, "OPTIMIZE DRY RUN: successfully merged {} parts into temporary part {} ({} rows, {} bytes)",
-        parts.size(), new_part->name, new_part->rows_count, new_part->getBytesOnDisk());
+    LOG_INFO(log,
+        "OPTIMIZE DRY RUN: successfully merged {} parts into temporary part {} ({} rows, {} bytes)",
+        choice.range.size(), new_part->name, new_part->rows_count, new_part->getBytesOnDisk());
 
     new_part->remove();
 }

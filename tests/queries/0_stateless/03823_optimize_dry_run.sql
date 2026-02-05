@@ -40,7 +40,7 @@ SELECT 'data after real optimize';
 SELECT * FROM t_dry_run ORDER BY key;
 
 -- Error: non-existent part.
-OPTIMIZE TABLE t_dry_run DRY RUN PARTS 'nonexistent_part'; -- { serverError NO_SUCH_DATA_PART }
+OPTIMIZE TABLE t_dry_run DRY RUN PARTS 'nonexistent_part'; -- { serverError BAD_DATA_PART_NAME }
 
 -- Error: incompatible with FINAL.
 OPTIMIZE TABLE t_dry_run DRY RUN PARTS 'all_1_1_0' FINAL; -- { serverError BAD_ARGUMENTS }
