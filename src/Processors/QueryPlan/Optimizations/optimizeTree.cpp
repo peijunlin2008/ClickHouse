@@ -261,6 +261,7 @@ static QueryPlan::Node * findTopNodeOfReplicasPlan(QueryPlan::Node * plan_with_p
                     if (replicas_plan_top_node)
                     {
                         // TODO(nickitat): support multiple read steps with parallel replicas
+                        LOG_DEBUG(getLogger("optimizeTree"), "Top node for parallel replicas plan is already found");
                         return nullptr;
                     }
 
@@ -409,9 +410,7 @@ void considerEnablingParallelReplicas(
     if (!optimization_settings.automatic_parallel_replicas_mode
         || !optimization_settings.query_plan_with_parallel_replicas_builder
         || optimization_settings.parallel_replicas_enabled)
-    {
         return;
-    }
 
     // Cannot guarantee projection usage with parallel replicas
     if (optimization_settings.force_use_projection)
