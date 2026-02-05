@@ -56,6 +56,9 @@ using MergeTextIndexesTaskPtr = std::unique_ptr<MergeTextIndexesTask>;
 class BuildTextIndexTransform;
 using BuildTextIndexTransformPtr = std::shared_ptr<BuildTextIndexTransform>;
 
+class BuildStatisticsTransform;
+using BuildStatisticsTransformPtr = std::shared_ptr<BuildStatisticsTransform>;
+
 /**
  * Overview of the merge algorithm
  *
@@ -222,6 +225,7 @@ private:
 
         MergedBlockOutputStream::GatheredData gathered_data{};
         std::unordered_map<String, ColumnsStatistics> statistics_to_build_by_part;
+        std::unordered_map<String, BuildStatisticsTransformPtr> build_statistics_transforms;
 
         IndicesDescription merging_skip_indexes;
         std::unordered_map<String, IndicesDescription> skip_indexes_by_column;
@@ -558,6 +562,7 @@ private:
     static bool isVerticalLightweightDelete(const GlobalRuntimeContext & global_ctx);
     static void addSkipIndexesExpressionSteps(QueryPlan & plan, const IndicesDescription & indices_description, const GlobalRuntimeContextPtr & global_ctx);
     static void addBuildTextIndexesStep(QueryPlan & plan, const IMergeTreeDataPart & data_part, const GlobalRuntimeContextPtr & global_ctx);
+    static void addBuildStatisticsStep(QueryPlan & plan, const IMergeTreeDataPart & data_part, const GlobalRuntimeContextPtr & global_ctx);
 };
 
 /// FIXME

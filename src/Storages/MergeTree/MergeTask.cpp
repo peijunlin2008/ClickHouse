@@ -153,11 +153,11 @@ namespace
 ColumnsStatistics getStatisticsForColumns(
     const NamesAndTypesList & columns_to_read,
     const StorageMetadataPtr & metadata_snapshot,
-    const MergeTreeSettings & merge_tree_settings
-    )
+    const MergeTreeSettings & merge_tree_settings)
 {
     if (!merge_tree_settings[MergeTreeSetting::materialize_statistics_on_merge])
         return {};
+
     ColumnsStatistics all_statistics;
     const auto & all_columns = metadata_snapshot->getColumns();
 
@@ -174,6 +174,72 @@ ColumnsStatistics getStatisticsForColumns(
 }
 
 }
+
+/// Transform that builds statistics for columns by processing blocks of data.
+class BuildStatisticsTransform : public ISimpleTransform
+{
+public:
+    BuildStatisticsTransform(
+        SharedHeader header,
+        ColumnsStatistics statistics_to_build_)
+        : ISimpleTransform(header, header, false)
+        , statistics_to_build(std::move(statistics_to_build_))
+    {
+    }
+
+    String getName() const override { return "BuildStatisticsTransform"; }
+
+    void transform(Chunk & chunk) override
+    {
+        auto block = getInputPort().getHeader().cloneWithColumns(chunk.getColumns());
+        statistics_to_build.buildIfExists(block);
+    }
+
+    const ColumnsStatistics & getStatistics() const { return statistics_to_build; }
+
+private:
+    ColumnsStatistics statistics_to_build;
+};
+
+class BuildStatisticsStep : public ITransformingStep
+{
+public:
+    BuildStatisticsStep(SharedHeader input_header_, std::shared_ptr<BuildStatisticsTransform> transform_)
+        : ITransformingStep(input_header_, input_header_, getTraits())
+        , transform(std::move(transform_))
+    {
+    }
+
+    void transformPipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings &) override
+    {
+        pipeline.addTransform(transform);
+    }
+
+    void updateOutputHeader() override
+    {
+        output_header = input_headers.front();
+    }
+
+    String getName() const override { return "BuildStatistics"; }
+
+private:
+    static Traits getTraits()
+    {
+        return Traits
+        {
+            {
+                .returns_single_stream = false,
+                .preserves_number_of_streams = true,
+                .preserves_sorting = true,
+            },
+            {
+                .preserves_number_of_rows = true,
+            }
+        };
+    }
+
+    std::shared_ptr<BuildStatisticsTransform> transform;
+};
 
 /// Manages the "rows_sources" temporary file that is used during vertical merge.
 class RowsSourcesTemporaryFile : public ITemporaryFileLookup
@@ -1316,11 +1382,14 @@ MergeTask::VerticalMergeStage::createPipelineForReadingOneColumn(const String & 
             getLogger("VerticalMergeStage"));
 
 
-        /// Add step for building missed text indexes for single parts.
-        /// If merge may reduce rows, we will rebuild index
+        /// Add step for building missed text indexes and statistics for single parts.
+        /// If merge may reduce rows, we will rebuild index and statistics
         /// for the resulting part in the end of the pipeline.
         if (!global_ctx->merge_may_reduce_rows)
+        {
             addBuildTextIndexesStep(*plan_for_part, *global_ctx->future_part->parts[part_num], global_ctx);
+            addBuildStatisticsStep(*plan_for_part, *global_ctx->future_part->parts[part_num], global_ctx);
+        }
 
         plans.emplace_back(std::move(plan_for_part));
         part_starting_offset += global_ctx->future_part->parts[part_num]->rows_count;
@@ -1371,9 +1440,12 @@ MergeTask::VerticalMergeStage::createPipelineForReadingOneColumn(const String & 
         addSkipIndexesExpressionSteps(merge_column_query_plan, indexes_it->second, global_ctx);
     }
 
-    /// If merge may reduce rows, rebuild text indexes for the resulting part.
+    /// If merge may reduce rows, rebuild text indexes and statistics for the resulting part.
     if (global_ctx->merge_may_reduce_rows)
+    {
         addBuildTextIndexesStep(merge_column_query_plan, *global_ctx->new_data_part, global_ctx);
+        addBuildStatisticsStep(merge_column_query_plan, *global_ctx->new_data_part, global_ctx);
+    }
 
     QueryPlanOptimizationSettings optimization_settings(global_ctx->context);
     auto pipeline_settings = BuildQueryPipelineSettings(global_ctx->context);
@@ -1535,6 +1607,12 @@ bool MergeTask::MergeProjectionsStage::mergeStatisticsAndPrepareProjections() co
 
     if (global_ctx->merged_part_offsets && !global_ctx->merged_part_offsets->isFinalized())
         global_ctx->merged_part_offsets->flush();
+
+    for (const auto & [part_name, transform] : global_ctx->build_statistics_transforms)
+    {
+        const auto & built_statistics = transform->getStatistics();
+        global_ctx->gathered_data.part_statistics.statistics.merge(built_statistics);
+    }
 
     for (const auto & projection : global_ctx->projections_to_merge)
     {
@@ -2308,6 +2386,34 @@ void MergeTask::addBuildTextIndexesStep(QueryPlan & plan, const IMergeTreeDataPa
     plan.addStep(std::move(build_text_index_step));
 }
 
+void MergeTask::addBuildStatisticsStep(QueryPlan & plan, const IMergeTreeDataPart & data_part, const GlobalRuntimeContextPtr & global_ctx)
+{
+    auto it = global_ctx->statistics_to_build_by_part.find(data_part.name);
+    if (it == global_ctx->statistics_to_build_by_part.end() || it->second.empty())
+        return;
+
+    auto read_column_names = plan.getCurrentHeader()->getNameSet();
+    ColumnsStatistics statistics_to_build;
+
+    for (const auto & [column_name, column_stats] : it->second)
+    {
+        if (read_column_names.contains(column_name))
+            statistics_to_build.emplace(column_name, column_stats->cloneEmpty());
+    }
+
+    if (statistics_to_build.empty())
+        return;
+
+    auto transform = std::make_shared<BuildStatisticsTransform>(
+        plan.getCurrentHeader(),
+        std::move(statistics_to_build));
+
+    auto build_statistics_step = std::make_unique<BuildStatisticsStep>(plan.getCurrentHeader(), transform);
+    /// Save transform to the context to be able to take statistics for merging from it later.
+    global_ctx->build_statistics_transforms[data_part.name] = std::move(transform);
+    plan.addStep(std::move(build_statistics_step));
+}
+
 void MergeTask::ExecuteAndFinalizeHorizontalPart::createMergedStream() const
 {
     /** Read from all parts, merge and write into a new one.
@@ -2408,11 +2514,14 @@ void MergeTask::ExecuteAndFinalizeHorizontalPart::createMergedStream() const
             global_ctx->context,
             ctx->log);
 
-        /// Add step for building missed text indexes for single parts.
-        /// If merge may reduce rows, we will rebuild index
+        /// Add step for building missed text indexes and statistics for single parts.
+        /// If merge may reduce rows, we will rebuild index and statistics
         /// for the resulting part in the end of the pipeline.
         if (!global_ctx->merge_may_reduce_rows)
+        {
             addBuildTextIndexesStep(*plan_for_part, *part, global_ctx);
+            addBuildStatisticsStep(*plan_for_part, *part, global_ctx);
+        }
 
         plans.emplace_back(std::move(plan_for_part));
         part_starting_offset += global_ctx->future_part->parts[i]->rows_count;
@@ -2554,9 +2663,12 @@ void MergeTask::ExecuteAndFinalizeHorizontalPart::createMergedStream() const
     if (!subqueries.empty())
         addCreatingSetsStep(merge_parts_query_plan, std::move(subqueries), global_ctx->context);
 
-    /// If merge may reduce rows, rebuild text index for the resulting part.
+    /// If merge may reduce rows, rebuild text index and statistics for the resulting part.
     if (global_ctx->merge_may_reduce_rows)
+    {
         addBuildTextIndexesStep(merge_parts_query_plan, *global_ctx->new_data_part, global_ctx);
+        addBuildStatisticsStep(merge_parts_query_plan, *global_ctx->new_data_part, global_ctx);
+    }
 
     {
         QueryPlanOptimizationSettings optimization_settings(global_ctx->context);

@@ -112,7 +112,7 @@ bool ColumnStatistics::structureEquals(const ColumnStatistics & other) const
 
 std::shared_ptr<ColumnStatistics> ColumnStatistics::cloneEmpty() const
 {
-    return std::make_shared<ColumnStatistics>(stats_desc);
+    return MergeTreeStatisticsFactory::instance().get(stats_desc);
 }
 
 UInt64 IStatistics::estimateCardinality() const
