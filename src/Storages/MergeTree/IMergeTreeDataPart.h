@@ -50,6 +50,7 @@ class IMergeTreeReader;
 class MarkCache;
 class UncompressedCache;
 class MergeTreeTransaction;
+class PackedFilesReader;
 
 struct MergeTreeReadTaskInfo;
 using MergeTreeReadTaskInfoPtr = std::shared_ptr<const MergeTreeReadTaskInfo>;
@@ -169,6 +170,8 @@ public:
     void remove();
 
     ColumnsStatistics loadStatistics() const;
+    ColumnsStatistics loadStatisticsFromPackedFiles(const PackedFilesReader & reader) const;
+    PackedFilesReader * getStatisticsPackedReader() const;
     Estimates getEstimates() const;
     void setEstimates(const Estimates & new_estimates);
 
@@ -653,6 +656,11 @@ protected:
     /// Note that marks (also correspond to primary key) are not always in RAM, but cached. See MarkCache.h.
     mutable std::mutex index_mutex;
     mutable IndexPtr index;
+
+    /// PackedFilesReader for statistics archive.
+    /// Lazily loaded on first access to loadStatistics when packed format is used.
+    mutable std::mutex statistics_reader_mutex;
+    mutable std::unique_ptr<PackedFilesReader> statistics_reader;
 
 private:
     /// Columns and secondary indices sizes can be calculated lazily on first request.

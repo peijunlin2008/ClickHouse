@@ -119,8 +119,6 @@ public:
     explicit ColumnsStatistics(const ColumnsDescription & columns);
     ColumnsStatistics cloneEmpty() const;
 
-    void serialize(WriteBuffer & buf) const;
-    static ColumnsStatistics deserialize(ReadBuffer & buf, const ColumnsDescription & columns);
     void build(const Block & block);
     void buildIfExists(const Block & block);
     void merge(const ColumnsStatistics & other);

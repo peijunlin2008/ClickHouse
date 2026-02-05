@@ -40,6 +40,7 @@
 #include <Common/ProfileEventsScope.h>
 #include <Core/ColumnsWithTypeAndName.h>
 #include <Common/FailPoint.h>
+#include <Storages/MergeTree/StatisticsSerialization.h>
 
 
 namespace ProfileEvents
@@ -1192,15 +1193,17 @@ void finalizeMutatedPart(
 
     if (!all_gathered_data.part_statistics.statistics.empty())
     {
-        /// TODO: write compressed file.
-        String filename(ColumnsStatistics::FILENAME);
-        auto out_statistics = new_data_part->getDataPartStorage().writeFile(filename, 4096, context->getWriteSettings());
-        HashingWriteBuffer out_hashing(*out_statistics);
-        all_gathered_data.part_statistics.statistics.serialize(out_hashing);
-        out_hashing.finalize();
-        new_data_part->checksums.files[filename].file_size = out_hashing.count();
-        new_data_part->checksums.files[filename].file_hash = out_hashing.getHash();
-        written_files.push_back(std::move(out_statistics));
+        bool statistics_packed_format = (*new_data_part->storage.getSettings())[MergeTreeSetting::statistics_packed_format];
+
+        if (statistics_packed_format)
+        {
+            auto out = serializeStatisticsPacked(new_data_part->getDataPartStorage(), new_data_part->checksums, all_gathered_data.part_statistics.statistics, context->getWriteSettings());
+            written_files.push_back(std::move(out));
+        }
+        else
+        {
+            serializeStatisticsWide(new_data_part->getDataPartStorage(), new_data_part->checksums, all_gathered_data.part_statistics.statistics, context->getWriteSettings());
+        }
     }
 
     {

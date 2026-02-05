@@ -1,5 +1,6 @@
 #include <Storages/MergeTree/IMergeTreeDataPart.h>
 #include <Storages/MergeTree/IDataPartStorage.h>
+#include <Storages/MergeTree/DataPartStorageOnDiskBase.h>
 
 #include <Columns/ColumnNullable.h>
 #include <Common/DateLUTImpl.h>
@@ -17,6 +18,7 @@
 #include <IO/ReadBufferFromString.h>
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
+#include <IO/PackedFilesReader.h>
 #include <Interpreters/MergeTreeTransaction.h>
 #include <Interpreters/TransactionLog.h>
 #include <Interpreters/Context.h>
@@ -899,46 +901,64 @@ String IMergeTreeDataPart::getColumnNameWithMinimumCompressedSize(const NamesAnd
     return *minimum_size_column;
 }
 
+PackedFilesReader * IMergeTreeDataPart::getStatisticsPackedReader() const
+{
+    std::lock_guard lock(statistics_reader_mutex);
+    if (statistics_reader)
+        return statistics_reader.get();
+
+    const String filename = String(ColumnsStatistics::FILENAME);
+    if (!getDataPartStorage().existsFile(filename))
+        return nullptr;
+
+    const auto & storage_path = getDataPartStorage().getRelativePath();
+    const String packed_file = fs::path(storage_path) / filename;
+    const auto * disk_storage = dynamic_cast<const DataPartStorageOnDiskBase *>(&getDataPartStorage());
+
+    if (!disk_storage)
+        return nullptr;
+
+    statistics_reader = std::make_unique<PackedFilesReader>(
+        disk_storage->getDisk(),
+        packed_file,
+        storage.getContext()->getReadSettings());
+
+    return statistics_reader.get();
+}
+
+ColumnsStatistics IMergeTreeDataPart::loadStatisticsFromPackedFiles(const PackedFilesReader & reader) const
+{
+    ColumnsStatistics result;
+    auto read_settings = storage.getContext()->getReadSettings();
+
+    for (const auto & filename : reader.getFileNames())
+    {
+        if (!filename.ends_with(".stats"))
+            throw Exception(ErrorCodes::CORRUPTED_DATA, "File {} is not a statistics file", filename);
+
+        String column_name = fs::path(filename).stem().string();
+        if (!columns_description->has(column_name))
+            continue;
+
+        size_t file_size = reader.getFileSize(filename);
+        auto file_buf = reader.readFile(filename, read_settings, file_size, file_size);
+
+        const auto & column_desc = columns_description->get(column_name);
+        auto column_stat = ColumnStatistics::deserialize(*file_buf, column_desc.type);
+        result.emplace(column_name, std::move(column_stat));
+    }
+
+    return result;
+}
+
 ColumnsStatistics IMergeTreeDataPart::loadStatistics() const
 {
-    if (auto all_stats_file = readFileIfExists(String(ColumnsStatistics::FILENAME)))
-    {
-        // CompressedReadBuffer compressed_buffer(*all_stats_file);
-        // result.deserialize(compressed_buffer);
-        return ColumnsStatistics::deserialize(*all_stats_file, *columns_description);
-    }
-    // else
+    if (auto * reader = getStatisticsPackedReader())
+        return loadStatisticsFromPackedFiles(*reader);
+
+    // if (auto all_stats_file = readFileIfExists(String(ColumnsStatistics::FILENAME)))
     // {
-    //     NameSet names_to_remove;
-
-    //     for (auto & [column_name, statistics] : result)
-    //     {
-    //         auto escaped_name = escapeForFileName(ColumnsStatistics::getStatisticName(column_name));
-    //         auto stream_name = getStreamNameOrHash(escaped_name, STATS_FILE_SUFFIX, checksums);
-
-    //         if (!stream_name.has_value())
-    //         {
-    //             LOG_INFO(storage.log, "File for statistics with name '{}' is not found", escaped_name);
-    //             continue;
-    //         }
-
-    //         String file_name = *stream_name + STATS_FILE_SUFFIX;
-
-    //         if (auto stat_file = readFileIfExists(file_name))
-    //         {
-    //             CompressedReadBuffer compressed_buffer(*stat_file);
-    //             statistics = ColumnStatistics::deserialize(compressed_buffer, column_name, columns_description->get(column_name).type);
-    //         }
-    //         else
-    //         {
-    //             String file_path = fs::path(getDataPartStorage().getRelativePath()) / file_name;
-    //             LOG_INFO(storage.log, "Cannot read stats file {}", file_path);
-    //             names_to_remove.insert(column_name);
-    //         }
-    //     }
-
-    //     for (const auto & column_name : names_to_remove)
-    //         result.erase(column_name);
+    //     return ColumnsStatistics::deserialize(*all_stats_file, *columns_description);
     // }
 
     return {};

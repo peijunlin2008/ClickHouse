@@ -326,45 +326,6 @@ ColumnsStatistics ColumnsStatistics::cloneEmpty() const
     return result;
 }
 
-/// TODO: change format to packed.
-void ColumnsStatistics::serialize(WriteBuffer & buf) const
-{
-    static constexpr UInt8 version = 0;
-
-    writeIntBinary(version, buf);
-    writeIntBinary(size(), buf);
-
-    for (const auto & [column_name, stat] : *this)
-    {
-        writeStringBinary(column_name, buf);
-        stat->serialize(buf);
-    }
-}
-
-/// TODO: change format to packed.
-ColumnsStatistics ColumnsStatistics::deserialize(ReadBuffer & buf, const ColumnsDescription & columns)
-{
-    UInt8 version;
-    readIntBinary(version, buf);
-
-    if (version != 0)
-        throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Unknown file format version: {}", UInt64(version));
-
-    size_t size;
-    readIntBinary(size, buf);
-    ColumnsStatistics result;
-
-    for (size_t i = 0; i < size; ++i)
-    {
-        String column_name;
-        readStringBinary(column_name, buf);
-        auto stat = ColumnStatistics::deserialize(buf, columns.get(column_name).type);
-        result.emplace(column_name, stat);
-    }
-
-    return result;
-}
-
 void ColumnsStatistics::build(const Block & block)
 {
     for (const auto & [column_name, stat] : *this)

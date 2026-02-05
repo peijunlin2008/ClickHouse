@@ -4,6 +4,7 @@
 #include <Interpreters/Context.h>
 #include <Interpreters/MergeTreeTransaction.h>
 #include <Core/Settings.h>
+#include <Storages/MergeTree/StatisticsSerialization.h>
 
 
 namespace DB
@@ -17,6 +18,7 @@ namespace ErrorCodes
 namespace MergeTreeSetting
 {
     extern const MergeTreeSettingsBool enable_index_granularity_compression;
+    extern const MergeTreeSettingsBool statistics_packed_format;
 }
 
 MergedBlockOutputStream::MergedBlockOutputStream(
@@ -347,13 +349,20 @@ MergedBlockOutputStream::WrittenFiles MergedBlockOutputStream::finalizePartOnDis
         });
     }
 
-    if (!gathered_data.part_statistics.statistics.empty())
+    const auto & statistics = gathered_data.part_statistics.statistics;
+    if (!statistics.empty())
     {
-        /// TODO: write compressed file.
-        write_hashed_file(String(ColumnsStatistics::FILENAME), [&](auto & buffer)
+        bool statistics_packed_format = (*new_part->storage.getSettings())[MergeTreeSetting::statistics_packed_format];
+
+        if (statistics_packed_format)
         {
-            gathered_data.part_statistics.statistics.serialize(buffer);
-        });
+            auto out = serializeStatisticsPacked(new_part->getDataPartStorage(), checksums, statistics, writer_settings.query_write_settings);
+            written_files.emplace_back(std::move(out));
+        }
+        else
+        {
+            serializeStatisticsWide(new_part->getDataPartStorage(), checksums, statistics, writer_settings.query_write_settings);
+        }
     }
 
     write_plain_file("columns.txt", [&](auto & buffer)
