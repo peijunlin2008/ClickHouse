@@ -654,10 +654,12 @@ std::shared_ptr<ObjectStorageQueueSource> StorageObjectStorageQueue::createSourc
 {
     CommitSettings commit_settings_copy;
     AfterProcessingSettings after_processing_settings_copy;
+    bool add_deduplication_info;
     {
         std::lock_guard lock(mutex);
         commit_settings_copy = commit_settings;
         after_processing_settings_copy = after_processing_settings;
+        add_deduplication_info = deduplication_v2;
     }
     return std::make_shared<ObjectStorageQueueSource>(
         getName(),
@@ -679,7 +681,8 @@ std::shared_ptr<ObjectStorageQueueSource> StorageObjectStorageQueue::createSourc
         getQueueLog(object_storage, local_context, enable_logging_to_queue_log),
         getStorageID(),
         log,
-        commit_once_processed);
+        commit_once_processed,
+        add_deduplication_info);
 }
 
 size_t StorageObjectStorageQueue::getDependencies() const

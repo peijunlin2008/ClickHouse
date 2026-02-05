@@ -938,7 +938,8 @@ ObjectStorageQueueSource::ObjectStorageQueueSource(
     std::shared_ptr<ObjectStorageQueueLog> system_queue_log_,
     const StorageID & storage_id_,
     LoggerPtr log_,
-    bool commit_once_processed_)
+    bool commit_once_processed_,
+    bool add_deduplication_info_)
     : ISource(std::make_shared<const Block>(read_from_format_info_.source_header))
     , WithContext(context_)
     , name(std::move(name_))
@@ -960,6 +961,7 @@ ObjectStorageQueueSource::ObjectStorageQueueSource(
     , system_queue_log(system_queue_log_)
     , storage_id(storage_id_)
     , commit_once_processed(commit_once_processed_)
+    , add_deduplication_info(add_deduplication_info_)
     , log(log_)
 {
     if (commit_once_processed)
@@ -1189,17 +1191,22 @@ Chunk ObjectStorageQueueSource::generateImpl()
         {
             const auto & object_metadata = reader.getObjectInfo()->getObjectMetadata();
             const auto row_offset = file_status->processed_rows.load();
-            /// Etag is quoted for some reason.
-            std::string etag = object_metadata->etag;
-            if (etag.size() > 2 && etag.front() == '\"' && etag.back() == '\"')
-                etag = etag.substr(1, etag.size() - 2);
 
-            /// Create unique token per chunk: etag + row offset
-            const auto dedup_token = fmt::format("{}:{}", etag, row_offset);
+            std::string dedup_token;
+            if (add_deduplication_info)
+            {
+                /// Etag is quoted for some reason.
+                std::string etag = object_metadata->etag;
+                if (etag.size() > 2 && etag.front() == '\"' && etag.back() == '\"')
+                    etag = etag.substr(1, etag.size() - 2);
 
-            auto deduplication_info = DeduplicationInfo::create(/*async_insert*/true);
-            deduplication_info->setUserToken(dedup_token, chunk.getNumRows());
-            chunk.getChunkInfos().add(std::move(deduplication_info));
+                /// Create unique token per chunk: etag + row offset
+                dedup_token = fmt::format("{}:{}", etag, row_offset);
+
+                auto deduplication_info = DeduplicationInfo::create(/*async_insert*/true);
+                deduplication_info->setUserToken(dedup_token, chunk.getNumRows());
+                chunk.getChunkInfos().add(std::move(deduplication_info));
+            }
 
             LOG_TEST(log, "Read {} rows from file {} (file offset: {}, deduplication token for chunk: {})",
                      chunk.getNumRows(), path, row_offset, dedup_token);
