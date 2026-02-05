@@ -25,8 +25,6 @@
 #include <Common/Logger.h>
 #include <Common/logger_useful.h>
 
-#include <Common/StackTrace.h>
-
 namespace DB
 {
 namespace Setting
@@ -76,7 +74,6 @@ DataTypes FutureSetFromStorage::getTypes() const { return set->getElementsTypes(
 
 SetPtr FutureSetFromStorage::buildOrderedSetInplace(const ContextPtr &)
 {
-    // LOG_DEBUG(&Poco::Logger::get("debug"), "__PRETTY_FUNCTION__={}, __LINE__={}", __PRETTY_FUNCTION__, __LINE__);
     return set->hasExplicitSetElements() ? set : nullptr;
 }
 
@@ -130,7 +127,6 @@ Columns FutureSetFromTuple::getKeyColumns()
 
 SetPtr FutureSetFromTuple::buildOrderedSetInplace(const ContextPtr & context)
 {
-    // LOG_DEBUG(&Poco::Logger::get("debug"), "__PRETTY_FUNCTION__={}, __LINE__={}", __PRETTY_FUNCTION__, __LINE__);
     if (set->hasExplicitSetElements())
         return set;
 
@@ -183,9 +179,18 @@ FutureSetFromSubquery::FutureSetFromSubquery(
 
 FutureSetFromSubquery::~FutureSetFromSubquery() = default;
 
-void FutureSetFromSubquery::set(SetPtr set) const
+void FutureSetFromSubquery::replaceSetAndKey(SetAndKeyPtr set)
 {
-    set_and_key->set = std::move(set);
+    if (set->key != set_and_key->key)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Trying to exchange sets with different keys: {} vs {}", set->key, set_and_key->key);
+    set_and_key = std::move(set);
+}
+
+SetAndKeyPtr FutureSetFromSubquery::detachSetAndKey()
+{
+    SetAndKeyPtr ret;
+    std::swap(ret, set_and_key);
+    return ret;
 }
 
 SetPtr FutureSetFromSubquery::get() const
@@ -204,7 +209,6 @@ void FutureSetFromSubquery::setQueryPlan(std::unique_ptr<QueryPlan> source_)
 
 void FutureSetFromSubquery::buildExternalTableFromInplaceSet(StoragePtr external_table_)
 {
-    // LOG_DEBUG(&Poco::Logger::get("debug"), "__PRETTY_FUNCTION__={}, __LINE__={}", __PRETTY_FUNCTION__, __LINE__);
     const auto & set = *set_and_key->set;
 
     LOG_TRACE(getLogger("FutureSetFromSubquery"), "Building external table from set of {} elements", set.getTotalRowCount());
@@ -270,7 +274,6 @@ FutureSet::Hash FutureSetFromSubquery::getHash() const { return hash; }
 
 std::unique_ptr<QueryPlan> FutureSetFromSubquery::build(const SizeLimits & network_transfer_limits, const PreparedSetsCachePtr & prepared_sets_cache)
 {
-    // LOG_DEBUG(&Poco::Logger::get("debug"), "__PRETTY_FUNCTION__={}, __LINE__={}", __PRETTY_FUNCTION__, __LINE__);
     if (set_and_key->set->isCreated())
         return nullptr;
 
@@ -291,7 +294,6 @@ std::unique_ptr<QueryPlan> FutureSetFromSubquery::build(const SizeLimits & netwo
 
 void FutureSetFromSubquery::buildSetInplace(const ContextPtr & context)
 {
-    // LOG_DEBUG(&Poco::Logger::get("debug"), "__PRETTY_FUNCTION__={}, __LINE__={}", __PRETTY_FUNCTION__, __LINE__);
     if (external_table_set)
         external_table_set->buildSetInplace(context);
 
@@ -314,12 +316,6 @@ void FutureSetFromSubquery::buildSetInplace(const ContextPtr & context)
 
 SetPtr FutureSetFromSubquery::buildOrderedSetInplace(const ContextPtr & context)
 {
-    // LOG_DEBUG(
-    //     &Poco::Logger::get("debug"),
-    //     "__PRETTY_FUNCTION__={}, __LINE__={}, stack={}",
-    //     __PRETTY_FUNCTION__,
-    //     __LINE__,
-    //     StackTrace().toString());
     if (!context->getSettingsRef()[Setting::use_index_for_in_with_subqueries])
         return nullptr;
 

@@ -1,5 +1,6 @@
 #include <IO/WriteBufferFromString.h>
 #include <Interpreters/Context.h>
+#include <Interpreters/PreparedSets.h>
 #include <Processors/QueryPlan/CreatingSetsStep.h>
 #include <Processors/QueryPlan/ExpressionStep.h>
 #include <Processors/QueryPlan/FilterStep.h>
@@ -260,7 +261,6 @@ static QueryPlan::Node * findTopNodeOfReplicasPlan(QueryPlan::Node * plan_with_p
                     if (replicas_plan_top_node)
                     {
                         // TODO(nickitat): support multiple read steps with parallel replicas
-                        LOG_DEBUG(getLogger("optimizeTree"), "Top node for parallel replicas plan is already found");
                         return nullptr;
                     }
 
@@ -360,157 +360,66 @@ static ReadFromMergeTree * findReadingStep(const QueryPlan::Node & top_of_single
     return nullptr;
 }
 
-static void explainStep(
-    IQueryPlanStep & step,
-    IQueryPlanStep::FormatSettings & settings,
-    const ExplainPlanOptions & options,
-    size_t max_description_length,
-    UInt64 hash)
+// Transplant the sets from the single-replica plan to the parallel-replicas plan once we decided to enable parallel replicas
+static void moveSetsFromLocalPlanToReplicasPlan(const QueryPlan & single_replica_plan, const QueryPlan & parallel_replicas_plan)
 {
-    const std::string prefix(settings.offset, ' ');
-    settings.out << prefix;
-    settings.out << step.getName();
+    Stack stack;
+    std::map<FutureSet::Hash, SetAndKeyPtr> sets_map;
 
-    auto description = step.getStepDescription();
-    if (max_description_length)
-        description = description.substr(0, max_description_length);
-    if (options.description && !description.empty())
-        settings.out << " (" << description << ')';
-    settings.out << " [hash: " << hash << ']';
-
-    settings.out.write('\n');
-
-    const auto dump_column = [&out = settings.out, dump_structure = options.column_structure](const ColumnWithTypeAndName & column)
-    {
-        if (dump_structure)
-            column.dumpStructure(out);
-        else
-            column.dumpNameAndType(out);
-    };
-
-    if (options.header)
-    {
-        settings.out << prefix;
-
-        if (!step.hasOutputHeader())
-            settings.out << "No header";
-        else if (!step.getOutputHeader())
-            settings.out << "Empty header";
-        else
+    // Create a map: set_key -> set
+    stack.clear();
+    traverseQueryPlan(
+        stack,
+        *single_replica_plan.getRootNode(),
+        [&](auto & frame_node)
         {
-            settings.out << "Header: ";
-            bool first = true;
-
-            for (const auto & elem : *step.getOutputHeader())
+            if (auto * creating_sets_step = typeid_cast<DelayedCreatingSetsStep *>(frame_node.step.get()))
             {
-                if (!first)
-                    settings.out << '\n' << prefix << "        ";
-
-                first = false;
-                dump_column(elem);
-            }
-        }
-        settings.out.write('\n');
-    }
-
-    if (options.input_headers)
-    {
-        const std::string_view input_headers_title = "Input headers: ";
-        const std::string_view input_header_indent = "               ";
-        settings.out << prefix << input_headers_title;
-
-        bool first_input_header = true;
-        size_t input_header_index = 0;
-
-        if (step.getInputHeaders().empty())
-        {
-            settings.out << "No input headers";
-        }
-        else
-        {
-            for (const auto & input_header : step.getInputHeaders())
-            {
-                if (!first_input_header)
-                    settings.out << '\n' << prefix << input_header_indent;
-                first_input_header = false;
-
-                settings.out << fmt::format("#{}", input_header_index);
-                ++input_header_index;
-
-                if (input_header->empty())
+                const auto sets = creating_sets_step->detachSets();
+                for (const auto & future_set : sets)
                 {
-                    settings.out << " Empty header";
-                    continue;
-                }
-
-                for (const auto & elem : *input_header)
-                {
-                    settings.out << '\n' << prefix << input_header_indent;
-                    dump_column(elem);
+                    if (auto set = future_set->detachSetAndKey())
+                        sets_map[future_set->getHash()] = std::move(set);
                 }
             }
-        }
-        settings.out.write('\n');
-    }
+        });
 
-    if (options.sorting)
-    {
-        if (const auto & sort_description = step.getSortDescription(); !sort_description.empty())
+    // Now transplant the sets
+    stack.clear();
+    traverseQueryPlan(
+        stack,
+        *parallel_replicas_plan.getRootNode(),
+        [&](auto & frame_node)
         {
-            settings.out << prefix << "Sorting: ";
-            dumpSortDescription(sort_description, settings.out);
-            settings.out.write('\n');
-        }
-    }
-
-    if (options.actions)
-        step.describeActions(settings);
-
-    if (options.indexes)
-        step.describeIndexes(settings);
-
-    if (options.projections)
-        step.describeProjections(settings);
-
-    if (options.distributed)
-        step.describeDistributedPlan(settings, options);
+            if (const auto * creating_sets_step = typeid_cast<DelayedCreatingSetsStep *>(frame_node.step.get()))
+            {
+                for (const auto & future_set : creating_sets_step->getSets())
+                {
+                    if (auto it = sets_map.find(future_set->getHash()); it != sets_map.end())
+                        future_set->replaceSetAndKey(it->second);
+                }
+            }
+        });
 }
-
 
 /// Heuristic-based algorithm to decide whether to enable parallel replicas for the given query
 void considerEnablingParallelReplicas(
     const QueryPlanOptimizationSettings & optimization_settings, QueryPlan::Node & root, QueryPlan::Nodes &, QueryPlan & query_plan)
 {
-    LOG_DEBUG(&Poco::Logger::get("debug"), "__PRETTY_FUNCTION__={}, __LINE__={}", __PRETTY_FUNCTION__, __LINE__);
-
     if (!optimization_settings.automatic_parallel_replicas_mode
         || !optimization_settings.query_plan_with_parallel_replicas_builder
         || optimization_settings.parallel_replicas_enabled)
     {
-        LOG_DEBUG(
-            &Poco::Logger::get("debug"),
-            "optimization_settings.automatic_parallel_replicas_mode={}, "
-            "!!optimization_settings.query_plan_with_parallel_replicas_builder={}, optimization_settings.parallel_replicas_enabled);={}",
-            optimization_settings.automatic_parallel_replicas_mode,
-            !!optimization_settings.query_plan_with_parallel_replicas_builder,
-            optimization_settings.parallel_replicas_enabled);
-        LOG_DEBUG(&Poco::Logger::get("debug"), "__PRETTY_FUNCTION__={}, __LINE__={}", __PRETTY_FUNCTION__, __LINE__);
         return;
     }
 
     // Cannot guarantee projection usage with parallel replicas
     if (optimization_settings.force_use_projection)
-    {
-        LOG_DEBUG(&Poco::Logger::get("debug"), "__PRETTY_FUNCTION__={}, __LINE__={}", __PRETTY_FUNCTION__, __LINE__);
         return;
-    }
 
     // Some tests fail because on uninitialized `MergeTreeData::SnapshotData`
     if (optimization_settings.enable_full_text_index)
-    {
-        LOG_DEBUG(&Poco::Logger::get("debug"), "__PRETTY_FUNCTION__={}, __LINE__={}", __PRETTY_FUNCTION__, __LINE__);
         return;
-    }
 
     Stack stack;
     // Technically, it isn't required for all steps to support dataflow statistics collection,
@@ -528,17 +437,11 @@ void considerEnablingParallelReplicas(
 
     auto plan_with_parallel_replicas = optimization_settings.query_plan_with_parallel_replicas_builder();
     if (!plan_with_parallel_replicas)
-    {
-        LOG_DEBUG(&Poco::Logger::get("debug"), "__PRETTY_FUNCTION__={}, __LINE__={}", __PRETTY_FUNCTION__, __LINE__);
         return;
-    }
 
     const auto * final_node_in_replica_plan = findTopNodeOfReplicasPlan(plan_with_parallel_replicas->getRootNode());
     if (!final_node_in_replica_plan)
-    {
-        LOG_DEBUG(&Poco::Logger::get("debug"), "__PRETTY_FUNCTION__={}, __LINE__={}", __PRETTY_FUNCTION__, __LINE__);
         return;
-    }
     LOG_DEBUG(getLogger("optimizeTree"), "Top node of replicas plan: {}", final_node_in_replica_plan->step->getName());
 
     const auto [corresponding_node_in_single_replica_plan, single_replica_plan_node_hash]
@@ -564,59 +467,6 @@ void considerEnablingParallelReplicas(
         LOG_DEBUG(getLogger("optimizeTree"), "Index analysis result doesn't contain selected rows. Skipping optimization");
         return;
     }
-
-    auto dump = [&](const QueryPlan & plan)
-    {
-        const auto hashes = calculateHashTableCacheKeys(*plan.getRootNode());
-
-        WriteBufferFromOwnString wb;
-        ExplainPlanOptions options;
-        IQueryPlanStep::FormatSettings settings{.out = wb, .write_header = options.header};
-
-        struct Frame
-        {
-            QueryPlan::Node * node = {};
-            bool is_description_printed = false;
-            size_t next_child = 0;
-        };
-
-        const auto indent = 0;
-        const auto max_description_length = 1000;
-        std::stack<Frame> stack2;
-        stack2.push(Frame{.node = plan.getRootNode()});
-
-        while (!stack2.empty())
-        {
-            auto & frame = stack2.top();
-
-            if (!frame.is_description_printed)
-            {
-                settings.offset = (indent + stack2.size() - 1) * settings.indent;
-                explainStep(*frame.node->step, settings, options, max_description_length, hashes.at(frame.node));
-                frame.is_description_printed = true;
-            }
-
-            if (frame.next_child < frame.node->children.size())
-            {
-                stack2.push(Frame{frame.node->children[frame.next_child]});
-                ++frame.next_child;
-            }
-            else
-            {
-                auto child_plans = frame.node->step->getChildPlans();
-
-                for (const auto & child_plan : child_plans)
-                    child_plan->explainPlan(wb, options, indent + stack2.size());
-
-                stack2.pop();
-            }
-        }
-
-        LOG_DEBUG(&Poco::Logger::get("debug"), "query plan={}", wb.str());
-    };
-
-    dump(query_plan);
-    dump(*plan_with_parallel_replicas);
 
     bool table_data_drifted_significantly = true;
 
@@ -675,48 +525,7 @@ void considerEnablingParallelReplicas(
                     throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot find ReadFromMergeTree step in local parallel replicas plan");
                 chassert(local_replica_plan_reading_step->getAnalyzedResult() == nullptr);
                 local_replica_plan_reading_step->setAnalyzedResult(analysis);
-
-                // Transplant the sets from the single-replica plan to the parallel-replicas plan
-                std::map<FutureSet::Hash, SetPtr> sets_map;
-
-                // Create a map: set_key -> set
-                {
-                    stack.clear();
-                    traverseQueryPlan(
-                        stack,
-                        *query_plan.getRootNode(),
-                        [&](auto & frame_node)
-                        {
-                            if (auto * creating_sets_step = typeid_cast<DelayedCreatingSetsStep *>(frame_node.step.get()))
-                            {
-                                for (const auto & future_set : creating_sets_step->getSets())
-                                {
-                                    if (const auto set = future_set->get())
-                                        sets_map[future_set->getHash()] = set;
-                                }
-                            }
-                        });
-                }
-
-                // Now transplant the sets
-                {
-                    stack.clear();
-                    traverseQueryPlan(
-                        stack,
-                        *plan_with_parallel_replicas->getRootNode(),
-                        [&](auto & frame_node)
-                        {
-                            if (auto * creating_sets_step = typeid_cast<DelayedCreatingSetsStep *>(frame_node.step.get()))
-                            {
-                                for (auto & future_set : creating_sets_step->getSets())
-                                {
-                                    if (auto it = sets_map.find(future_set->getHash()); it != sets_map.end())
-                                        future_set->set(it->second);
-                                }
-                            }
-                        });
-                }
-
+                moveSetsFromLocalPlanToReplicasPlan(query_plan, *plan_with_parallel_replicas);
                 query_plan.replaceNodeWithPlan(query_plan.getRootNode(), std::move(*plan_with_parallel_replicas));
                 return;
             }
