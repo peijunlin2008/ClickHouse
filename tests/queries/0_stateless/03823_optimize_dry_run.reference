@@ -1,0 +1,31 @@
+parts before dry run
+all_1_1_0	2
+all_2_2_0	2
+all_3_3_0	2
+data before dry run
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f
+parts after dry run
+all_1_1_0	2
+all_2_2_0	2
+all_3_3_0	2
+data after dry run
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f
+parts after real optimize
+all_1_3_1	6
+data after real optimize
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f

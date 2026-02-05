@@ -86,6 +86,9 @@
 #include <Storages/MergeTree/LoadedMergeTreeDataPartInfoForReader.h>
 #include <QueryPipeline/QueryPipelineBuilder.h>
 #include <Storages/MergeTree/MergeTreeIndexGranularityAdaptive.h>
+#include <Storages/MergeTree/MergeTreeDataMergerMutator.h>
+#include <Storages/MergeTree/FutureMergedMutatedPart.h>
+#include <Storages/MergeTree/Compaction/CompactionStatistics.h>
 
 #include <boost/algorithm/string/join.hpp>
 
@@ -7582,6 +7585,84 @@ void MergeTreeData::dropDetached(const ASTPtr & partition, bool part, ContextPtr
         LOG_DEBUG(log, "Dropped detached part {}, keep shared data: {}", old_dir, keep_shared);
         old_dir.clear();
     }
+}
+
+void MergeTreeData::optimizeDryRun(
+    const Names & part_names,
+    const StorageMetadataPtr & metadata_snapshot,
+    bool deduplicate,
+    const Names & deduplicate_by_columns,
+    bool cleanup,
+    ContextPtr local_context)
+{
+    if (part_names.empty())
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "OPTIMIZE DRY RUN requires at least one part name");
+
+    DataPartsVector parts;
+    parts.reserve(part_names.size());
+
+    for (const auto & name : part_names)
+    {
+        auto part = getPartIfExists(name, {MergeTreeDataPartState::Active});
+        if (!part)
+            throw Exception(ErrorCodes::NO_SUCH_DATA_PART, "Part {} not found among active parts", name);
+
+        parts.push_back(std::move(part));
+    }
+
+    std::sort(parts.begin(), parts.end(), [](const auto & lhs, const auto & rhs)
+    {
+        return lhs->info < rhs->info;
+    });
+
+    for (size_t i = 1; i < parts.size(); ++i)
+    {
+        if (parts[i]->info.getPartitionId() != parts[0]->info.getPartitionId())
+            throw Exception(ErrorCodes::BAD_ARGUMENTS,
+                "All parts for OPTIMIZE DRY RUN must belong to the same partition, "
+                "but part {} belongs to partition {} while part {} belongs to partition {}",
+                parts[i]->name, parts[i]->info.getPartitionId(), parts[0]->name, parts[0]->info.getPartitionId());
+    }
+
+    auto future_part = std::make_shared<FutureMergedMutatedPart>();
+    future_part->assign(parts, {}, nullptr);
+
+    UInt64 disk_space = CompactionStatistics::estimateNeededDiskSpace(parts);
+    ReservationSharedPtr reservation = getStoragePolicy()->reserveAndCheck(disk_space);
+    future_part->updatePath(*this, reservation.get());
+    auto table_lock = lockForShare(local_context->getCurrentQueryId(), local_context->getSettingsRef()[Setting::lock_acquire_timeout]);
+
+    MergeTreeDataMergerMutator merger_mutator(*this);
+    auto task_context = Context::createCopy(local_context);
+    task_context->makeQueryContextForMerge(*getSettings());
+
+    auto merge_list_entry = getContext()->getMergeList().insert(
+        getStorageID(),
+        future_part,
+        task_context);
+
+    auto merge_task = merger_mutator.mergePartsToTemporaryPart(
+        future_part,
+        metadata_snapshot,
+        merge_list_entry.get(),
+        /*projection_merge_list_element=*/ {},
+        table_lock,
+        time(nullptr),
+        task_context,
+        reservation,
+        deduplicate,
+        deduplicate_by_columns,
+        cleanup,
+        merging_params,
+        nullptr /* txn */);
+
+    while (merge_task->execute()) {}
+    auto new_part = merge_task->getFuture().get();
+
+    LOG_INFO(log, "OPTIMIZE DRY RUN: successfully merged {} parts into temporary part {} ({} rows, {} bytes)",
+        parts.size(), new_part->name, new_part->rows_count, new_part->getBytesOnDisk());
+
+    new_part->remove();
 }
 
 MergeTreeData::MutableDataPartsVector MergeTreeData::tryLoadPartsToAttach(const PartitionCommand & command, ContextPtr local_context, PartsTemporaryRename & renamed_parts)
