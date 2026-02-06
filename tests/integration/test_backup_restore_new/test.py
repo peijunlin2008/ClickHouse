@@ -1466,6 +1466,48 @@ def test_system_users_required_privileges():
     instance.query("DROP USER u2")
 
 
+def test_system_users_required_privileges_with_partial_revokes():
+    instance.query("CREATE USER u1")
+    instance.query("GRANT CREATE USER, CREATE ROLE, ROLE ADMIN ON *.* TO u1")
+    instance.query("GRANT SET DEFINER ON * TO u1 WITH GRANT OPTION")
+    instance.query("REVOKE SET DEFINER ON `internal-user-1` FROM u1")
+
+    instance.query("CREATE ROLE r1")
+    instance.query("GRANT SET DEFINER ON * TO r1 WITH GRANT OPTION")
+    instance.query("REVOKE SET DEFINER ON `internal-user-1` FROM r1")
+    instance.query("REVOKE SET DEFINER ON `internal-user-2` FROM r1")
+    instance.query("REVOKE SET DEFINER ON `internal-user-3` FROM r1")
+
+    instance.query("CREATE ROLE r2")
+    instance.query("GRANT r1 TO r2")
+
+    backup_name = new_backup_name()
+    instance.query(
+        f"BACKUP TABLE system.roles, TABLE system.role_grants TO {backup_name}"
+    )
+
+    instance.query("DROP ROLE r1")
+    instance.query("DROP ROLE r2")
+
+    instance.query(
+        f"RESTORE ALL FROM {backup_name} SETTINGS allow_non_empty_tables=true",
+        user="u1",
+    )
+
+    assert instance.query("SHOW GRANTS FOR r1") == TSV(
+        [
+            "GRANT SET DEFINER ON * TO r1 WITH GRANT OPTION",
+            "REVOKE SET DEFINER ON `internal-user-1` FROM r1",
+            "REVOKE SET DEFINER ON `internal-user-2` FROM r1",
+            "REVOKE SET DEFINER ON `internal-user-3` FROM r1",
+        ]
+    )
+
+    instance.query("DROP ROLE r1")
+    instance.query("DROP ROLE r2")
+    instance.query("DROP USER u1")
+
+
 def test_system_users_async():
     instance.query("CREATE USER u1 IDENTIFIED BY 'qwe123' SETTINGS custom_c = 3")
 
