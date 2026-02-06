@@ -102,10 +102,41 @@ bool DeltaLakeMetadataDeltaKernel::operator ==(const IDataLakeMetadata & metadat
     return table_snapshot->getVersion() == delta_lake_metadata.table_snapshot->getVersion();
 }
 
+std::optional<size_t> DeltaLakeMetadataDeltaKernel::totalRows(ContextPtr) const
+{
+    std::lock_guard lock(table_snapshot_mutex);
+
+    try
+    {
+        return table_snapshot->getTotalRows();
+    }
+    catch (...)
+    {
+        DB::tryLogCurrentException(
+            log, "Failed to get total rows for Delta Lake table at location " + kernel_helper->getTableLocation());
+        return std::nullopt;
+    }
+}
+
+std::optional<size_t> DeltaLakeMetadataDeltaKernel::totalBytes(ContextPtr) const
+{
+    std::lock_guard lock(table_snapshot_mutex);
+    try
+    {
+        return table_snapshot->getTotalBytes();
+    }
+    catch (...)
+    {
+        DB::tryLogCurrentException(
+            log, "Failed to get total bytes for Delta Lake table at location " + kernel_helper->getTableLocation());
+        return std::nullopt;
+    }
+}
+
 void DeltaLakeMetadataDeltaKernel::update(const ContextPtr & context)
 {
     std::lock_guard lock(table_snapshot_mutex);
-    table_snapshot->update(context);
+    table_snapshot->updateToLatestVersion(context);
 }
 
 DeltaLake::TableChangesPtr DeltaLakeMetadataDeltaKernel::getTableChanges(

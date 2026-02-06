@@ -63,6 +63,10 @@ public:
         return std::make_unique<DeltaLakeMetadataDeltaKernel>(object_storage, configuration, context);
     }
 
+    std::optional<size_t> totalRows(ContextPtr) const override; 
+
+    std::optional<size_t> totalBytes(ContextPtr) const override;
+
     ObjectIterator iterate(
         const ActionsDAG * filter_dag,
         FileProgressCallback callback,

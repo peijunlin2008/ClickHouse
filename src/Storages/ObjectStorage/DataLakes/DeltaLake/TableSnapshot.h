@@ -36,8 +36,11 @@ public:
     /// Get snapshot version.
     size_t getVersion() const;
 
+    std::optional<size_t> getTotalRows() const;
+    std::optional<size_t> getTotalBytes() const;
+
     /// Update snapshot to latest version.
-    void update(const DB::ContextPtr & context);
+    void updateToLatestVersion(const DB::ContextPtr & context);
 
     /// Iterate over DeltaLake data files.
     DB::ObjectIterator iterate(
@@ -60,9 +63,14 @@ public:
     DB::ObjectStoragePtr getObjectStorage() const { return object_storage; }
 private:
     class Iterator;
+
     using KernelExternEngine = KernelPointerWrapper<ffi::SharedExternEngine, ffi::free_engine>;
     using KernelSnapshot = KernelPointerWrapper<ffi::SharedSnapshot, ffi::free_snapshot>;
     using KernelScan = KernelPointerWrapper<ffi::SharedScan, ffi::free_scan>;
+    using KernelScanMetadataIterator = KernelPointerWrapper<ffi::SharedScanMetadataIterator, ffi::free_scan_metadata_iter>;
+
+    using TableSchema = DB::NamesAndTypesList;
+    using ReadSchema = DB::NamesAndTypesList;
 
     const KernelHelperPtr helper;
     const DB::ObjectStoragePtr object_storage;
@@ -84,16 +92,38 @@ private:
     };
     mutable std::shared_ptr<KernelSnapshotState> kernel_snapshot_state;
 
-    using TableSchema = DB::NamesAndTypesList;
-    using ReadSchema = DB::NamesAndTypesList;
+    struct SchemaInfo
+    {
+        /// Snapshot version
+        size_t version;
+        /// Table logical schema
+        TableSchema table_schema;
+        /// Table read schema
+        ReadSchema read_schema;
+        /// Mapping for physical names of parquet data files
+        DB::NameToNameMap physical_names_map;
+        /// Partition columns list (not stored in read schema)
+        DB::Names partition_columns;
+    };
+    mutable std::optional<SchemaInfo> schema;
 
-    mutable TableSchema table_schema;
-    mutable ReadSchema read_schema;
-    mutable DB::NameToNameMap physical_names_map;
-    mutable DB::Names partition_columns;
+    struct SnapshotStats
+    {
+        /// Snapshot version
+        size_t version;
+        /// Total number of bytes in table
+        std::optional<size_t> total_bytes;
+        /// Total number of rows in table
+        std::optional<size_t> total_rows;
+    };
+    mutable std::optional<SnapshotStats> snapshot_stats;
 
-    void initSnapshot() const;
-    void initSnapshotImpl() const;
+    void initSnapshot(bool recreate = false) const;
+    void initSchema() const;
+
+    SnapshotStats getSnapshotStats() const;
+    SnapshotStats getSnapshotStatsImpl() const;
+
     void updateSettings(const DB::ContextPtr & context);
 };
 

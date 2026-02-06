@@ -4081,3 +4081,74 @@ def test_network_activity_with_system_tables(started_cluster):
             f"SELECT count() FROM system.text_log WHERE query_id = '{query_id}' AND message LIKE '%Initialized scan state%'"
         )
     )
+
+
+def test_table_statistics(started_cluster):
+    instance = started_cluster.instances["node1"]
+    spark = started_cluster.spark_session
+    TABLE_NAME = randomize_table_name("test_table_statistics")
+
+    delta_path = f"/{TABLE_NAME}"
+    write_delta_from_df(
+        spark,
+        generate_data(spark, 0, 100),
+        delta_path,
+        mode="overwrite",
+    )
+
+    for i in range(1, 12):
+        write_delta_from_df(
+            spark,
+            generate_data(spark, i * 100, (i + 1) * 100),
+            delta_path,
+            mode="append",
+        )
+
+    default_upload_directory(
+        started_cluster,
+        "s3",
+        delta_path,
+        "",
+    )
+
+    create_delta_table(
+        instance,
+        "s3",
+        TABLE_NAME,
+        started_cluster,
+    )
+
+    result = instance.query(
+        f"SELECT total_rows, total_bytes FROM system.tables WHERE name = '{TABLE_NAME}'"
+    )
+
+    total_rows, total_bytes = map(lambda x: int(x), result.strip().split('\t'))
+    expected_rows = 1200
+
+    assert total_rows == expected_rows
+    assert total_bytes == 32172
+
+    write_delta_from_df(
+        spark,
+        generate_data(spark, 1200, 1300),
+        delta_path,
+        mode="append",
+    )
+
+    default_upload_directory(
+        started_cluster,
+        "s3",
+        delta_path,
+        "",
+    )
+
+    result = instance.query(
+        f"SELECT total_rows, total_bytes FROM system.tables WHERE name = '{TABLE_NAME}'"
+    )
+
+    total_rows, total_bytes = map(lambda x: int(x), result.strip().split('\t'))
+    expected_rows = 1300
+
+    assert total_rows == expected_rows
+    assert total_bytes == 34948
+    assert expected_rows == int(instance.query(f"SELECT count() FROM {TABLE_NAME}"))

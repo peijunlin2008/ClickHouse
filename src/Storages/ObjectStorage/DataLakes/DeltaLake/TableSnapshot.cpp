@@ -484,6 +484,99 @@ size_t TableSnapshot::getVersion() const
     return kernel_snapshot_state->snapshot_version;
 }
 
+TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStats() const
+{
+    if (!snapshot_stats.has_value() || snapshot_stats->version != getVersion())
+        snapshot_stats = getSnapshotStatsImpl();
+    return snapshot_stats.value();
+}
+
+TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
+{
+    initSnapshot();
+
+    KernelScan fallback_scan;
+    fallback_scan = KernelUtils::unwrapResult(
+        ffi::scan(
+            kernel_snapshot_state->snapshot.get(),
+            kernel_snapshot_state->engine.get(),
+            /* predicate */nullptr,
+            /* schema */nullptr),
+        "scan");
+
+    KernelScanMetadataIterator fallback_scan_data_iterator;
+    fallback_scan_data_iterator = KernelUtils::unwrapResult(
+        ffi::scan_metadata_iter_init(
+            kernel_snapshot_state->engine.get(), fallback_scan.get()),
+        "scan_metadata_iter_init");
+
+    struct StatsVisitor
+    {
+        size_t total_bytes = 0;
+        size_t total_rows = 0;
+        size_t total_data_files = 0;
+
+        static void visit(
+            ffi::NullableCvoid engine_context,
+            struct ffi::KernelStringSlice /* path */,
+            int64_t size,
+            int64_t /* mod_time */,
+            const ffi::Stats * stats,
+            const ffi::CDvInfo * /* dv_info */,
+            const ffi::Expression * /* transform */,
+            const struct ffi::CStringMap * /* deprecated */)
+        {
+            auto * visitor = static_cast<StatsVisitor *>(engine_context);
+            visitor->total_data_files += 1;
+            visitor->total_bytes += static_cast<size_t>(size);
+            if (stats)
+                visitor->total_rows += stats->num_records;
+        }
+
+        static void visitData(void * engine_context, ffi::SharedScanMetadata * scan_metadata)
+        {
+            ffi::visit_scan_metadata(scan_metadata, engine_context, StatsVisitor::visit);
+            ffi::free_scan_metadata(scan_metadata);
+        }
+    };
+
+    StatsVisitor visitor;
+
+    while (true)
+    {
+        bool have_scan_data = KernelUtils::unwrapResult(
+            ffi::scan_metadata_next(
+                fallback_scan_data_iterator.get(),
+                &visitor,
+                StatsVisitor::visitData),
+            "scan_metadata_next");
+
+        if (!have_scan_data)
+            break;
+    }
+
+    LOG_TEST(
+        log, "Snapshot ({}) data files: {}, total rows: {}, total bytes: {}",
+        kernel_snapshot_state->snapshot_version,
+        visitor.total_data_files, visitor.total_rows, visitor.total_bytes);
+
+    return SnapshotStats{
+        .version = kernel_snapshot_state->snapshot_version,
+        .total_bytes = visitor.total_bytes,
+        .total_rows = visitor.total_rows
+    };
+}
+
+std::optional<size_t> TableSnapshot::getTotalRows() const
+{
+    return getSnapshotStats().total_rows;
+}
+
+std::optional<size_t> TableSnapshot::getTotalBytes() const
+{
+    return getSnapshotStats().total_bytes;
+}
+
 void TableSnapshot::updateSettings(const DB::ContextPtr & context)
 {
     const auto & settings = context->getSettingsRef();
@@ -504,7 +597,7 @@ void TableSnapshot::updateSettings(const DB::ContextPtr & context)
     }
 }
 
-void TableSnapshot::update(const DB::ContextPtr & context)
+void TableSnapshot::updateToLatestVersion(const DB::ContextPtr & context)
 {
     updateSettings(context);
     if (!kernel_snapshot_state)
@@ -513,14 +606,21 @@ void TableSnapshot::update(const DB::ContextPtr & context)
         /// so next attempt to create it would return the latest snapshot.
         return;
     }
-    initSnapshotImpl();
+    initSnapshot(/* recreate */true);
 }
 
-void TableSnapshot::initSnapshot() const
+void TableSnapshot::initSnapshot(bool recreate) const
 {
-    if (kernel_snapshot_state)
+    if (kernel_snapshot_state && !recreate)
         return;
-    initSnapshotImpl();
+
+    LOG_TEST(log, "Initializing snapshot");
+
+    kernel_snapshot_state = std::make_shared<KernelSnapshotState>(*helper, snapshot_version_to_read);
+
+    LOG_TRACE(
+        log, "Initialized snapshot. Snapshot version: {}",
+        kernel_snapshot_state->snapshot_version);
 }
 
 TableSnapshot::KernelSnapshotState::KernelSnapshotState(const IKernelHelper & helper_, std::optional<size_t> snapshot_version_)
@@ -550,29 +650,6 @@ TableSnapshot::KernelSnapshotState::KernelSnapshotState(const IKernelHelper & he
         "scan");
 }
 
-void TableSnapshot::initSnapshotImpl() const
-{
-    LOG_TEST(log, "Initializing snapshot");
-
-    kernel_snapshot_state = std::make_shared<KernelSnapshotState>(*helper, snapshot_version_to_read);
-
-    LOG_TRACE(log, "Initialized scan state. Snapshot version: {}", kernel_snapshot_state->snapshot_version);
-
-    std::tie(table_schema, physical_names_map) = getTableSchemaFromSnapshot(kernel_snapshot_state->snapshot.get());
-    LOG_TRACE(
-        log, "Table logical schema: {}, physical names map size: {}",
-        fmt::join(table_schema.getNames(), ", "), physical_names_map.size());
-
-    if (table_schema.empty())
-        throw DB::Exception(DB::ErrorCodes::BAD_ARGUMENTS, "Table schema cannot be empty");
-
-    read_schema = getReadSchemaFromSnapshot(kernel_snapshot_state->scan.get());
-    LOG_TRACE(log, "Table read schema: {}", fmt::join(read_schema.getNames(), ", "));
-
-    partition_columns = getPartitionColumnsFromSnapshot(kernel_snapshot_state->snapshot.get());
-    LOG_TRACE(log, "Partition columns: {}", fmt::join(partition_columns, ", "));
-}
-
 DB::ObjectIterator TableSnapshot::iterate(
     const DB::ActionsDAG * filter_dag,
     DB::IDataLakeMetadata::FileProgressCallback callback,
@@ -596,28 +673,59 @@ DB::ObjectIterator TableSnapshot::iterate(
         log);
 }
 
+void TableSnapshot::initSchema() const
+{
+    if (!schema.has_value() || schema->version != getVersion())
+    {
+        initSnapshot();
+        auto [table_schema, physical_names_map] = getTableSchemaFromSnapshot(kernel_snapshot_state->snapshot.get());
+
+        if (table_schema.empty())
+            throw DB::Exception(DB::ErrorCodes::BAD_ARGUMENTS, "Table schema cannot be empty");
+
+        auto read_schema = getReadSchemaFromSnapshot(kernel_snapshot_state->scan.get());
+        auto partition_columns = getPartitionColumnsFromSnapshot(kernel_snapshot_state->snapshot.get());
+
+        LOG_TRACE(
+            log, "Table logical schema: {}, read schema: {}, "
+            "partition columns: {}, physical names map size: {}",
+            fmt::join(table_schema.getNames(), ", "),
+            fmt::join(read_schema.getNames(), ", "),
+            fmt::join(partition_columns, ", "),
+            physical_names_map.size());
+
+        schema.emplace(SchemaInfo{
+            .version = kernel_snapshot_state->snapshot_version,
+            .table_schema = std::move(table_schema),
+            .read_schema = std::move(read_schema),
+            .physical_names_map = std::move(physical_names_map),
+            .partition_columns = std::move(partition_columns),
+        });
+    }
+}
+
 const DB::NamesAndTypesList & TableSnapshot::getTableSchema() const
 {
-    initSnapshot();
-    return table_schema;
+    initSchema();
+    return schema->table_schema;
 }
 
 const DB::NamesAndTypesList & TableSnapshot::getReadSchema() const
 {
-    initSnapshot();
-    return read_schema;
+    initSchema();
+    return schema->read_schema;
 }
 
 const DB::Names & TableSnapshot::getPartitionColumns() const
 {
-    initSnapshot();
-    return partition_columns;
+    initSchema();
+    return schema->partition_columns;
 }
 
 const DB::NameToNameMap & TableSnapshot::getPhysicalNamesMap() const
 {
-    initSnapshot();
-    return physical_names_map;
+    initSchema();
+    return schema->physical_names_map;
 }
 
 }
