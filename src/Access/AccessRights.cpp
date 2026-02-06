@@ -564,10 +564,30 @@ public:
 
     bool contains(const Node & other) const
     {
-        Node tmp_node = *this;
-        tmp_node.makeIntersection(other);
-        /// If we get the same node after the intersection, our node is fully covered by the given one.
-        return tmp_node == other;
+        if (!flags.contains(other.flags))
+            return false;
+
+        if (other.children)
+        {
+            for (const auto & other_child : *other.children)
+            {
+                Node this_child = tryGetLeaf(other_child.node_name, other_child.level, !other_child.isLeaf());
+                if (!this_child.contains(other_child))
+                    return false;
+            }
+        }
+
+        if (children)
+        {
+            for (const auto & this_child : *children)
+            {
+                Node other_child = other.tryGetLeaf(this_child.node_name, this_child.level, !this_child.isLeaf());
+                if (!this_child.contains(other_child))
+                    return false;
+            }
+        }
+
+        return true;
     }
 
     void makeUnion(const Node & other)
