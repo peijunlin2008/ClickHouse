@@ -75,8 +75,8 @@ DROP NAMED COLLECTION ${NC_NAME2};
 
 # Test with mixed databases: one table in Atomic, one in Ordinary, both using the same named collection
 # This tests both UUID-based and name-based tracking simultaneously
-# Use --send_logs_level=fatal to suppress the deprecation warning for Ordinary database
-$CLICKHOUSE_CLIENT --send_logs_level=fatal -m -q "
+# Use --send_logs_level=error to suppress the deprecation warning for Ordinary database
+$CLICKHOUSE_CLIENT --send_logs_level=error -m -q "
 SET allow_deprecated_database_ordinary = 1;
 DROP DATABASE IF EXISTS ${ORDINARY_DB};
 CREATE DATABASE ${ORDINARY_DB} ENGINE = Ordinary;
