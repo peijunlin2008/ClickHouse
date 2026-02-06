@@ -1106,20 +1106,6 @@ static void processStatisticsChanges(
         }
     };
 
-    if (statistics_packed_format)
-    {
-        if (!stats_to_recalc.empty())
-            files_to_skip.emplace(ColumnsStatistics::FILENAME);
-    }
-    else
-    {
-        for (const auto & [stat_name, stat] : stats_to_recalc)
-        {
-            if (auto filename = getStatisticFilename(stat_name, source_part))
-                files_to_skip.emplace(*filename);
-        }
-    }
-
     for (const auto & command : commands_for_renames)
     {
         if (command.type == MutationCommand::Type::DROP_STATISTICS)
@@ -1136,6 +1122,34 @@ static void processStatisticsChanges(
         else if (command.type == MutationCommand::Type::RENAME_COLUMN)
         {
             process_rename(command.column_name, command.rename_to);
+        }
+        else if (command.type == MutationCommand::Type::READ_COLUMN)
+        {
+            /// Some implicit statistics (like tdigest) may become
+            /// incompatible with the new type. We need to remove them.
+            const auto * column_desc = metadata_snapshot->getColumns().tryGet(command.column_name);
+            if (!column_desc || column_desc->statistics.empty())
+                process_rename(command.column_name, "");
+        }
+    }
+
+    if (!stats_to_recalc.empty())
+    {
+        /// Create empty statistics for columns that are being recalculated.
+        for (const auto & [stat_name, stat] : stats_to_recalc)
+            all_statistics[stat_name] = stat->cloneEmpty();
+
+        if (statistics_packed_format)
+        {
+            files_to_skip.emplace(ColumnsStatistics::FILENAME);
+        }
+        else
+        {
+            for (const auto & [stat_name, stat] : stats_to_recalc)
+            {
+                if (auto filename = getStatisticFilename(stat_name, source_part))
+                    files_to_skip.emplace(*filename);
+            }
         }
     }
 }
