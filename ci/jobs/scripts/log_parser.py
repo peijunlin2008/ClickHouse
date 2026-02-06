@@ -339,11 +339,6 @@ class FuzzerLogParser:
             if match:
                 # Extract only the part after the pattern
                 extracted = line[match.end() :]
-                # Remove everything before and including 'ClickHouse/' if present
-                if "ClickHouse/" in extracted:
-                    extracted = extracted.split("ClickHouse/")[-1]
-                elif "/./" in extracted:
-                    extracted = extracted.split("/./")[-1]
                 # Only append if there's meaningful content after extraction
                 if extracted.strip():
                     lines.append(extracted)
@@ -438,8 +433,13 @@ class FuzzerLogParser:
         if not failure_output:
             return None
         if "Inconsistent AST formatting: the query:" in failure_output:
-            query_command = failure_output.splitlines()[1]
-            return query_command
+            lines = failure_output.splitlines()
+            if len(lines) > 1:
+                query_command = lines[1]
+                return query_command
+            else:
+                print("ERROR: Expected query on second line but not found")
+                return None
 
         assert failure_output, "No failure found in server log"
         failure_first_line = failure_output.splitlines()[0]
