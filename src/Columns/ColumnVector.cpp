@@ -955,7 +955,7 @@ ColumnPtr ColumnVector<T>::index(const IColumn & indexes, size_t limit) const
 namespace
 {
 
-MULTITARGET_FUNCTION_AVX512BW_AVX512F_AVX2_SSE42(
+MULTITARGET_FUNCTION_AVX512BW_AVX2(
 MULTITARGET_FUNCTION_HEADER(template <typename ValueType, bool use_window, int padding_elements = std::min(size_t(4), ColumnVector<ValueType>::Container::pad_right / sizeof(ValueType))> void),
 replicateImpl,
 MULTITARGET_FUNCTION_BODY((const ValueType * __restrict data, size_t size, [[maybe_unused]] size_t window_size, const IColumn::Offsets & offsets, ValueType * __restrict result) /// NOLINT
@@ -1024,21 +1024,11 @@ ColumnPtr ColumnVector<T>::replicate(const IColumn::Offsets & offsets) const
             replicateImplAVX512BW<T, true>(data.data(), size, window_size, offsets, res->getData().data());
         else
             replicateImplAVX512BW<T, false>(data.data(), size, window_size, offsets, res->getData().data());
-    else if (isArchSupported(TargetArch::AVX512F))
-        if (use_window)
-            replicateImplAVX512F<T, true>(data.data(), size, window_size, offsets, res->getData().data());
-        else
-            replicateImplAVX512F<T, false>(data.data(), size, window_size, offsets, res->getData().data());
     else if (isArchSupported(TargetArch::AVX2))
         if (use_window)
             replicateImplAVX2<T, true>(data.data(), size, window_size, offsets, res->getData().data());
         else
             replicateImplAVX2<T, false>(data.data(), size, window_size, offsets, res->getData().data());
-    else if (isArchSupported(TargetArch::SSE42))
-        if (use_window)
-            replicateImplSSE42<T, true>(data.data(), size, window_size, offsets, res->getData().data());
-        else
-            replicateImplSSE42<T, false>(data.data(), size, window_size, offsets, res->getData().data());
     else
 #endif
     {
