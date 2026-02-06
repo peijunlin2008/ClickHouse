@@ -638,10 +638,7 @@ try
         unused_event,
         [&](ConfigurationPtr loaded_config, bool /* initial_loading */)
         {
-            auto previous_config = config().find("default");
-            chassert(previous_config);
-            config().removeConfiguration(previous_config);
-            config().add(loaded_config, "default", PRIO_DEFAULT, false);
+            config().replaceByLabel("default", loaded_config, PRIO_DEFAULT, false);
 
             updateLevels(config(), logger());
             update_memory_soft_limit_in_config(config());

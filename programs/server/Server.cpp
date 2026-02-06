@@ -2141,10 +2141,7 @@ try
         main_config_zk_changed_event,
         [&](ConfigurationPtr loaded_config, bool initial_loading)
         {
-            auto previous_config = config().find("default");
-            chassert(previous_config);
-            config().removeConfiguration(previous_config);
-            config().add(loaded_config, "default", PRIO_DEFAULT, false);
+            config().replaceByLabel("default", loaded_config, PRIO_DEFAULT, false);
 
             Settings::checkNoSettingNamesAtTopLevel(config(), config_path);
 
