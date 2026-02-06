@@ -1,6 +1,7 @@
 #include <base/getFQDNOrHostName.h>
 #include <Common/DateLUTImpl.h>
 #include <Common/ErrorCodes.h>
+#include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
 #include <DataTypes/DataTypeDateTime64.h>
@@ -10,8 +11,8 @@
 #include <Interpreters/ErrorLog.h>
 #include <Parsers/ExpressionElementParsers.h>
 #include <Parsers/parseQuery.h>
-#include <Common/SymbolsHelper.h>
 
+#include <vector>
 
 namespace DB
 {
@@ -52,18 +53,6 @@ ColumnsDescription ErrorLogElement::getColumnsDescription()
                 "Error name."
             },
         {
-                "last_error_time",
-                std::make_shared<DataTypeDateTime>(),
-                parseQuery(codec_parser, "(ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
-                "The time when the last error happened."
-            },
-        {
-                "last_error_message",
-                std::make_shared<DataTypeString>(),
-                parseQuery(codec_parser, "(ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
-                "Message for the last error."
-            },
-        {
                 "value",
                 std::make_shared<DataTypeUInt64>(),
                 parseQuery(codec_parser, "(ZSTD(3))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
@@ -76,6 +65,18 @@ ColumnsDescription ErrorLogElement::getColumnsDescription()
                 "Remote exception (i.e. received during one of the distributed queries)."
             },
         {
+                "last_error_time",
+                std::make_shared<DataTypeDateTime>(),
+                parseQuery(codec_parser, "(ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
+                "The time when the last error happened."
+            },
+        {
+                "last_error_message",
+                std::make_shared<DataTypeString>(),
+                parseQuery(codec_parser, "(ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
+                "Message for the last error."
+            },
+            {
                 "last_error_query_id",
                 std::make_shared<DataTypeString>(),
                 parseQuery(codec_parser, "(ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
@@ -86,18 +87,6 @@ ColumnsDescription ErrorLogElement::getColumnsDescription()
                 std::make_shared<DataTypeArray>(std::make_shared<DataTypeUInt64>()),
                 parseQuery(codec_parser, "(ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
                 "A stack trace that represents a list of physical addresses where the called methods are stored."
-            },
-        {
-                "symbols",
-                symbolized_type,
-                parseQuery(codec_parser, "(ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
-                "If the symbolization is enabled, contains demangled symbol names, corresponding to the `trace`."
-            },
-        {
-                "lines",
-                symbolized_type,
-                parseQuery(codec_parser, "(ZSTD(1))", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS),
-                "If the symbolization is enabled, contains strings with file names with line numbers, corresponding to the `trace`."
             }
     };
 }
@@ -111,33 +100,19 @@ void ErrorLogElement::appendToBlock(MutableColumns & columns) const
     columns[column_idx++]->insert(event_time);
     columns[column_idx++]->insert(code);
     columns[column_idx++]->insert(ErrorCodes::getName(code));
-    columns[column_idx++]->insert(error_time_ms / 1000);
-    columns[column_idx++]->insert(error_message);
     columns[column_idx++]->insert(value);
     columns[column_idx++]->insert(remote);
-    columns[column_idx++]->insert(query_id);
+    columns[column_idx++]->insert(last_error_time);
+    columns[column_idx++]->insert(last_error_message);
+    columns[column_idx++]->insert(last_error_query_id);
 
-    std::vector<UInt64> error_trace_array;
-    error_trace_array.reserve(error_trace.size());
-    for (auto * ptr : error_trace)
-        error_trace_array.emplace_back(reinterpret_cast<UInt64>(ptr));
+    std::vector<uintptr_t> last_error_trace_array;
+    last_error_trace_array.reserve(last_error_trace.size());
 
-    columns[column_idx++]->insert(Array(error_trace_array.begin(), error_trace_array.end()));
+    for (auto * ptr : last_error_trace)
+        last_error_trace_array.emplace_back(reinterpret_cast<uintptr_t>(ptr));
 
-#if defined(__ELF__) && !defined(OS_FREEBSD)
-    if (symbolize)
-    {
-        auto [symbols, lines] = generateArraysSymbolsLines(error_trace_array);
-
-        columns[column_idx++]->insert(symbols);
-        columns[column_idx++]->insert(lines);
-    }
-    else
-#endif
-    {
-        columns[column_idx++]->insertDefault();
-        columns[column_idx++]->insertDefault();
-    }
+    columns[column_idx++]->insert(Array(last_error_trace_array.begin(), last_error_trace_array.end()));
 }
 
 struct ValuePair
@@ -148,8 +123,7 @@ struct ValuePair
 
 void ErrorLog::stepFunction(TimePoint current_time)
 {
-    /// Static lazy initialization to avoid polluting the header with implementation details
-    static std::vector<ValuePair> previous_values(ErrorCodes::end());
+    std::lock_guard lock(previous_values_mutex);
 
     auto event_time = std::chrono::system_clock::to_time_t(current_time);
 
@@ -161,13 +135,12 @@ void ErrorLog::stepFunction(TimePoint current_time)
             ErrorLogElement local_elem {
                 .event_time=event_time,
                 .code=code,
-                .error_time_ms=error.local.error_time_ms,
-                .error_message=error.local.message,
                 .value=error.local.count - previous_values.at(code).local,
                 .remote=false,
-                .query_id=error.local.query_id,
-                .error_trace=error.local.trace,
-                .symbolize=symbolize
+                .last_error_time=(error.local.error_time_ms / 1000),
+                .last_error_message=error.local.message,
+                .last_error_query_id=error.local.query_id,
+                .last_error_trace=error.local.trace
             };
             this->add(std::move(local_elem));
             previous_values[code].local = error.local.count;
@@ -177,13 +150,12 @@ void ErrorLog::stepFunction(TimePoint current_time)
             ErrorLogElement remote_elem {
                 .event_time=event_time,
                 .code=code,
-                .error_time_ms=error.remote.error_time_ms,
-                .error_message=error.remote.message,
                 .value=error.remote.count - previous_values.at(code).remote,
                 .remote=true,
-                .query_id=error.remote.query_id,
-                .error_trace=error.remote.trace,
-                .symbolize=symbolize
+                .last_error_time=(error.remote.error_time_ms / 1000),
+                .last_error_message=error.remote.message,
+                .last_error_query_id=error.remote.query_id,
+                .last_error_trace=error.remote.trace
             };
             add(std::move(remote_elem));
             previous_values[code].remote = error.remote.count;

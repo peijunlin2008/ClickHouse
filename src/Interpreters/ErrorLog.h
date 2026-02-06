@@ -4,10 +4,7 @@
 #include <Common/ErrorCodes.h>
 #include <Core/NamesAndTypes.h>
 #include <Core/NamesAndAliases.h>
-#include <DataTypes/DataTypeArray.h>
 #include <Storages/ColumnsDescription.h>
-
-#include <vector>
 
 
 namespace DB
@@ -20,14 +17,12 @@ struct ErrorLogElement
 {
     time_t event_time{};
     ErrorCodes::ErrorCode code{};
-    UInt64 error_time_ms = 0;
-    std::string error_message{};
     ErrorCodes::Value value{};
     bool remote{};
-    std::string query_id;
-    std::vector<void *> error_trace{};
-    bool symbolize = false;
-
+    UInt64 last_error_time = 0;
+    String last_error_message{};
+    String last_error_query_id{};
+    std::vector<void *> last_error_trace{};
     static std::string name() { return "ErrorLog"; }
     static ColumnsDescription getColumnsDescription();
     static NamesAndAliases getNamesAndAliases() { return {}; }
@@ -39,20 +34,18 @@ class ErrorLog : public PeriodicLog<ErrorLogElement>
 {
     using PeriodicLog<ErrorLogElement>::PeriodicLog;
 
-public:
-    ErrorLog(ContextPtr context_,
-             const SystemLogSettings & settings_,
-             std::shared_ptr<SystemLogQueue<ErrorLogElement>> queue_ = nullptr)
-        : PeriodicLog<ErrorLogElement>(context_, settings_, queue_),
-        symbolize(settings_.symbolize_traces)
-    {
-    }
-
 protected:
     void stepFunction(TimePoint current_time) override;
 
 private:
-    bool symbolize;
+    struct ValuePair
+    {
+        UInt64 local = 0;
+        UInt64 remote = 0;
+    };
+    /// stepFunction and flushBufferToLog may be executed concurrently, hence the mutex
+    std::vector<ValuePair> previous_values TSA_GUARDED_BY(previous_values_mutex) = std::vector<ValuePair>(ErrorCodes::end());
+    mutable std::mutex previous_values_mutex;
 };
 
 }

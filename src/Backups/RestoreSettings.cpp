@@ -164,6 +164,7 @@ namespace
     M(Bool, skip_unresolved_access_dependencies) \
     M(Bool, update_access_entities_dependents) \
     M(RestoreUDFCreationMode, create_function) \
+    M(Bool, allow_azure_native_copy) \
     M(Bool, allow_s3_native_copy) \
     M(Bool, use_same_s3_credentials_for_base_backup) \
     M(Bool, use_same_password_for_base_backup) \
@@ -214,7 +215,7 @@ RestoreSettings RestoreSettings::fromRestoreQuery(const ASTBackupQuery & query)
 
 void RestoreSettings::copySettingsToQuery(ASTBackupQuery & query) const
 {
-    auto query_settings = std::make_shared<ASTSetQuery>();
+    auto query_settings = make_intrusive<ASTSetQuery>();
     query_settings->is_standalone = false;
 
     /// Copy the fields of the RestoreSettings to the query.
