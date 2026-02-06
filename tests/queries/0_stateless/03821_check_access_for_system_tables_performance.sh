@@ -13,13 +13,15 @@ function cleanup()
     for i in $(seq 1 $NUM_DATABASES); do
         $CLICKHOUSE_CLIENT --query "DROP DATABASE IF EXISTS test_03821_db_$i" 2>/dev/null &
     done
+    wait
     $CLICKHOUSE_CLIENT --query "DROP USER IF EXISTS $user" 2>/dev/null
 }
 trap cleanup EXIT
 
 for i in $(seq 1 $NUM_DATABASES); do
-    $CLICKHOUSE_CLIENT --query "CREATE DATABASE IF NOT EXISTS test_03821_db_$i" &
+    $CLICKHOUSE_CLIENT --query "CREATE DATABASE IF NOT EXISTS test_03821_db_$i" 2>/dev/null &
 done
+wait
 
 $CLICKHOUSE_CLIENT --query "DROP USER IF EXISTS $user"
 $CLICKHOUSE_CLIENT --query "CREATE USER $user"
