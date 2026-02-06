@@ -106,6 +106,7 @@ private:
     double max_time = 0;
     double delay = 1;
     bool continue_on_error = false;
+    bool enable_tracing = false;
     size_t max_iterations = 0;
 
     std::atomic<size_t> requests_executed = 0;
