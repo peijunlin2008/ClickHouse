@@ -243,14 +243,22 @@ using TracingContextHolderPtr = std::unique_ptr<TracingContextHolder>;
 /// Once it's created or destructed, it automatically maintains the tracing context on the thread that it lives.
 struct SpanHolder : public Span
 {
-    explicit SpanHolder(std::string_view, SpanKind _kind = SpanKind::INTERNAL);
-    SpanHolder(std::string_view, SpanKind _kind, std::vector<SpanAttribute> _attributes);
+    explicit SpanHolder(std::string_view _operation_name,
+                        SpanKind _kind = SpanKind::INTERNAL,
+                        bool create_trace_if_not_exists = false);
+
+    SpanHolder(std::string_view _operation_name,
+               SpanKind _kind,
+               std::vector<SpanAttribute> _attributes,
+               bool create_trace_if_not_exists = false);
+
     ~SpanHolder();
 
     /// Finish a span explicitly if needed.
     /// It's safe to call it multiple times
     void finish(std::chrono::system_clock::time_point time) noexcept;
 
+    bool trace_created = false;
     /// All changes made to the current tracing context while the scope is active need to be restored.
     UInt8 old_trace_flags;
 };

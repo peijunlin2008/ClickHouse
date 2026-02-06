@@ -44,7 +44,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"deduplicate_insert", "backward_compatible_choice", "backward_compatible_choice", "New setting to control deduplication for INSERT queries."},
             {"parallel_replicas_filter_pushdown", false, false, "New setting"},
             {"use_statistics_cache", false, true, "Enable statistics cache"},
-            {"opentelemetry_keeper_spans_probability", 0.0, 0.0, "New setting"},
+            {"opentelemetry_start_keeper_trace_probability", 0.0, 0.0, "New setting"},
 
         });
         addSettingsChanges(settings_changes_history, "26.1",

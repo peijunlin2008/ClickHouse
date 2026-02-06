@@ -2,7 +2,7 @@
     <profiles>
         <default>
             <opentelemetry_start_trace_probability>1.0</opentelemetry_start_trace_probability>
-            <opentelemetry_keeper_spans_probability>1.0</opentelemetry_keeper_spans_probability>
+            <opentelemetry_start_keeper_trace_probability>1.0</opentelemetry_start_keeper_trace_probability>
         </default>
     </profiles>
 </clickhouse>

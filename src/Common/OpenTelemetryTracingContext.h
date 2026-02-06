@@ -38,6 +38,12 @@ struct TracingContext
         return trace_id != UUID();
     }
 
+    /// Generate a new random non-zero trace ID
+    static UUID generateTraceId();
+
+    /// Generate a new random span ID
+    static UInt64 generateSpanId();
+
     void deserialize(ReadBuffer & buf);
     void serialize(WriteBuffer & buf) const;
 };
