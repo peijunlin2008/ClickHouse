@@ -908,7 +908,7 @@ PackedFilesReader * IMergeTreeDataPart::getStatisticsPackedReader() const
         return statistics_reader.get();
 
     const String filename = String(ColumnsStatistics::FILENAME);
-    if (!getDataPartStorage().existsFile(filename))
+    if (!checksums.has(filename))
         return nullptr;
 
     const auto & storage_path = getDataPartStorage().getRelativePath();
@@ -926,7 +926,7 @@ PackedFilesReader * IMergeTreeDataPart::getStatisticsPackedReader() const
     return statistics_reader.get();
 }
 
-ColumnsStatistics IMergeTreeDataPart::loadStatisticsFromPackedFiles(const PackedFilesReader & reader) const
+ColumnsStatistics IMergeTreeDataPart::loadStatisticsPacked(const PackedFilesReader & reader, const NameSet & required_columns) const
 {
     ColumnsStatistics result;
     auto read_settings = storage.getContext()->getReadSettings();
@@ -938,6 +938,9 @@ ColumnsStatistics IMergeTreeDataPart::loadStatisticsFromPackedFiles(const Packed
 
         String column_name = fs::path(filename).stem().string();
         if (!columns_description->has(column_name))
+            continue;
+
+        if (!required_columns.empty() && !required_columns.contains(column_name))
             continue;
 
         size_t file_size = reader.getFileSize(filename);
@@ -954,12 +957,22 @@ ColumnsStatistics IMergeTreeDataPart::loadStatisticsFromPackedFiles(const Packed
 ColumnsStatistics IMergeTreeDataPart::loadStatistics() const
 {
     if (auto * reader = getStatisticsPackedReader())
-        return loadStatisticsFromPackedFiles(*reader);
+        return loadStatisticsPacked(*reader, {});
 
     // if (auto all_stats_file = readFileIfExists(String(ColumnsStatistics::FILENAME)))
     // {
     //     return ColumnsStatistics::deserialize(*all_stats_file, *columns_description);
     // }
+
+    return {};
+}
+
+ColumnsStatistics IMergeTreeDataPart::loadStatistics(const Names & required_columns) const
+{
+    NameSet required_columns_set(required_columns.begin(), required_columns.end());
+
+    if (auto * reader = getStatisticsPackedReader())
+        return loadStatisticsPacked(*reader, required_columns_set);
 
     return {};
 }
