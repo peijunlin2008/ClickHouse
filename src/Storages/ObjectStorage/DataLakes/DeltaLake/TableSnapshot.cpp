@@ -512,9 +512,10 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
 
     struct StatsVisitor
     {
-        size_t total_bytes = 0;
-        size_t total_rows = 0;
         size_t total_data_files = 0;
+        size_t total_bytes = 0;
+        /// Not all writers add rows count to metadata
+        std::optional<size_t> total_rows;
 
         static void visit(
             ffi::NullableCvoid engine_context,
@@ -530,7 +531,11 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
             visitor->total_data_files += 1;
             visitor->total_bytes += static_cast<size_t>(size);
             if (stats)
-                visitor->total_rows += stats->num_records;
+            {
+                if (!visitor->total_rows.has_value())
+                    visitor->total_rows.emplace(0);
+                visitor->total_rows.value() += stats->num_records;
+            }
         }
 
         static void visitData(void * engine_context, ffi::SharedScanMetadata * scan_metadata)
@@ -558,7 +563,9 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
     LOG_TEST(
         log, "Snapshot ({}) data files: {}, total rows: {}, total bytes: {}",
         kernel_snapshot_state->snapshot_version,
-        visitor.total_data_files, visitor.total_rows, visitor.total_bytes);
+        visitor.total_data_files,
+        visitor.total_rows ? DB::toString(*visitor.total_rows) : "Unknown",
+        visitor.total_bytes);
 
     return SnapshotStats{
         .version = kernel_snapshot_state->snapshot_version,

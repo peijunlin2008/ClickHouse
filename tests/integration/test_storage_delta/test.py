@@ -3006,20 +3006,27 @@ def test_count_from_cache(started_cluster):
     TABLE_NAME = randomize_table_name("test_empty_format_header")
     result_file = f"{TABLE_NAME}"
 
-    schema = StructType(
-        [
-            StructField("id", IntegerType(), True),
-            StructField("name", StringType(), True),
-        ]
+    schema = pa.schema([("id", pa.int32(), False), ("name", pa.string(), False)])
+    empty_arrays = [pa.array([], type=pa.int32()), pa.array([], type=pa.string())]
+    write_deltalake(
+        f"s3://root/{result_file}",
+        pa.Table.from_arrays(empty_arrays, schema=schema),
+        storage_options=get_storage_options(started_cluster),
+        mode="overwrite",
     )
-    df = spark.createDataFrame([(1, "keko"), (2, "puka"), (3, "mora")]).toDF(
-        "id", "name"
+
+    instance.query(
+        f"CREATE TABLE {TABLE_NAME} (id Int32, name String) ENGINE = DeltaLake('http://{started_cluster.minio_ip}:{started_cluster.minio_port}/{bucket}/{result_file}/', 'minio', '{minio_secret_key}')"
     )
-    df.write.format("delta").partitionBy("id").save(f"/{result_file}")
-    upload_directory(minio_client, bucket, f"/{result_file}", "")
+
+    for i in range(3):
+        instance.query(
+            f"INSERT INTO TABLE FUNCTION deltaLake('http://{started_cluster.minio_ip}:{started_cluster.minio_port}/{bucket}/{result_file}/', 'minio', '{minio_secret_key}') SELECT {i + 1} as name, toString({i + 1}) as id from numbers(1)"
+        )
 
     table_function = f"deltaLake('http://{started_cluster.minio_ip}:{started_cluster.minio_port}/{bucket}/{result_file}/', 'minio', '{minio_secret_key}')"
 
+    # Sleep 1 second because cache works by timestamps.
     time.sleep(1)
     assert 3 == int(instance.query(f"SELECT count() FROM {table_function}"))
     assert 3 == int(instance.query(f"SELECT count() FROM {table_function}"))
