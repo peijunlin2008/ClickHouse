@@ -813,18 +813,18 @@ std::map<std::string, DiskPtr> MergeTreeData::getDistinctDisksForParts(const Dat
 }
 
 ConditionSelectivityEstimatorPtr MergeTreeData::getConditionSelectivityEstimator(
-    const StorageSnapshotPtr & storage_snapshot, const Names & required_columns, ContextPtr local_context) const
+    const RangesInDataParts & parts, ContextPtr local_context) const
 {
     if (!local_context->getSettingsRef()[Setting::use_statistics])
         return nullptr;
 
-    const auto & parts = *assert_cast<const SnapshotData &>(*storage_snapshot->data).parts;
     if (parts.empty())
         return {};
 
     {
         std::lock_guard<std::mutex> lock(stats_mutex);
-        if (local_context->getSettingsRef()[Setting::use_statistics_cache] && cached_estimator)
+        if (local_context->getSettingsRef()[Setting::use_statistics_cache]
+            && cached_estimator)
             return cached_estimator;
     }
 
@@ -835,7 +835,7 @@ ConditionSelectivityEstimatorPtr MergeTreeData::getConditionSelectivityEstimator
     {
         try
         {
-            auto stats = part.data_part->loadStatistics(required_columns);
+            auto stats = part.data_part->loadStatistics();
             estimator_builder.markDataPart(part.data_part);
             for (const auto & [column_name, stat] : stats)
                 estimator_builder.addStatistics(column_name, stat);
