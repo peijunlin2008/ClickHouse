@@ -638,7 +638,7 @@ try
         unused_event,
         [&](ConfigurationPtr loaded_config, bool /* initial_loading */)
         {
-            config().replaceByLabel("default", loaded_config, PRIO_DEFAULT, false);
+            config().replaceByLabel("default", loaded_config, PRIO_DEFAULT, true);
 
             updateLevels(config(), logger());
             update_memory_soft_limit_in_config(config());
