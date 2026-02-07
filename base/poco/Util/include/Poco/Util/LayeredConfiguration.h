@@ -150,7 +150,7 @@ namespace Util
         /// Does nothing if the given configuration is not part of the
         /// LayeredConfiguration.
 
-        void replaceByLabel(const std::string & label, AbstractConfiguration * pNewConfig, int priority, bool shared);
+        void replace(const std::string & label, AbstractConfiguration * pNewConfig, int priority, bool shared);
         /// Atomically replaces the configuration with the given label.
         /// If no configuration with that label exists, adds it as new.
         /// This method is thread-safe with respect to concurrent readers

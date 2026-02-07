@@ -32,7 +32,7 @@ TEST(LayeredConfiguration, ReplaceByLabelBasic)
     EXPECT_EQ("value1", lc->getString("key"));
 
     auto cfg2 = makeMapConfig("key", "value2");
-    lc->replaceByLabel("test_label", cfg2, 0, true);
+    lc->replace("test_label", cfg2, 0, true);
 
     EXPECT_EQ("value2", lc->getString("key"));
 }
@@ -43,13 +43,13 @@ TEST(LayeredConfiguration, ReplaceByLabelAddsWhenNotFound)
     AutoPtr<LayeredConfiguration> lc(new LayeredConfiguration);
 
     auto cfg = makeMapConfig("newkey", "newvalue");
-    lc->replaceByLabel("nonexistent", cfg, 0, true);
+    lc->replace("nonexistent", cfg, 0, true);
 
     EXPECT_EQ("newvalue", lc->getString("newkey"));
 
     // Verify it was actually added with the label by replacing it again.
     auto cfg2 = makeMapConfig("newkey", "replaced");
-    lc->replaceByLabel("nonexistent", cfg2, 0, true);
+    lc->replace("nonexistent", cfg2, 0, true);
 
     EXPECT_EQ("replaced", lc->getString("newkey"));
 }
@@ -69,7 +69,7 @@ TEST(LayeredConfiguration, ReplaceByLabelPreservesOtherConfigs)
 
     // Replace only label_a.
     auto cfg_a2 = makeMapConfig("a", "replaced");
-    lc->replaceByLabel("label_a", cfg_a2, 0, true);
+    lc->replace("label_a", cfg_a2, 0, true);
 
     EXPECT_EQ("replaced", lc->getString("a"));
     EXPECT_EQ("2", lc->getString("b"));
@@ -113,7 +113,7 @@ TEST(LayeredConfiguration, ReplaceByLabelConcurrentReads)
     for (size_t i = 0; i < num_replacements; ++i)
     {
         auto new_cfg = makeMapConfig("key", "round_" + std::to_string(i));
-        lc->replaceByLabel("default", new_cfg, 0, true);
+        lc->replace("default", new_cfg, 0, true);
     }
 
     stop.store(true, std::memory_order_relaxed);

@@ -155,7 +155,7 @@ LayeredConfiguration::ConfigPtr LayeredConfiguration::find(const std::string& la
 }
 
 
-void LayeredConfiguration::replaceByLabel(const std::string& label, AbstractConfiguration* pNewConfig, int priority, bool shared)
+void LayeredConfiguration::replace(const std::string& label, AbstractConfiguration* pNewConfig, int priority, bool shared)
 {
 	Mutex::ScopedLock lock(_mutex);
 
