@@ -1,16 +1,17 @@
-#include <IO/ReadHelpers.h>
-#include <IO/WriteHelpers.h>
+#include <Columns/IColumn.h>
+#include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/Serializations/SerializationNullable.h>
+#include <Formats/EscapingRuleUtils.h>
 #include <Formats/JSONUtils.h>
 #include <Formats/ReadSchemaUtils.h>
-#include <Formats/EscapingRuleUtils.h>
 #include <IO/PeekableReadBuffer.h>
 #include <IO/ReadBufferFromString.h>
+#include <IO/ReadHelpers.h>
 #include <IO/WriteBufferValidUTF8.h>
-#include <DataTypes/Serializations/SerializationNullable.h>
-#include <DataTypes/DataTypeNullable.h>
-#include <DataTypes/DataTypeFactory.h>
+#include <IO/WriteHelpers.h>
+#include <Processors/Formats/IRowInputFormat.h>
 #include <Common/assert_cast.h>
-#include <Columns/IColumn.h>
 
 #include <base/find_symbols.h>
 #include <base/scope_guard.h>
@@ -26,23 +27,27 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
 }
 
+
 namespace JSONUtils
 {
-    template <const char opening_bracket, const char closing_bracket>
-    static std::pair<bool, size_t>
-    fileSegmentationEngineJSONEachRowImpl(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t min_rows, size_t max_rows)
+template <const char opening_bracket, const char closing_bracket>
+static std::pair<bool, size_t> fileSegmentationEngineJSONEachRowImpl(
+    ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t min_rows, size_t max_rows, size_t max_block_wait_ms)
+{
+    skipWhitespaceIfAny(in);
+
+    char * pos = in.position();
+    size_t balance = 0;
+    bool quotes = false;
+    size_t number_of_rows = 0;
+    bool need_more_data = true;
+    size_t last_complete_row_memory_size = 0;
+    Stopwatch watch(CLOCK_MONOTONIC_COARSE);
+
+    if (max_rows && (max_rows < min_rows))
+        max_rows = min_rows;
+    try
     {
-        skipWhitespaceIfAny(in);
-
-        char * pos = in.position();
-        size_t balance = 0;
-        bool quotes = false;
-        size_t number_of_rows = 0;
-        bool need_more_data = true;
-
-        if (max_rows && (max_rows < min_rows))
-            max_rows = min_rows;
-
         while (loadAtPosition(in, memory, pos) && need_more_data)
         {
             const auto current_object_size = memory.size() + static_cast<size_t>(pos - in.position());
@@ -100,10 +105,14 @@ namespace JSONUtils
 
                 if (!quotes && balance == 0)
                 {
+                    last_complete_row_memory_size = memory.size() + static_cast<size_t>(pos - in.position());
                     ++number_of_rows;
-                    if ((number_of_rows >= min_rows)
-                        && ((memory.size() + static_cast<size_t>(pos - in.position()) >= min_bytes) || (number_of_rows == max_rows)))
+                    if ((max_block_wait_ms != 0 && watch.elapsedMilliseconds() >= max_block_wait_ms)
+                        || ((number_of_rows >= min_rows)
+                            && ((memory.size() + static_cast<size_t>(pos - in.position()) >= min_bytes) || (number_of_rows == max_rows))))
+                    {
                         need_more_data = false;
+                    }
                 }
             }
         }
@@ -111,18 +120,29 @@ namespace JSONUtils
         saveUpToPosition(in, memory, pos);
         return {loadAtPosition(in, memory, pos), number_of_rows};
     }
-
-    std::pair<bool, size_t> fileSegmentationEngineJSONEachRow(
-        ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows)
+    catch (Exception & e)
     {
-        return fileSegmentationEngineJSONEachRowImpl<'{', '}'>(in, memory, min_bytes, 1, max_rows);
-    }
+        if (isConnectionError(e.code()))
+        {
+            memory.resize(last_complete_row_memory_size);
+            return {false, number_of_rows};
+        }
 
-    std::pair<bool, size_t> fileSegmentationEngineJSONCompactEachRow(
-        ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t min_rows, size_t max_rows)
-    {
-        return fileSegmentationEngineJSONEachRowImpl<'[', ']'>(in, memory, min_bytes, min_rows, max_rows);
+        throw;
     }
+}
+
+std::pair<bool, size_t>
+fileSegmentationEngineJSONEachRow(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms)
+{
+    return fileSegmentationEngineJSONEachRowImpl<'{', '}'>(in, memory, min_bytes, 1, max_rows, max_block_wait_ms);
+}
+
+std::pair<bool, size_t> fileSegmentationEngineJSONCompactEachRow(
+    ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t min_rows, size_t max_rows, size_t max_block_wait_ms)
+{
+    return fileSegmentationEngineJSONEachRowImpl<'[', ']'>(in, memory, min_bytes, min_rows, max_rows, max_block_wait_ms);
+}
 
     template <const char opening_bracket, const char closing_bracket>
     void skipRowForJSONEachRowImpl(ReadBuffer & in)

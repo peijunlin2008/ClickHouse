@@ -75,31 +75,46 @@ void registerInputFormatLineAsString(FormatFactory & factory)
 }
 
 
-static std::pair<bool, size_t> segmentationEngine(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows)
+static std::pair<bool, size_t>
+segmentationEngine(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms)
 {
     char * pos = in.position();
     bool need_more_data = true;
     size_t number_of_rows = 0;
-
-    while (loadAtPosition(in, memory, pos) && need_more_data)
+    size_t last_complete_row_memory_size = 0;
+    Stopwatch watch(CLOCK_MONOTONIC_COARSE);
+    try
     {
-        pos = find_first_symbols<'\n'>(pos, in.buffer().end());
-        if (pos > in.buffer().end())
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Position in buffer is out of bounds. There must be a bug.");
-        if (pos == in.buffer().end())
-            continue;
+        while (loadAtPosition(in, memory, pos) && need_more_data)
+        {
+            pos = find_first_symbols<'\n'>(pos, in.buffer().end());
+            if (pos > in.buffer().end())
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "Position in buffer is out of bounds. There must be a bug.");
+            if (pos == in.buffer().end())
+                continue;
 
-        ++number_of_rows;
-        if ((memory.size() + static_cast<size_t>(pos - in.position()) >= min_bytes) || (number_of_rows == max_rows))
-            need_more_data = false;
+            ++number_of_rows;
+            if ((max_block_wait_ms != 0 && watch.elapsedMilliseconds() >= max_block_wait_ms)
+                || (memory.size() + static_cast<size_t>(pos - in.position()) >= min_bytes) || (number_of_rows == max_rows))
+                need_more_data = false;
 
-        if (*pos == '\n')
-            ++pos;
+            if (*pos == '\n')
+                ++pos;
+        }
+
+        saveUpToPosition(in, memory, pos);
+
+        return {loadAtPosition(in, memory, pos), number_of_rows};
     }
-
-    saveUpToPosition(in, memory, pos);
-
-    return {loadAtPosition(in, memory, pos), number_of_rows};
+    catch (Exception & e)
+    {
+        if (isConnectionError(e.code()))
+        {
+            memory.resize(last_complete_row_memory_size);
+            return {false, number_of_rows};
+        }
+        throw;
+    }
 }
 
 void registerFileSegmentationEngineLineAsString(FormatFactory & factory)

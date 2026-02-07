@@ -34,7 +34,8 @@ void ParallelParsingInputFormat::segmentatorThreadFunction(ThreadGroupPtr thread
 
             size_t segment_start = getDataOffsetMaybeCompressed(*in);
             auto file_segmentation_engine = file_segmentation_engine_creator(format_settings);
-            auto [have_more_data, currently_read_rows] = file_segmentation_engine(*in, unit.segment, min_chunk_bytes, max_block_size);
+            auto [have_more_data, currently_read_rows]
+                = file_segmentation_engine(*in, unit.segment, min_chunk_bytes, max_block_size, max_block_wait_ms);
 
             unit.original_segment_size = getDataOffsetMaybeCompressed(*in) - segment_start;
             unit.offset = successfully_read_rows_count;

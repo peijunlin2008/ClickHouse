@@ -117,6 +117,12 @@ private:
     DataTypes buffered_types;
 };
 
-std::pair<bool, size_t> fileSegmentationEngineCSVImpl(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t min_rows, size_t max_rows, const FormatSettings & settings);
-
+std::pair<bool, size_t> fileSegmentationEngineCSVImpl(
+    ReadBuffer & in,
+    DB::Memory<> & memory,
+    size_t min_bytes,
+    size_t min_rows,
+    size_t max_rows,
+    size_t max_block_wait_ms,
+    const FormatSettings & settings);
 }

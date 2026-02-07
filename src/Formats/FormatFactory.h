@@ -71,10 +71,7 @@ public:
       * Used in ParallelParsingInputFormat.
       */
     using FileSegmentationEngine = std::function<std::pair<bool, size_t>(
-        ReadBuffer & buf,
-        DB::Memory<Allocator<false>> & memory,
-        size_t min_bytes,
-        size_t max_rows)>;
+        ReadBuffer & buf, DB::Memory<Allocator<false>> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms)>;
 
     using FileSegmentationEngineCreator = std::function<FileSegmentationEngine(
         const FormatSettings & settings)>;

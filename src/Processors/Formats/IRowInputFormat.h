@@ -36,6 +36,7 @@ struct RowInputFormatParams
 };
 
 bool isParseError(int code);
+bool isConnectionError(int code);
 bool checkTimeLimit(const RowInputFormatParams & params, const Stopwatch & stopwatch);
 
 /// Row oriented input format: reads data row by row.

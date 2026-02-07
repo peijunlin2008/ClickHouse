@@ -1041,36 +1041,56 @@ void BSONEachRowSchemaReader::transformTypesIfNeeded(DataTypePtr & type, DataTyp
 }
 
 static std::pair<bool, size_t>
-fileSegmentationEngineBSONEachRow(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows)
+fileSegmentationEngineBSONEachRow(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms)
 {
     size_t number_of_rows = 0;
+    size_t last_complete_row_memory_size = 0;
+    Stopwatch watch(CLOCK_MONOTONIC_COARSE);
 
-    while (!in.eof() && memory.size() < min_bytes && number_of_rows < max_rows)
+    try
     {
-        BSONSizeT document_size;
-        readBinaryLittleEndian(document_size, in);
+        while (!in.eof() && memory.size() < min_bytes && number_of_rows < max_rows)
+        {
+            BSONSizeT document_size;
+            readBinaryLittleEndian(document_size, in);
 
-        if (document_size < sizeof(document_size))
-            throw Exception(ErrorCodes::INCORRECT_DATA, "Size of BSON document is invalid");
+            if (document_size < sizeof(document_size))
+                throw Exception(ErrorCodes::INCORRECT_DATA, "Size of BSON document is invalid");
 
-        if (min_bytes != 0 && document_size > 10 * min_bytes)
-            throw Exception(
-                ErrorCodes::INCORRECT_DATA,
-                "Size of BSON document is extremely large. Expected not greater than {} bytes, but current is {} bytes per row. Increase "
-                "the value setting 'min_chunk_bytes_for_parallel_parsing' or check your data manually, most likely BSON is malformed",
-                min_bytes, document_size);
+            if (min_bytes != 0 && document_size > 10 * min_bytes)
+                throw Exception(
+                    ErrorCodes::INCORRECT_DATA,
+                    "Size of BSON document is extremely large. Expected not greater than {} bytes, but current is {} bytes per row. "
+                    "Increase "
+                    "the value setting 'min_chunk_bytes_for_parallel_parsing' or check your data manually, most likely BSON is malformed",
+                    min_bytes,
+                    document_size);
 
-        if (document_size < sizeof(document_size))
-            throw Exception(ErrorCodes::INCORRECT_DATA, "Size of BSON document is invalid");
+            if (document_size < sizeof(document_size))
+                throw Exception(ErrorCodes::INCORRECT_DATA, "Size of BSON document is invalid");
 
-        size_t old_size = memory.size();
-        memory.resize(old_size + document_size);
-        unalignedStoreLittleEndian<BSONSizeT>(memory.data() + old_size, document_size);
-        in.readStrict(memory.data() + old_size + sizeof(document_size), document_size - sizeof(document_size));
-        ++number_of_rows;
+            size_t old_size = memory.size();
+            memory.resize(old_size + document_size);
+            unalignedStoreLittleEndian<BSONSizeT>(memory.data() + old_size, document_size);
+            in.readStrict(memory.data() + old_size + sizeof(document_size), document_size - sizeof(document_size));
+            ++number_of_rows;
+            last_complete_row_memory_size = memory.size();
+            if ((max_block_wait_ms != 0 && watch.elapsedMilliseconds() >= max_block_wait_ms))
+                break;
+        }
+
+        return {!in.eof(), number_of_rows};
     }
+    catch (Exception & e)
+    {
+        if (isConnectionError(e.code()))
+        {
+            memory.resize(last_complete_row_memory_size);
+            return {false, number_of_rows};
+        }
 
-    return {!in.eof(), number_of_rows};
+        throw;
+    }
 }
 
 void registerInputFormatBSONEachRow(FormatFactory & factory)

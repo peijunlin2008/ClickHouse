@@ -507,6 +507,7 @@ InputFormatPtr FormatFactory::getInput(
             max_parsing_threads,
             settings[Setting::min_chunk_bytes_for_parallel_parsing],
             max_block_size,
+            format_settings.max_block_wait_ms,
             context->getApplicationType() == Context::ApplicationType::SERVER};
 
         format = std::make_shared<ParallelParsingInputFormat>(params);
@@ -520,6 +521,7 @@ InputFormatPtr FormatFactory::getInput(
     {
         format = creators.input_creator(buf, sample, row_input_format_params, format_settings);
     }
+
 
     if (owned_buf)
         format->addBuffer(std::move(owned_buf));
