@@ -95,6 +95,7 @@ public:
 
     Estimate getEstimate() const;
     String getNameForLogs() const;
+    DataTypePtr getDataType() const { return stats_desc.data_type; }
 
     const StatsMap & getStats() const { return stats; }
     bool structureEquals(const ColumnStatistics & other) const;
