@@ -2957,13 +2957,12 @@ try
 
         {
             std::lock_guard lock(servers_lock);
-            for (auto & server : servers)
-            {
-                server.start();
-                LOG_INFO(log, "Listening for {}", server.getDescription());
-            }
 
-            // Restore the root logger level to the default level after the server is fully initialized.
+            /// Restore the startup log level overrides before accepting connections,
+            /// so that no requests are served with an elevated (startup) log level.
+            /// This must happen before server.start() because the config reload callback
+            /// (ConfigReloader) reads from config() which includes the writable layer
+            /// where startup level overrides are stored.
             if (should_restore_default_logger_level)
             {
                 config().setString("logger.level", default_logger_level_config);
@@ -2971,12 +2970,17 @@ try
                 LOG_INFO(log, "Restored default logger level to {}", default_logger_level_config);
             }
 
-            // Restore the root logger level to the default level after the server is fully initialized.
             if (should_restore_console_log_level)
             {
                 config().setString("logger.console_log_level", original_console_log_level_config);
                 Loggers::updateLevels(config(), logger());
                 LOG_INFO(log, "Restored console logger level to {}", original_console_log_level_config);
+            }
+
+            for (auto & server : servers)
+            {
+                server.start();
+                LOG_INFO(log, "Listening for {}", server.getDescription());
             }
 
             global_context->setServerCompletelyStarted();
