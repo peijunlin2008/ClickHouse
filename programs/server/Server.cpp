@@ -1645,14 +1645,11 @@ try
     Coordination::EventPtr main_config_zk_changed_event = std::make_shared<Poco::Event>();
     if (loaded_config.has_zk_includes)
     {
-        auto old_configuration = loaded_config.configuration;
         ConfigProcessor config_processor(config_path);
         loaded_config = config_processor.loadConfigWithZooKeeperIncludes(
             main_config_zk_node_cache.get(), main_config_zk_changed_event, /* fallback_to_preprocessed = */ true);
         config_processor.savePreprocessedConfig(loaded_config, path_str);
-        config().removeConfiguration(old_configuration.get());
-        config().add(loaded_config.configuration.duplicate(), PRIO_DEFAULT, false);
-        global_context->setConfig(loaded_config.configuration);
+        config().replace("default", loaded_config.configuration.duplicate(), PRIO_DEFAULT, false);
     }
 
     Settings::checkNoSettingNamesAtTopLevel(config(), config_path);
