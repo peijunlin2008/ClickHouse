@@ -170,8 +170,7 @@ public:
     void remove();
 
     ColumnsStatistics loadStatistics() const;
-    ColumnsStatistics loadStatisticsFromPackedFiles(const PackedFilesReader & reader) const;
-    PackedFilesReader * getStatisticsPackedReader() const;
+    ColumnsStatistics loadStatistics(const Names & required_columns) const;
     Estimates getEstimates() const;
     void setEstimates(const Estimates & new_estimates);
 
@@ -657,11 +656,6 @@ protected:
     mutable std::mutex index_mutex;
     mutable IndexPtr index;
 
-    /// PackedFilesReader for statistics archive.
-    /// Lazily loaded on first access to loadStatistics when packed format is used.
-    mutable std::mutex statistics_reader_mutex;
-    mutable std::unique_ptr<PackedFilesReader> statistics_reader;
-
 private:
     /// Columns and secondary indices sizes can be calculated lazily on first request.
     mutable std::mutex columns_and_secondary_indices_sizes_mutex;
@@ -675,6 +669,11 @@ private:
     mutable ColumnSize total_secondary_indices_size;
 
     mutable IndexSizeByName secondary_index_sizes;
+
+    /// PackedFilesReader for statistics archive.
+    /// Lazily loaded on first access to loadStatistics when packed format is used.
+    mutable std::mutex statistics_reader_mutex;
+    mutable std::unique_ptr<PackedFilesReader> statistics_reader;
 
 protected:
     /// Total size on disk, not only columns. May not contain size of
@@ -788,6 +787,9 @@ private:
     /// any specifial compression.
     void loadDefaultCompressionCodec();
     void loadSourcePartsSet();
+
+    ColumnsStatistics loadStatisticsPacked(const PackedFilesReader & reader, const NameSet & required_columns) const;
+    PackedFilesReader * getStatisticsPackedReader() const;
 
     void writeColumns(const NamesAndTypesList & columns_, const WriteSettings & settings);
     void writeVersionMetadata(const VersionMetadata & version_, bool fsync_part_dir) const;

@@ -813,7 +813,7 @@ std::map<std::string, DiskPtr> MergeTreeData::getDistinctDisksForParts(const Dat
 }
 
 ConditionSelectivityEstimatorPtr MergeTreeData::getConditionSelectivityEstimator(
-    const RangesInDataParts & parts, ContextPtr local_context) const
+    const RangesInDataParts & parts, const Names & required_columns, ContextPtr local_context) const
 {
     if (!local_context->getSettingsRef()[Setting::use_statistics])
         return nullptr;
@@ -835,7 +835,7 @@ ConditionSelectivityEstimatorPtr MergeTreeData::getConditionSelectivityEstimator
     {
         try
         {
-            auto stats = part.data_part->loadStatistics();
+            auto stats = part.data_part->loadStatistics(required_columns);
             estimator_builder.markDataPart(part.data_part);
             for (const auto & [column_name, stat] : stats)
                 estimator_builder.addStatistics(column_name, stat);
