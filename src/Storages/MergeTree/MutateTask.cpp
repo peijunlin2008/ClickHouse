@@ -1081,6 +1081,7 @@ static void processStatisticsChanges(
 {
     auto storage_settings = source_part.storage.getSettings();
     bool statistics_packed_format = (*storage_settings)[MergeTreeSetting::statistics_packed_format];
+    String statistics_file_name(ColumnsStatistics::FILENAME);
 
     auto process_rename = [&](const String & from_name, const String & to_name)
     {
@@ -1094,7 +1095,7 @@ static void processStatisticsChanges(
                 all_statistics.emplace(to_name, it->second);
 
             all_statistics.erase(it);
-            files_to_skip.emplace(ColumnsStatistics::FILENAME);
+            files_to_skip.emplace(statistics_file_name);
         }
         else
         {
@@ -1152,8 +1153,10 @@ static void processStatisticsChanges(
             }
         }
     }
-}
 
+    if (all_statistics.empty() && source_part.checksums.files.contains(statistics_file_name))
+        files_to_rename.emplace_back(statistics_file_name, "");
+}
 
 /// Initialize and write to disk new part fields like checksums, columns, etc.
 void finalizeMutatedPart(
