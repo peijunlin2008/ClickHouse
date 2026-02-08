@@ -84,7 +84,6 @@ namespace MergeTreeSetting
     extern const MergeTreeSettingsMergeTreeSerializationInfoVersion serialization_info_version;
     extern const MergeTreeSettingsMergeTreeStringSerializationVersion string_serialization_version;
     extern const MergeTreeSettingsMergeTreeNullableSerializationVersion nullable_serialization_version;
-    extern const MergeTreeSettingsBool statistics_packed_format;
 }
 
 namespace FailPoints
@@ -170,18 +169,6 @@ static NameSet getRemovedStatistics(const StorageMetadataPtr & metadata_snapshot
     }
 
     return removed_stats;
-}
-
-static std::optional<String> getStatisticFilename(const String & statistic_name, const IMergeTreeDataPart & part)
-{
-    auto escaped_name = escapeForFileName(STATS_FILE_PREFIX + statistic_name);
-    auto stream_name = IMergeTreeDataPart::getStreamNameOrHash(escaped_name, STATS_FILE_SUFFIX, part.checksums);
-    return stream_name ? std::make_optional(*stream_name + STATS_FILE_SUFFIX) : std::nullopt;
-}
-
-String getNewStatisticFilename(const String & statistic_name, const MergeTreeSettings & storage_settings, const IDataPartStorage & data_part_storage)
-{
-    return replaceFileNameToHashIfNeeded(escapeForFileName(STATS_FILE_PREFIX + statistic_name), storage_settings, &data_part_storage) + STATS_FILE_SUFFIX;
 }
 
 /** Split mutation commands into two parts:
@@ -1080,31 +1067,19 @@ static void processStatisticsChanges(
     StorageMetadataPtr metadata_snapshot)
 {
     auto storage_settings = source_part.storage.getSettings();
-    bool statistics_packed_format = (*storage_settings)[MergeTreeSetting::statistics_packed_format];
     String statistics_file_name(ColumnsStatistics::FILENAME);
 
     auto process_rename = [&](const String & from_name, const String & to_name)
     {
-        if (statistics_packed_format)
-        {
-            auto it = all_statistics.find(from_name);
-            if (it == all_statistics.end())
-                return;
+        auto it = all_statistics.find(from_name);
+        if (it == all_statistics.end())
+            return;
 
-            if (!to_name.empty())
-                all_statistics.emplace(to_name, it->second);
+        if (!to_name.empty())
+            all_statistics.emplace(to_name, it->second);
 
-            all_statistics.erase(it);
-            files_to_skip.emplace(statistics_file_name);
-        }
-        else
-        {
-            if (auto filename = getStatisticFilename(from_name, source_part))
-            {
-                String new_filename = to_name.empty() ? "" : getNewStatisticFilename(to_name, *storage_settings, source_part.getDataPartStorage());
-                files_to_rename.emplace_back(*filename, new_filename);
-            }
-        }
+        all_statistics.erase(it);
+        files_to_skip.emplace(statistics_file_name);
     };
 
     for (const auto & command : commands_for_renames)
@@ -1140,22 +1115,23 @@ static void processStatisticsChanges(
         for (const auto & [stat_name, stat] : stats_to_recalc)
             all_statistics[stat_name] = stat->cloneEmpty();
 
-        if (statistics_packed_format)
-        {
-            files_to_skip.emplace(ColumnsStatistics::FILENAME);
-        }
-        else
-        {
-            for (const auto & [stat_name, stat] : stats_to_recalc)
-            {
-                if (auto filename = getStatisticFilename(stat_name, source_part))
-                    files_to_skip.emplace(*filename);
-            }
-        }
+        files_to_skip.emplace(ColumnsStatistics::FILENAME);
     }
 
-    if (all_statistics.empty() && source_part.checksums.files.contains(statistics_file_name))
+    const auto & source_checksums = source_part.checksums;
+    if (all_statistics.empty() && source_checksums.files.contains(statistics_file_name))
         files_to_rename.emplace_back(statistics_file_name, "");
+
+    if (files_to_skip.contains(statistics_file_name))
+    {
+        /// If statistics are changed, always write them in a new format.
+        /// Remove old statistics files.
+        for (const auto & [filename, _] : source_checksums.files)
+        {
+            if (filename.starts_with(LEGACY_STATS_FILE_PREFIX) && filename.ends_with(STATS_FILE_SUFFIX))
+                files_to_rename.emplace_back(filename, "");
+        }
+    }
 }
 
 /// Initialize and write to disk new part fields like checksums, columns, etc.
@@ -1206,21 +1182,13 @@ void finalizeMutatedPart(
         written_files.push_back(std::move(out_serialization));
     }
 
-    new_data_part->setEstimates(all_gathered_data.part_statistics.statistics.getEstimates());
+    const auto & statistics = all_gathered_data.part_statistics.statistics;
+    new_data_part->setEstimates(statistics.getEstimates());
 
-    if (!all_gathered_data.part_statistics.statistics.empty())
+    if (!statistics.empty())
     {
-        bool statistics_packed_format = (*new_data_part->storage.getSettings())[MergeTreeSetting::statistics_packed_format];
-
-        if (statistics_packed_format)
-        {
-            auto out = serializeStatisticsPacked(new_data_part->getDataPartStorage(), new_data_part->checksums, all_gathered_data.part_statistics.statistics, context->getWriteSettings());
-            written_files.push_back(std::move(out));
-        }
-        else
-        {
-            serializeStatisticsWide(new_data_part->getDataPartStorage(), new_data_part->checksums, all_gathered_data.part_statistics.statistics, context->getWriteSettings());
-        }
+        auto out = serializeStatisticsPacked(new_data_part->getDataPartStorage(), new_data_part->checksums, statistics, context->getWriteSettings());
+        written_files.push_back(std::move(out));
     }
 
     {
@@ -1356,7 +1324,6 @@ struct MutationContext
     std::set<MergeTreeIndexPtr> indices_to_drop;
     ColumnsStatistics stats_to_recalc;
     std::set<ProjectionDescriptionRawPtr> projections_to_recalc;
-    MergeTreeData::DataPart::Checksums existing_indices_stats_checksums;
     NameSet files_to_skip;
     NameToNameVector files_to_rename;
 
@@ -1760,10 +1727,7 @@ private:
 
         NameSet entries_to_hardlink;
         NameSet removed_indices;
-        NameSet removed_stats;
         NameSet removed_projections;
-        /// A stat file need to be renamed iff the column is renamed.
-        NameToNameMap renamed_stats;
 
         bool is_full_part_storage = isFullPartStorage(ctx->new_data_part->getDataPartStorage());
 
@@ -1772,23 +1736,6 @@ private:
             if (command.type == MutationCommand::DROP_INDEX)
             {
                 removed_indices.insert(command.column_name);
-            }
-            else if (command.type == MutationCommand::DROP_STATISTICS)
-            {
-                auto current_removed_stats = MutationHelpers::getRemovedStatistics(ctx->metadata_snapshot, command);
-                std::move(current_removed_stats.begin(), current_removed_stats.end(), std::inserter(removed_stats, removed_stats.end()));
-            }
-            else if (command.type == MutationCommand::DROP_COLUMN)
-            {
-                removed_stats.insert(command.column_name);
-            }
-            else if (command.type == MutationCommand::RENAME_COLUMN && is_full_part_storage)
-            {
-                if (auto filename = MutationHelpers::getStatisticFilename(STATS_FILE_PREFIX + command.column_name, *ctx->source_part))
-                {
-                    String new_filename = MutationHelpers::getNewStatisticFilename(STATS_FILE_PREFIX + command.rename_to, *ctx->source_part->storage.getSettings(), ctx->source_part->getDataPartStorage());
-                    renamed_stats[*filename] = std::move(new_filename);
-                }
             }
             else if (command.type == MutationCommand::DROP_PROJECTION)
             {
@@ -1828,33 +1775,7 @@ private:
                         break;
 
                     entries_to_hardlink.insert(it->first);
-                    ctx->existing_indices_stats_checksums.addFile(it->first, it->second);
                     ++it;
-                }
-            }
-        }
-
-        ColumnsStatistics stats_to_rewrite;
-        const auto & columns = ctx->metadata_snapshot->getColumns();
-        for (const auto & column : columns)
-        {
-            if (column.statistics.empty() || removed_stats.contains(column.name))
-                continue;
-
-            if (ctx->materialized_statistics.contains(column.name))
-            {
-                stats_to_rewrite.emplace(column.name, MergeTreeStatisticsFactory::instance().get(column));
-            }
-            else
-            {
-                /// We do not hard-link statistics which
-                /// 1. In `DROP STATISTICS` statement. It is filtered by `removed_stats`
-                /// 2. Not in column list anymore, including `DROP COLUMN`. It is not touched by this loop.
-                if (auto stat_filename = MutationHelpers::getStatisticFilename(STATS_FILE_PREFIX + column.name, *ctx->source_part))
-                {
-                    const auto & checksum = ctx->source_part->checksums.files.at(*stat_filename);
-                    entries_to_hardlink.insert(*stat_filename);
-                    ctx->existing_indices_stats_checksums.addFile(*stat_filename, checksum);
                 }
             }
         }
@@ -1892,18 +1813,9 @@ private:
         for (auto it = ctx->source_part->getDataPartStorage().iterate(); it->isValid(); it->next())
         {
             if (!entries_to_hardlink.contains(it->name()))
-            {
-                if (renamed_stats.contains(it->name()))
-                {
-                    ctx->new_data_part->getDataPartStorage().createHardLinkFrom(
-                        ctx->source_part->getDataPartStorage(), it->name(), renamed_stats.at(it->name()));
-                    hardlinked_files.insert(it->name());
-                    /// Also we need to "rename" checksums to finalize correctly.
-                    const auto & check_sum = ctx->source_part->checksums.files.at(it->name());
-                    ctx->existing_indices_stats_checksums.addFile(renamed_stats.at(it->name()), check_sum);
-                }
-            }
-            else if (it->isFile())
+                continue;
+
+            if (it->isFile())
             {
                 ctx->new_data_part->getDataPartStorage().createHardLinkFrom(
                     ctx->source_part->getDataPartStorage(), it->name(), it->name());

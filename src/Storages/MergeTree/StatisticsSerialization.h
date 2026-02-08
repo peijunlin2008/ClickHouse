@@ -17,10 +17,4 @@ std::unique_ptr<WriteBufferFromFileBase> serializeStatisticsPacked(
     const ColumnsStatistics & statistics,
     const WriteSettings & write_settings);
 
-void serializeStatisticsWide(
-    IDataPartStorage & data_part_storage,
-    MergeTreeDataPartChecksums & out_checksums,
-    const ColumnsStatistics & statistics,
-    const WriteSettings & write_settings);
-
 }

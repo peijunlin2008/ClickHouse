@@ -18,7 +18,6 @@ namespace ErrorCodes
 namespace MergeTreeSetting
 {
     extern const MergeTreeSettingsBool enable_index_granularity_compression;
-    extern const MergeTreeSettingsBool statistics_packed_format;
 }
 
 MergedBlockOutputStream::MergedBlockOutputStream(
@@ -235,7 +234,6 @@ MergedBlockOutputStream::Finalizer MergedBlockOutputStream::finalizePartAsync(
     new_part->setBytesUncompressedOnDisk(checksums.getTotalSizeUncompressedOnDisk());
     new_part->index_granularity = writer->getIndexGranularity();
     new_part->calculateColumnsAndSecondaryIndicesSizesOnDisk();
-    new_part->setEstimates(gathered_data.part_statistics.statistics.getEstimates());
 
     if ((*new_part->storage.getSettings())[MergeTreeSetting::enable_index_granularity_compression])
     {
@@ -350,19 +348,12 @@ MergedBlockOutputStream::WrittenFiles MergedBlockOutputStream::finalizePartOnDis
     }
 
     const auto & statistics = gathered_data.part_statistics.statistics;
+    new_part->setEstimates(statistics.getEstimates());
+
     if (!statistics.empty())
     {
-        bool statistics_packed_format = (*new_part->storage.getSettings())[MergeTreeSetting::statistics_packed_format];
-
-        if (statistics_packed_format)
-        {
-            auto out = serializeStatisticsPacked(new_part->getDataPartStorage(), checksums, statistics, writer_settings.query_write_settings);
-            written_files.emplace_back(std::move(out));
-        }
-        else
-        {
-            serializeStatisticsWide(new_part->getDataPartStorage(), checksums, statistics, writer_settings.query_write_settings);
-        }
+        auto out = serializeStatisticsPacked(new_part->getDataPartStorage(), checksums, statistics, writer_settings.query_write_settings);
+        written_files.emplace_back(std::move(out));
     }
 
     write_plain_file("columns.txt", [&](auto & buffer)

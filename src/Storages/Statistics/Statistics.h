@@ -10,7 +10,7 @@
 namespace DB
 {
 
-constexpr auto STATS_FILE_PREFIX = "statistics_";
+constexpr auto LEGACY_STATS_FILE_PREFIX = "statistics_";
 constexpr auto STATS_FILE_SUFFIX = ".stats";
 
 class Field;
@@ -124,8 +124,6 @@ public:
     void buildIfExists(const Block & block);
     void merge(const ColumnsStatistics & other);
     Estimates getEstimates() const;
-
-    static String getStatisticName(const String & column_name) { return STATS_FILE_PREFIX + column_name; }
 };
 
 struct ColumnDescription;
