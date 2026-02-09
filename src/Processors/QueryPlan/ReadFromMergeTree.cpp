@@ -1650,7 +1650,7 @@ Pipe ReadFromMergeTree::spreadMarkRangesAmongStreamsFinal(
             /// To not produce too many layers, i.e., to wide pipeline, let's limit the number of streams proportionally to the total number of marks in parts.
             const size_t max_layers = std::max<size_t>((num_streams * current_ranges_marks) / total_marks_to_read, 1);
 
-            if (max_layers > 1 && storage_snapshot->metadata->hasPrimaryKey())
+            if (storage_snapshot->metadata->hasPrimaryKey())
             {
                 // Let's split parts into non intersecting parts ranges and layers to ensure data parallelism of FINAL.
                 auto in_order_reading_step_getter = [this, &index_build_context, &column_names, &info](auto parts)
