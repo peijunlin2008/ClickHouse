@@ -115,16 +115,16 @@ BlockIO LibraryDictionarySource::loadAll()
 }
 
 
-BlockIO LibraryDictionarySource::loadIds(const std::vector<UInt64> & ids)
+BlockIO LibraryDictionarySource::loadIds(const VectorWithMemoryTracking<UInt64> & ids)
 {
     LOG_TRACE(log, "loadIds {} size = {}", toString(), ids.size());
     BlockIO io;
-    io.pipeline = bridge_helper->loadIds(ids);
+    io.pipeline = bridge_helper->loadIds({ids.begin(), ids.end()});
     return io;
 }
 
 
-BlockIO LibraryDictionarySource::loadKeys(const Columns & key_columns, const std::vector<std::size_t> & requested_rows)
+BlockIO LibraryDictionarySource::loadKeys(const Columns & key_columns, const VectorWithMemoryTracking<std::size_t> & requested_rows)
 {
     LOG_TRACE(log, "loadKeys {} size = {}", toString(), requested_rows.size());
     auto block = blockForKeys(dict_struct, key_columns, requested_rows);
@@ -151,7 +151,7 @@ String LibraryDictionarySource::getLibrarySettingsString(const Poco::Util::Abstr
     Poco::Util::AbstractConfiguration::Keys config_keys;
     config.keys(config_root, config_keys);
     WriteBufferFromOwnString out;
-    std::vector<std::string> settings;
+    VectorWithMemoryTracking<std::string> settings;
 
     for (const auto & key : config_keys)
     {
@@ -172,7 +172,7 @@ String LibraryDictionarySource::getLibrarySettingsString(const Poco::Util::Abstr
 
 String LibraryDictionarySource::getDictAttributesString()
 {
-    std::vector<String> attributes_names(dict_struct.attributes.size());
+    VectorWithMemoryTracking<String> attributes_names(dict_struct.attributes.size());
     for (size_t i = 0; i < dict_struct.attributes.size(); ++i)
         attributes_names[i] = dict_struct.attributes[i].name;
     WriteBufferFromOwnString out;

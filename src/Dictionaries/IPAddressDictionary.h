@@ -90,7 +90,7 @@ public:
 private:
 
     template <typename Value>
-    using ContainerType = std::vector<Value>;
+    using ContainerType = VectorWithMemoryTracking<Value>;
 
     using IPAddress = Poco::Net::IPAddress;
 
@@ -236,7 +236,7 @@ private:
     ContainerType<size_t> row_idx;
 
     std::map<std::string, size_t> attribute_index_by_name;
-    std::vector<Attribute> attributes;
+    VectorWithMemoryTracking<Attribute> attributes;
 
     size_t bytes_allocated = 0;
     size_t element_count = 0;

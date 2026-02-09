@@ -212,9 +212,9 @@ private:
     bool flag_case_insensitive;
     bool flag_dotall;
 
-    std::vector<std::string> simple_regexps;
-    std::vector<UInt64>      regexp_ids;
-    std::vector<RegexTreeNodePtr> complex_regexp_nodes;
+    VectorWithMemoryTracking<std::string> simple_regexps;
+    VectorWithMemoryTracking<UInt64>      regexp_ids;
+    VectorWithMemoryTracking<RegexTreeNodePtr> complex_regexp_nodes;
 
     std::map<UInt64, RegexTreeNodePtr> regex_nodes;
     UnorderedMapWithMemoryTracking<UInt64, UInt64> topology_order;

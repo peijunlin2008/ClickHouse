@@ -257,7 +257,7 @@ static void checkAttributeKeys(const Poco::Util::AbstractConfiguration::Keys & k
     }
 }
 
-std::vector<DictionaryAttribute> DictionaryStructure::getAttributes(
+VectorWithMemoryTracking<DictionaryAttribute> DictionaryStructure::getAttributes(
     const Poco::Util::AbstractConfiguration & config,
     const std::string & config_prefix,
     bool complex_key_attributes)
@@ -271,7 +271,7 @@ std::vector<DictionaryAttribute> DictionaryStructure::getAttributes(
     bool has_hierarchy = false;
 
     UnorderedSetWithMemoryTracking<String> attribute_names;
-    std::vector<DictionaryAttribute> res_attributes;
+    VectorWithMemoryTracking<DictionaryAttribute> res_attributes;
 
     const FormatSettings format_settings = {};
 

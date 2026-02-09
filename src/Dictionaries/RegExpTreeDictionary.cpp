@@ -123,7 +123,7 @@ struct ExternalRegexpQueryBuilder final : public ExternalQueryBuilder
 
 struct RegExpTreeDictionary::RegexTreeNode
 {
-    std::vector<UInt64> children;
+    VectorWithMemoryTracking<UInt64> children;
     UInt64      id;
     UInt64      parent_id;
     std::string regex;
@@ -140,7 +140,7 @@ struct RegExpTreeDictionary::RegexTreeNode
     struct AttributeValue
     {
         Field field;
-        std::vector<StringPiece> pieces;
+        VectorWithMemoryTracking<StringPiece> pieces;
         String original_value;
 
         constexpr bool containsBackRefs() const { return !pieces.empty(); }
@@ -149,9 +149,9 @@ struct RegExpTreeDictionary::RegexTreeNode
     UnorderedMapWithMemoryTracking<String, AttributeValue> attributes;
 };
 
-std::vector<StringPiece> createStringPieces(const String & value, int num_captures, const String & regex, LoggerPtr logger)
+VectorWithMemoryTracking<StringPiece> createStringPieces(const String & value, int num_captures, const String & regex, LoggerPtr logger)
 {
-    std::vector<StringPiece> result;
+    VectorWithMemoryTracking<StringPiece> result;
     String literal;
     for (size_t i = 0; i < value.size(); ++i)
     {
@@ -341,9 +341,9 @@ void RegExpTreeDictionary::loadData()
             return;
 
 #if USE_VECTORSCAN
-        std::vector<const char *> patterns;
-        std::vector<unsigned int> flags;
-        std::vector<size_t> lengths;
+        VectorWithMemoryTracking<const char *> patterns;
+        VectorWithMemoryTracking<unsigned int> flags;
+        VectorWithMemoryTracking<size_t> lengths;
 
         // Notes:
         // - Always set HS_FLAG_SINGLEMATCH because we only care about whether a pattern matches at least once
@@ -502,7 +502,7 @@ public:
     size_t attributesFull() const { return n_full_attributes; }
 };
 
-std::pair<String, bool> processBackRefs(const String & data, const re2::RE2 & searcher, const std::vector<StringPiece> & pieces)
+std::pair<String, bool> processBackRefs(const String & data, const re2::RE2 & searcher, const VectorWithMemoryTracking<StringPiece> & pieces)
 {
     std::string_view matches[10];
     String result;
@@ -621,9 +621,9 @@ bool RegExpTreeDictionary::setAttributesShortCircuit(
 struct MatchContext
 {
     std::set<UInt64> matched_idx_set;
-    std::vector<std::pair<UInt64, UInt64>> matched_idx_sorted_list;
+    VectorWithMemoryTracking<std::pair<UInt64, UInt64>> matched_idx_sorted_list;
 
-    const std::vector<UInt64> & regexp_ids ;
+    const VectorWithMemoryTracking<UInt64> & regexp_ids ;
     const UnorderedMapWithMemoryTracking<UInt64, UInt64> & topology_order;
     const char * data;
     size_t length;
@@ -633,7 +633,7 @@ struct MatchContext
     size_t match_counter = 0;
 
     MatchContext(
-        const std::vector<UInt64> & regexp_ids_,
+        const VectorWithMemoryTracking<UInt64> & regexp_ids_,
         const UnorderedMapWithMemoryTracking<UInt64, UInt64> & topology_order_,
         const char * data_, size_t length_,
         const std::map<UInt64, RegExpTreeDictionary::RegexTreeNodePtr> & regex_nodes_)
@@ -888,8 +888,8 @@ Pipe RegExpTreeDictionary::read(const Names & , size_t max_block_size, size_t) c
             const auto & node = it->second;
             col_pid->insert(node->parent_id);
             col_regex->insert(node->regex);
-            std::vector<Field> keys;
-            std::vector<Field> values;
+            VectorWithMemoryTracking<Field> keys;
+            VectorWithMemoryTracking<Field> values;
             for (const auto & [key, attr] : node->attributes)
             {
                 keys.push_back(key);

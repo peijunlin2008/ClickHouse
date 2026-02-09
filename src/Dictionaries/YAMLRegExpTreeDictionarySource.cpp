@@ -151,8 +151,8 @@ struct MatchNode
     UInt64 id;
     UInt64 parent_id;
     String reg_exp;
-    std::vector<Field> keys;
-    std::vector<Field> values;
+    VectorWithMemoryTracking<Field> keys;
+    VectorWithMemoryTracking<Field> values;
 };
 
 struct ResultColumns

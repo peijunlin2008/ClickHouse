@@ -2,7 +2,6 @@
 
 #include <optional>
 #include <string>
-#include <vector>
 
 #include <Poco/Util/AbstractConfiguration.h>
 
@@ -14,6 +13,7 @@
 #include <IO/ReadBufferFromString.h>
 #include <Interpreters/IExternalLoadable.h>
 #include <Common/UnorderedMapWithMemoryTracking.h>
+#include <Common/VectorWithMemoryTracking.h>
 
 
 namespace DB
@@ -101,8 +101,8 @@ struct DictionaryTypedSpecialAttribute final
 struct DictionaryStructure final
 {
     std::optional<DictionaryTypedSpecialAttribute> id;
-    std::optional<std::vector<DictionaryAttribute>> key;
-    std::vector<DictionaryAttribute> attributes;
+    std::optional<VectorWithMemoryTracking<DictionaryAttribute>> key;
+    VectorWithMemoryTracking<DictionaryAttribute> attributes;
     UnorderedMapWithMemoryTracking<std::string, size_t> attribute_name_to_index;
     std::optional<DictionaryTypedSpecialAttribute> range_min;
     std::optional<DictionaryTypedSpecialAttribute> range_max;
@@ -127,10 +127,8 @@ struct DictionaryStructure final
 
 private:
     /// range_min and range_max have to be parsed before this function call
-    std::vector<DictionaryAttribute> getAttributes(
-        const Poco::Util::AbstractConfiguration & config,
-        const std::string & config_prefix,
-        bool complex_key_attributes);
+    VectorWithMemoryTracking<DictionaryAttribute>
+    getAttributes(const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix, bool complex_key_attributes);
 
     /// parse range_min and range_max
     void parseRangeConfiguration(const Poco::Util::AbstractConfiguration & config, const std::string & structure_prefix);

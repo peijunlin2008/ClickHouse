@@ -44,7 +44,7 @@ public:
       */
     explicit RegionsHierarchiesDataProvider(const std::string & path_);
 
-    std::vector<std::string> listCustomHierarchies() const override;
+    VectorWithMemoryTracking<std::string> listCustomHierarchies() const override;
 
     IRegionsHierarchyDataSourcePtr getDefaultHierarchySource() const override;
     IRegionsHierarchyDataSourcePtr getHierarchySource(const std::string & name) const override;

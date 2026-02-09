@@ -73,7 +73,7 @@ PolygonDictionaryIndexEach::PolygonDictionaryIndexEach(
     buckets.reserve(polygons.size());
     for (const auto & polygon : polygons)
     {
-        std::vector<Polygon> single;
+        VectorWithMemoryTracking<Polygon> single;
         single.emplace_back(polygon);
         buckets.emplace_back(single);
     }

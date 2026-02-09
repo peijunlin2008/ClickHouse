@@ -5,15 +5,15 @@
 #include <cmath>
 #include <mutex>
 #include <utility>
-#include <vector>
 
 #include <pcg_random.hpp>
 
 
-#include <Common/randomSeed.h>
-#include <Common/ThreadPool.h>
-#include <Common/SharedMutex.h>
 #include <Common/CurrentMetrics.h>
+#include <Common/SharedMutex.h>
+#include <Common/ThreadPool.h>
+#include <Common/VectorWithMemoryTracking.h>
+#include <Common/randomSeed.h>
 
 #include <Dictionaries/IDictionary.h>
 #include <Dictionaries/ICacheDictionaryStorage.h>
