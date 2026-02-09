@@ -12,7 +12,7 @@ doc_type: 'reference'
 Creates a new database.
 
 ```sql
-CREATE DATABASE [IF NOT EXISTS] db_name [ON CLUSTER cluster] [ENGINE = engine(...)] [COMMENT 'Comment']
+CREATE DATABASE [IF NOT EXISTS] db_name [ON CLUSTER cluster] [ENGINE = engine(...)] [SETTINGS ...] [COMMENT 'Comment']
 ```
 
 ## Clauses {#clauses}
@@ -60,3 +60,19 @@ Result:
 │ db_comment │ The temporary database │
 └────────────┴────────────────────────┘
 ```
+
+### SETTINGS {#settings}
+
+#### lazy_load_tables {#lazy-load-tables}
+
+When enabled, tables are not fully loaded during database startup. Instead, a lightweight proxy is created for each table and the real table engine is materialized on first access. This reduces startup time and memory usage for databases with many tables where only a subset is actively queried.
+
+```sql
+CREATE DATABASE db_name ENGINE = Atomic SETTINGS lazy_load_tables = 1;
+```
+
+Before a table is accessed, it appears with engine `TableProxy` in `system.tables`. After first access, it shows its real engine name.
+
+Applies to database engines that store table metadata on disk (e.g. `Atomic`, `Ordinary`). Views, materialized views, dictionaries, and tables backed by table functions are always loaded eagerly regardless of this setting.
+
+Default value: `0` (disabled).
