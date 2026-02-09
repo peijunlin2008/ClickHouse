@@ -155,7 +155,7 @@ bool tryAddJoinRuntimeFilter(QueryPlan::Node & node, QueryPlan::Nodes & nodes, c
     }
 
     // Skip runtime filters if there are no join keys
-    if (join_keys_build_side.size() == 0)
+    if (join_keys_build_side.empty())
     {
         return false;
     }
