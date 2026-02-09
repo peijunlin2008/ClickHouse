@@ -597,7 +597,7 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
     }
 
     LOG_TEST(
-        log, "Snapshot ({}) data files: {}, total rows: {}, total bytes: {}",
+        log, "Snapshot at version {} data files: {}, total rows: {}, total bytes: {}",
         kernel_snapshot_state->snapshot_version,
         visitor.total_data_files,
         visitor.total_rows ? DB::toString(*visitor.total_rows) : "Unknown",
