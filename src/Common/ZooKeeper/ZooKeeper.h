@@ -646,7 +646,9 @@ private:
     bool sampleForOpenTelemetryTracing() const
     {
         /// Avoiding using random number generation and std::bernoulli_distribution because it's too slow.
-        /// Instead, we're effectively doing: request_number++ % 1024 < probability * 1024 - which is much closer to optimal.
+        /// Instead, we're effectively doing:
+        /// request_number++ % 1024 < probability * 1024
+        /// which is much more optimal.
         return static_cast<int32_t>(getConnectionXid() & 1023) < static_cast<int32_t>(opentelemetry_start_keeper_trace_probability * 1024.0f);
     }
 
