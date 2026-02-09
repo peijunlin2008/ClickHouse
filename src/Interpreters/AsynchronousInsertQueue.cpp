@@ -10,6 +10,8 @@
 #include <Common/quoteString.h>
 #include <Common/setThreadName.h>
 #include <Core/Settings.h>
+#include <Core/DeduplicateInsert.h>
+#include <Core/ServerSettings.h>
 #include <Formats/FormatFactory.h>
 #include <IO/ConcatReadBuffer.h>
 #include <IO/LimitReadBuffer.h>
@@ -76,7 +78,6 @@ namespace Setting
     extern const SettingsDouble async_insert_busy_timeout_increase_rate;
     extern const SettingsMilliseconds async_insert_busy_timeout_min_ms;
     extern const SettingsMilliseconds async_insert_busy_timeout_max_ms;
-    extern const SettingsBool async_insert_deduplicate;
     extern const SettingsUInt64 async_insert_max_data_size;
     extern const SettingsUInt64 async_insert_max_query_number;
     extern const SettingsMilliseconds async_insert_poll_timeout_ms;
@@ -92,6 +93,11 @@ namespace Setting
     extern const SettingsString parallel_replicas_custom_key;
     extern const SettingsUInt64 parallel_replicas_custom_key_range_lower;
     extern const SettingsUInt64 parallel_replica_offset;
+}
+
+namespace ServerSetting
+{
+    extern const ServerSettingsInsertDeduplicationVersions insert_deduplication_version;
 }
 
 namespace ErrorCodes
@@ -553,7 +559,7 @@ AsynchronousInsertQueue::PushResult AsynchronousInsertQueue::pushDataChunk(ASTPt
 
         bool has_enough_bytes = data->size_in_bytes >= (*key.settings)[Setting::async_insert_max_data_size];
         bool has_enough_queries
-            = data->entries.size() >= (*key.settings)[Setting::async_insert_max_query_number] && (*key.settings)[Setting::async_insert_deduplicate];
+            = data->entries.size() >= (*key.settings)[Setting::async_insert_max_query_number] && isDeduplicationEnabledForInsert(*key.settings);
 
         auto max_busy_timeout_exceeded = [&shard, &settings, &now, &flush_time_points]() -> bool
         {
@@ -1244,7 +1250,9 @@ Chunk AsynchronousInsertQueue::processEntriesWithParsing(
         data->entries.size(),
         std::move(adding_defaults_transform));
 
-    auto deduplication_info = DeduplicationInfo::create(/*async_insert*/true);
+    auto deduplication_info = DeduplicationInfo::create(
+        /*async_insert=*/true,
+        insert_context->getServerSettings()[ServerSetting::insert_deduplication_version].value);
 
     for (const auto & entry : data->entries)
     {
@@ -1287,7 +1295,9 @@ Chunk AsynchronousInsertQueue::processPreprocessedEntries(
     LogFunc && add_to_async_insert_log)
 {
     size_t total_rows = 0;
-    auto deduplication_info = DeduplicationInfo::create(/*async_insert*/true);
+    auto deduplication_info = DeduplicationInfo::create(
+        /*async_insert=*/true,
+        context_->getServerSettings()[ServerSetting::insert_deduplication_version].value);
     auto result_columns = header.cloneEmptyColumns();
 
     for (const auto & entry : data->entries)
