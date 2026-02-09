@@ -252,6 +252,7 @@ private:
     const StorageID storage_id;
     const bool commit_once_processed;
     const bool add_deduplication_info;
+    const InsertDeduplicationVersions insert_deduplication_version;
     time_t transaction_start_time;
 
     LoggerPtr log;
