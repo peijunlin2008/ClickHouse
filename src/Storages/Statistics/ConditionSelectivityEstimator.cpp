@@ -57,9 +57,12 @@ RelationProfile ConditionSelectivityEstimator::estimateRelationProfile(const Sto
     return estimateRelationProfileImpl(rpn, metadata);
 }
 
-static bool isCompatibleStatistics(const ColumnsDescription & columns, const ColumnStatisticsPtr & stats, const String & column_name)
+static bool isCompatibleStatistics(const StorageMetadataPtr & metadata, const ColumnStatisticsPtr & stats, const String & column_name)
 {
-    const auto * column = columns.tryGet(column_name);
+    if (!metadata)
+        return true;
+
+    const auto * column = metadata->getColumns().tryGet(column_name);
     if (!column)
         return false;
 
@@ -143,7 +146,7 @@ RelationProfile ConditionSelectivityEstimator::estimateRelationProfileImpl(std::
     result.rows = static_cast<UInt64>(final_rows);
     for (const auto & [column_name, estimator] : column_estimators)
     {
-        if (!isCompatibleStatistics(metadata->getColumns(), estimator.stats, column_name))
+        if (!isCompatibleStatistics(metadata, estimator.stats, column_name))
             continue;
 
         UInt64 cardinality = std::min(result.rows, estimator.estimateCardinality());
@@ -530,7 +533,7 @@ void ConditionSelectivityEstimator::RPNElement::finalize(const ColumnEstimators 
     for (const auto & [column_name, ranges] : column_ranges)
     {
         auto it = column_estimators_.find(column_name);
-        if (it == column_estimators_.end() || !isCompatibleStatistics(metadata->getColumns(), it->second.stats, column_name))
+        if (it == column_estimators_.end() || !isCompatibleStatistics(metadata, it->second.stats, column_name))
         {
             estimate_results.emplace_back(estimate_unknown_ranges(ranges));
         }
@@ -541,7 +544,7 @@ void ConditionSelectivityEstimator::RPNElement::finalize(const ColumnEstimators 
     for (const auto & [column_name, ranges] : column_not_ranges)
     {
         auto it = column_estimators_.find(column_name);
-        if (it == column_estimators_.end() || !isCompatibleStatistics(metadata->getColumns(), it->second.stats, column_name))
+        if (it == column_estimators_.end() || !isCompatibleStatistics(metadata, it->second.stats, column_name))
         {
             estimate_results.emplace_back(1 - estimate_unknown_ranges(ranges));
         }
