@@ -154,6 +154,12 @@ bool tryAddJoinRuntimeFilter(QueryPlan::Node & node, QueryPlan::Nodes & nodes, c
         }
     }
 
+    // Skip runtime filters if there are no join keys
+    if (join_keys_build_side.size() == 0)
+    {
+        return false;
+    }
+
     /// When negation will be use for the set of rows in filter, double check that all original predicates were transformed into equality predicates
     /// between left and right side
     if (check_left_does_not_contain &&
