@@ -19,7 +19,7 @@
 #include <Parsers/ASTFunction.h>
 #include <Parsers/ExpressionElementParsers.h>
 #include <Parsers/parseQuery.h>
-
+#include <Parsers/ASTIdentifier.h>
 
 #include "config.h" /// USE_DATASKETCHES
 
@@ -39,7 +39,6 @@ enum StatisticsFileVersion : UInt16
 {
     V0 = 0,
     V1 = 1, /// modify the format of uniq, https://github.com/ClickHouse/ClickHouse/pull/90311
-    V2 = 2,
 };
 
 std::optional<Float64> StatisticsUtils::tryConvertToFloat64(const Field & value, const DataTypePtr & data_type)
@@ -219,11 +218,6 @@ Float64 ColumnStatistics::estimateRange(const Range & range) const
     return right_count - left_count;
 }
 
-UInt64 ColumnStatistics::rowCount() const
-{
-    return rows;
-}
-
 UInt64 ColumnStatistics::estimateCardinality() const
 {
     if (stats.contains(StatisticsType::Uniq))
@@ -257,10 +251,13 @@ Estimate ColumnStatistics::getEstimate() const
 
 void ColumnStatistics::serialize(WriteBuffer & buf) const
 {
-    writeIntBinary(V2, buf);
+    writeIntBinary(V1, buf);
 
-    auto stats_str = serializeColumnStatisticsToString(stats_desc.types_to_desc);
-    writeStringBinary(stats_str, buf);
+    UInt64 stat_types_mask = 0;
+    for (const auto & [type, _]: stats)
+        stat_types_mask |= 1ULL << static_cast<UInt8>(type);
+
+    writeIntBinary(stat_types_mask, buf);
 
     /// As the column row count is always useful, save it in any case
     writeIntBinary(rows, buf);
@@ -276,16 +273,25 @@ std::shared_ptr<ColumnStatistics> ColumnStatistics::deserialize(ReadBuffer & buf
     readIntBinary(version, buf);
 
     /// TODO: we should check the version of statistics format when we start clickhouse server, and do materialize statistics automatically.
-    if (version != V2)
+    if (version != V1)
         throw Exception(ErrorCodes::ILLEGAL_STATISTICS, "We try to read stale file format version: {}. Please run `ALTER TABLE [db.]table MATERIALIZE STATISTICS ALL` to regenerate the statistics", version);
 
-    String stats_str;
-    readStringBinary(stats_str, buf);
-    ColumnStatisticsDescription parsed_desc;
-    parsed_desc.data_type = data_type;
-    parsed_desc.types_to_desc = parseColumnStatisticsFromString(stats_str);
+    UInt64 stat_types_mask = 0;
+    readIntBinary(stat_types_mask, buf);
 
-    auto result = MergeTreeStatisticsFactory::instance().get(parsed_desc);
+    std::vector<StatisticsType> stat_types;
+    for (size_t i = 0; i < static_cast<UInt8>(StatisticsType::Max); ++i)
+    {
+        if (stat_types_mask & (1ULL << i))
+            stat_types.push_back(static_cast<StatisticsType>(i));
+    }
+
+    const auto & factory = MergeTreeStatisticsFactory::instance();
+    ColumnStatisticsDescription stats_desc;
+    stats_desc.data_type = data_type;
+    stats_desc.types_to_desc = factory.get(stat_types, data_type);
+
+    auto result = factory.get(stats_desc);
     readIntBinary(result->rows, buf);
 
     for (const auto & [_, desc] : result->stats)
@@ -448,21 +454,27 @@ ColumnStatisticsPtr MergeTreeStatisticsFactory::get(const ColumnStatisticsDescri
     return column_stat;
 }
 
-String serializeColumnStatisticsToString(const ColumnStatisticsDescription::StatisticsTypeDescMap & stats_desc_map)
+ColumnStatisticsDescription::StatisticsTypeDescMap MergeTreeStatisticsFactory::get(const std::vector<StatisticsType> & stat_types, const DataTypePtr & data_type) const
 {
-    WriteBufferFromOwnString buf;
-    for (auto it = stats_desc_map.begin(); it != stats_desc_map.end(); ++it)
+    ColumnStatisticsDescription::StatisticsTypeDescMap result;
+    for (const auto & type : stat_types)
     {
-        if (it != stats_desc_map.begin())
-            writeString(", ", buf);
+        auto it = validators.find(type);
+        if (it == validators.end())
+            throw Exception(ErrorCodes::INCORRECT_QUERY, "Unknown statistic type '{}'. Available types: 'countmin', 'minmax', 'tdigest' and 'uniq'", type);
 
-        IAST::FormatSettings format_settings(/*one_line=*/true);
-        it->second.ast->format(buf, format_settings);
+        auto ast = make_intrusive<ASTIdentifier>(statisticsTypeToString(type));
+        SingleStatisticsDescription desc(type, ast, false);
+
+        if (!it->second(desc, data_type))
+            throw Exception(ErrorCodes::ILLEGAL_STATISTICS, "Statistics of type '{}' does not support data type {}", type, data_type->getName());
+
+        result.emplace(type, desc);
     }
-    return buf.str();
+    return result;
 }
 
-ColumnStatisticsDescription::StatisticsTypeDescMap parseColumnStatisticsFromString(const String & str)
+static ColumnStatisticsDescription::StatisticsTypeDescMap parseColumnStatisticsFromString(const String & str)
 {
     ParserStatisticsType stat_type_parser;
     auto stats_ast = parseQuery(stat_type_parser, "(" + str + ")", 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS);

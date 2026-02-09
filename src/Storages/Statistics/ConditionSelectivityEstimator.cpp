@@ -363,9 +363,9 @@ Float64 ConditionSelectivityEstimator::ColumnEstimator::estimateRanges(const Pla
         result += stats->estimateRange(range);
     }
     /// In case that there is an empty statistics.
-    if (stats->rowCount() == 0)
+    if (stats->getNumRows() == 0)
         return 0;
-    Float64 selectivity = result / static_cast<Float64>(stats->rowCount());
+    Float64 selectivity = result / static_cast<Float64>(stats->getNumRows());
     selectivity = std::max<Float64>(selectivity, 0);
     return selectivity;
 }

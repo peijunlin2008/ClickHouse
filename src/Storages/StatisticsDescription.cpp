@@ -6,6 +6,8 @@
 #include <Parsers/ASTStatisticsDeclaration.h>
 #include <Parsers/ParserCreateQuery.h>
 #include <Storages/ColumnsDescription.h>
+#include "Common/Logger.h"
+#include "Common/logger_useful.h"
 
 
 namespace DB
@@ -59,7 +61,7 @@ StatisticsType stringToStatisticsType(String type)
     throw Exception(ErrorCodes::INCORRECT_QUERY, "Unknown statistics type: {}. Supported statistics types are 'countmin', 'minmax', 'tdigest' and 'uniq'.", type);
 }
 
-String SingleStatisticsDescription::getTypeName() const
+String statisticsTypeToString(StatisticsType type)
 {
     switch (type)
     {
@@ -74,6 +76,11 @@ String SingleStatisticsDescription::getTypeName() const
         default:
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Unknown statistics type: {}. Supported statistics types are 'countmin', 'minmax', 'tdigest' and 'uniq'.", type);
     }
+}
+
+String SingleStatisticsDescription::getTypeName() const
+{
+    return statisticsTypeToString(type);
 }
 
 SingleStatisticsDescription::SingleStatisticsDescription(StatisticsType type_, ASTPtr ast_, bool is_implicit_)

@@ -84,7 +84,7 @@ public:
     void build(const ColumnPtr & column);
     void merge(const ColumnStatisticsPtr & other);
 
-    UInt64 rowCount() const;
+    UInt64 getNumRows() const { return rows; }
     UInt64 estimateCardinality() const;
     UInt64 estimateDefaults() const;
 
@@ -142,6 +142,7 @@ public:
 
     ColumnStatisticsPtr get(const ColumnDescription & column_desc) const;
     ColumnStatisticsPtr get(const ColumnStatisticsDescription & stats_desc) const;
+    ColumnStatisticsDescription::StatisticsTypeDescMap get(const std::vector<StatisticsType> & stat_types, const DataTypePtr & data_type) const;
 
     void registerValidator(StatisticsType type, Validator validator);
     void registerCreator(StatisticsType type, Creator creator);
@@ -155,9 +156,6 @@ private:
     Validators validators;
     Creators creators;
 };
-
-String serializeColumnStatisticsToString(const ColumnStatisticsDescription::StatisticsTypeDescMap & stats_desc_map);
-ColumnStatisticsDescription::StatisticsTypeDescMap parseColumnStatisticsFromString(const String & str);
 
 void removeImplicitStatistics(ColumnsDescription & columns);
 void addImplicitStatistics(ColumnsDescription & columns, const String & statistics_types_str);
