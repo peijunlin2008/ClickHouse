@@ -59,7 +59,7 @@ struct AggregateFunctionSumData
     }
 
     /// Vectorized version
-    MULTITARGET_FUNCTION_AVX512BW_AVX2(
+    MULTITARGET_FUNCTION_X86_V4_V3(
     MULTITARGET_FUNCTION_HEADER(
     template <typename Value>
     void NO_SANITIZE_UNDEFINED NO_INLINE
@@ -107,15 +107,15 @@ struct AggregateFunctionSumData
     void NO_INLINE addMany(const Value * __restrict ptr, size_t start, size_t end)
     {
 #if USE_MULTITARGET_CODE
-        if (isArchSupported(TargetArch::AVX512BW))
+        if (isArchSupported(TargetArch::x86_64_v4))
         {
-            addManyImplAVX512BW(ptr, start, end);
+            addManyImpl_x86_64_v4(ptr, start, end);
             return;
         }
 
-        if (isArchSupported(TargetArch::AVX2))
+        if (isArchSupported(TargetArch::x86_64_v3))
         {
-            addManyImplAVX2(ptr, start, end);
+            addManyImpl_x86_64_v3(ptr, start, end);
             return;
         }
 #endif
@@ -123,7 +123,7 @@ struct AggregateFunctionSumData
         addManyImpl(ptr, start, end);
     }
 
-    MULTITARGET_FUNCTION_AVX512BW_AVX2(
+    MULTITARGET_FUNCTION_X86_V4_V3(
     MULTITARGET_FUNCTION_HEADER(
     template <typename Value, bool add_if_zero>
     void NO_SANITIZE_UNDEFINED NO_INLINE
@@ -212,15 +212,15 @@ struct AggregateFunctionSumData
     void NO_INLINE addManyConditionalInternal(const Value * __restrict ptr, const UInt8 * __restrict condition_map, size_t start, size_t end)
     {
 #if USE_MULTITARGET_CODE
-        if (isArchSupported(TargetArch::AVX512BW))
+        if (isArchSupported(TargetArch::x86_64_v4))
         {
-            addManyConditionalInternalImplAVX512BW<Value, add_if_zero>(ptr, condition_map, start, end);
+            addManyConditionalInternalImpl_x86_64_v4<Value, add_if_zero>(ptr, condition_map, start, end);
             return;
         }
 
-        if (isArchSupported(TargetArch::AVX2))
+        if (isArchSupported(TargetArch::x86_64_v3))
         {
-            addManyConditionalInternalImplAVX2<Value, add_if_zero>(ptr, condition_map, start, end);
+            addManyConditionalInternalImpl_x86_64_v3<Value, add_if_zero>(ptr, condition_map, start, end);
             return;
         }
 #endif

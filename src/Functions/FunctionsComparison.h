@@ -155,7 +155,7 @@ struct NumComparisonImpl
     using ContainerA = PaddedPODArray<A>;
     using ContainerB = PaddedPODArray<B>;
 
-    MULTITARGET_FUNCTION_AVX512BW_AVX2(
+    MULTITARGET_FUNCTION_X86_V4_V3(
     MULTITARGET_FUNCTION_HEADER(static void), vectorVectorImpl, MULTITARGET_FUNCTION_BODY(( /// NOLINT
         const ContainerA & a, const ContainerB & b, PaddedPODArray<UInt8> & c)
     {
@@ -182,15 +182,15 @@ struct NumComparisonImpl
     static void NO_INLINE vectorVector(const ContainerA & a, const ContainerB & b, PaddedPODArray<UInt8> & c)
     {
 #if USE_MULTITARGET_CODE
-        if (isArchSupported(TargetArch::AVX512BW))
+        if (isArchSupported(TargetArch::x86_64_v4))
         {
-            vectorVectorImplAVX512BW(a, b, c);
+            vectorVectorImpl_x86_64_v4(a, b, c);
             return;
         }
 
-        if (isArchSupported(TargetArch::AVX2))
+        if (isArchSupported(TargetArch::x86_64_v3))
         {
-            vectorVectorImplAVX2(a, b, c);
+            vectorVectorImpl_x86_64_v3(a, b, c);
             return;
         }
 #endif
@@ -199,7 +199,7 @@ struct NumComparisonImpl
     }
 
 
-    MULTITARGET_FUNCTION_AVX512BW_AVX2(
+    MULTITARGET_FUNCTION_X86_V4_V3(
     MULTITARGET_FUNCTION_HEADER(static void), vectorConstantImpl, MULTITARGET_FUNCTION_BODY(( /// NOLINT
         const ContainerA & a, B b, PaddedPODArray<UInt8> & c)
     {
@@ -219,15 +219,15 @@ struct NumComparisonImpl
     static void NO_INLINE vectorConstant(const ContainerA & a, B b, PaddedPODArray<UInt8> & c)
     {
 #if USE_MULTITARGET_CODE
-        if (isArchSupported(TargetArch::AVX512BW))
+        if (isArchSupported(TargetArch::x86_64_v4))
         {
-            vectorConstantImplAVX512BW(a, b, c);
+            vectorConstantImpl_x86_64_v4(a, b, c);
             return;
         }
 
-        if (isArchSupported(TargetArch::AVX2))
+        if (isArchSupported(TargetArch::x86_64_v3))
         {
-            vectorConstantImplAVX2(a, b, c);
+            vectorConstantImpl_x86_64_v3(a, b, c);
             return;
         }
 #endif

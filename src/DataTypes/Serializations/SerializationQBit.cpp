@@ -446,7 +446,7 @@ DECLARE_DEFAULT_CODE(
     })
 
 /// Do not inline target specific implementations to avoid code bloat on all targets
-DECLARE_AVX512F_SPECIFIC_CODE(
+DECLARE_X86_64_V4_SPECIFIC_CODE(
     void untransposeBitPlaneFloat64Impl(const UInt8 * __restrict src, UInt64 * __restrict dst, size_t stride_len, UInt64 bit_mask)
     {
         const size_t bytes_per_fs = stride_len / 8;
@@ -470,7 +470,7 @@ DECLARE_AVX512F_SPECIFIC_CODE(
         }
     })
 
-DECLARE_AVX512BW_SPECIFIC_CODE(
+DECLARE_X86_64_V4_SPECIFIC_CODE(
     void untransposeBitPlaneFloat32Impl(const UInt8 * __restrict src, UInt32 * __restrict dst, size_t stride_len, UInt32 bit_mask)
     {
         const size_t bytes_per_fs = stride_len / 8;
@@ -523,7 +523,7 @@ DECLARE_AVX512BW_SPECIFIC_CODE(
         }
     })
 
-DECLARE_AVX512BW_SPECIFIC_CODE(
+DECLARE_X86_64_V4_SPECIFIC_CODE(
     void untransposeBitPlaneBFloat16Impl(const UInt8 * __restrict src, UInt16 * __restrict dst, size_t stride_len, UInt16 bit_mask)
     {
         const size_t bytes_per_fs = stride_len / 8;
@@ -575,18 +575,18 @@ void SerializationQBit::untransposeBitPlane(const UInt8 * __restrict src, T * __
 #if USE_MULTITARGET_CODE
     if constexpr (std::is_same_v<T, UInt64>)
     {
-        if (isArchSupported(TargetArch::AVX512F))
-            return TargetSpecific::AVX512F::untransposeBitPlaneFloat64Impl(src, dst, stride_len, bit_mask);
+        if (isArchSupported(TargetArch::x86_64_v4))
+            return TargetSpecific::x86_64_v4::untransposeBitPlaneFloat64Impl(src, dst, stride_len, bit_mask);
     }
     else if constexpr (std::is_same_v<T, UInt32>)
     {
-        if (isArchSupported(TargetArch::AVX512BW))
-            return TargetSpecific::AVX512BW::untransposeBitPlaneFloat32Impl(src, dst, stride_len, bit_mask);
+        if (isArchSupported(TargetArch::x86_64_v4))
+            return TargetSpecific::x86_64_v4::untransposeBitPlaneFloat32Impl(src, dst, stride_len, bit_mask);
     }
     else if constexpr (std::is_same_v<T, UInt16>)
     {
-        if (isArchSupported(TargetArch::AVX512BW))
-            return TargetSpecific::AVX512BW::untransposeBitPlaneBFloat16Impl(src, dst, stride_len, bit_mask);
+        if (isArchSupported(TargetArch::x86_64_v4))
+            return TargetSpecific::x86_64_v4::untransposeBitPlaneBFloat16Impl(src, dst, stride_len, bit_mask);
     }
 #endif
     return TargetSpecific::Default::untransposeBitPlaneImpl(src, dst, stride_len, bit_mask);
