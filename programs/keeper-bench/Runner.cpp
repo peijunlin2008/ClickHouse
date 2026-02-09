@@ -1266,7 +1266,7 @@ void Runner::createConnections()
     std::cerr << "---- Done creating connections ----\n" << std::endl;
 }
 
-std::shared_ptr<Coordination::ZooKeeper> Runner::getConnection(const ConnectionInfo & connection_info, size_t connection_info_idx)
+std::shared_ptr<Coordination::ZooKeeper> Runner::getConnection(const ConnectionInfo & connection_info, size_t connection_info_idx) const
 {
     zkutil::ShuffleHost host;
     host.host = connection_info.host;

@@ -93,7 +93,7 @@ private:
 
     void createConnections();
     std::vector<std::shared_ptr<Coordination::ZooKeeper>> refreshConnections();
-    std::shared_ptr<Coordination::ZooKeeper> getConnection(const ConnectionInfo & connection_info, size_t connection_info_idx);
+    std::shared_ptr<Coordination::ZooKeeper> getConnection(const ConnectionInfo & connection_info, size_t connection_info_idx) const;
 
     std::string input_request_log;
     std::string setup_nodes_snapshot_path;
