@@ -146,7 +146,7 @@ def test_recover_digest_mismatch(started_cluster):
         if need_remove_is_active_node:
             # NOTE Otherwise it fails to recreate ReplicatedMergeTree table due to "Replica already exists"
             main_node.query(
-                "SYSTEM DROP REPLICA '2' FROM DATABASE recover_digest_mismatch"
+                "SYSTEM CLEAR REPLICA '2' FROM DATABASE recover_digest_mismatch"
             )
 
         # There is a race condition between deleting active node and creating it on server startup
