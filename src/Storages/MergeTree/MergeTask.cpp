@@ -146,35 +146,6 @@ namespace ErrorCodes
     extern const int SUPPORT_IS_DISABLED;
 }
 
-
-namespace
-{
-
-ColumnsStatistics getStatisticsForColumns(
-    const NamesAndTypesList & columns_to_read,
-    const StorageMetadataPtr & metadata_snapshot,
-    const MergeTreeSettings & merge_tree_settings)
-{
-    if (!merge_tree_settings[MergeTreeSetting::materialize_statistics_on_merge])
-        return {};
-
-    ColumnsStatistics all_statistics;
-    const auto & all_columns = metadata_snapshot->getColumns();
-
-    for (const auto & column : columns_to_read)
-    {
-        const auto * desc = all_columns.tryGet(column.name);
-        if (desc && !desc->statistics.empty())
-        {
-            auto statistics = MergeTreeStatisticsFactory::instance().get(*desc);
-            all_statistics.emplace(column.name, std::move(statistics));
-        }
-    }
-    return all_statistics;
-}
-
-}
-
 /// Transform that builds statistics for columns by processing blocks of data.
 class BuildStatisticsTransform : public ISimpleTransform
 {
@@ -696,7 +667,8 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::prepare() const
     }
 
     global_ctx->gathered_data.part_statistics.minmax_idx = std::make_shared<IMergeTreeDataPart::MinMaxIndex>();
-    global_ctx->gathered_data.part_statistics.statistics = ColumnsStatistics(global_ctx->metadata_snapshot->getColumns());
+    if ((*merge_tree_settings)[MergeTreeSetting::materialize_statistics_on_merge])
+        global_ctx->gathered_data.part_statistics.statistics = ColumnsStatistics(global_ctx->metadata_snapshot->getColumns());
 
     if (!global_ctx->merge_may_reduce_rows)
     {
@@ -710,8 +682,12 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::prepare() const
                 continue;
 
             global_ctx->gathered_data.part_statistics.minmax_idx->merge(*part->minmax_idx);
-            auto part_statistics = part->loadStatistics();
             const auto & result_statistics = global_ctx->gathered_data.part_statistics.statistics;
+
+            if (result_statistics.empty())
+                continue;
+
+            auto part_statistics = part->loadStatistics();
 
             for (const auto & [column_name, column_stats] : result_statistics)
             {
@@ -1491,7 +1467,6 @@ void MergeTask::VerticalMergeStage::prepareVerticalMergeForOneColumn() const
     ctx->executor = std::make_unique<PullingPipelineExecutor>(ctx->column_parts_pipeline);
 
     NamesAndTypesList columns_list = {*ctx->it_name_and_type};
-    auto statistics_for_columns = getStatisticsForColumns(columns_list, global_ctx->metadata_snapshot, *global_ctx->data_settings);
 
     ctx->column_to = std::make_unique<MergedColumnOnlyOutputStream>(
         global_ctx->new_data_part,
