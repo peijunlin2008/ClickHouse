@@ -25,7 +25,13 @@ public:
         setInMemoryMetadata(cached_metadata);
     }
 
-    std::string getName() const override { return "TableProxy"; }
+    std::string getName() const override
+    {
+        std::lock_guard lock{nested_mutex};
+        if (nested)
+            return nested->getName();
+        return "TableProxy";
+    }
 
     StoragePtr getNested() const override
     {
@@ -33,7 +39,7 @@ public:
         if (nested)
             return nested;
 
-        LOG_INFO(log, "Loading lazy table on first access");
+        LOG_TRACE(log, "Loading lazy table on first access");
 
         auto nested_storage = get_nested();
         nested_storage->startup();
@@ -87,12 +93,13 @@ public:
 
     SinkToStoragePtr write(
         const ASTPtr & query,
-        const StorageMetadataPtr & metadata_snapshot,
+        const StorageMetadataPtr & /*metadata_snapshot*/,
         ContextPtr context,
         bool async_insert) override
     {
         auto storage = getNested();
-        return storage->write(query, metadata_snapshot, context, async_insert);
+        auto nested_metadata = storage->getInMemoryMetadataPtr();
+        return storage->write(query, nested_metadata, context, async_insert);
     }
 
     void renameInMemory(const StorageID & new_table_id) override

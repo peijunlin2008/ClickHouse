@@ -448,9 +448,18 @@ void DatabaseOrdinary::loadTableLazy(
     StorageID table_id(name.database, query.getTable(), query.uuid);
     String table_data_path = getTableDataPath(query);
 
-    auto get_nested = [ast, db_name = name.database, table_data_path, local_context, mode]() -> StoragePtr
+    auto get_nested = [query_str = ast->formatWithSecretsMultiLine(), db_name = name.database, table_data_path, local_context, mode]() -> StoragePtr
     {
-        const auto & create_query = ast->as<const ASTCreateQuery &>();
+        ParserCreateQuery parser;
+        ASTPtr parsed_ast = parseQuery(
+            parser,
+            query_str.data(),
+            query_str.data() + query_str.size(),
+            "lazy load",
+            0,
+            local_context->getSettingsRef()[Setting::max_parser_depth],
+            local_context->getSettingsRef()[Setting::max_parser_backtracks]);
+        const auto & create_query = parsed_ast->as<const ASTCreateQuery &>();
         auto [_, table] = createTableFromAST(
             create_query, db_name, table_data_path, local_context, mode);
         return table;

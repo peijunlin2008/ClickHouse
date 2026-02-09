@@ -2,7 +2,7 @@ t1	TableProxy
 v1	View
 1	hello
 2	world
-t1	TableProxy
+t1	MergeTree
 v1	View
 t2	TableProxy
 0
