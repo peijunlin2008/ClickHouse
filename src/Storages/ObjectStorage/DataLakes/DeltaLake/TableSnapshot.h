@@ -22,7 +22,7 @@ namespace DeltaLake
  * A class representing DeltaLake table snapshot -
  * a snapshot of table state, its schema, data files, etc.
  */
-class TableSnapshot
+class TableSnapshot : public std::enable_shared_from_this<TableSnapshot>
 {
 public:
     static constexpr auto LATEST_SNAPSHOT_VERSION = -1;
@@ -116,7 +116,8 @@ private:
         /// Total number of rows in table
         std::optional<size_t> total_rows;
     };
-    mutable std::optional<SnapshotStats> snapshot_stats;
+    mutable std::optional<SnapshotStats> snapshot_stats TSA_GUARDED_BY(snapshot_stats_mutex);
+    mutable std::mutex snapshot_stats_mutex;
 
     void initSnapshot(bool recreate = false) const;
     void initSchema() const;

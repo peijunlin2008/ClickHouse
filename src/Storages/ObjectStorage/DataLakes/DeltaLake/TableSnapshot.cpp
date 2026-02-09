@@ -85,6 +85,8 @@ namespace DeltaLake
 class TableSnapshot::Iterator final : public DB::IObjectIterator
 {
 public:
+    using UpdateStatsFunc = std::function<void(SnapshotStats &&)>;
+
     Iterator(
         std::shared_ptr<KernelSnapshotState> kernel_snapshot_state_,
         KernelHelperPtr helper_,
@@ -99,6 +101,7 @@ public:
         bool enable_expression_visitor_logging_,
         bool throw_on_engine_predicate_error_,
         bool enable_engine_predicate_,
+        UpdateStatsFunc update_stats_func_,
         LoggerPtr log_)
         : kernel_snapshot_state(kernel_snapshot_state_)
         , helper(helper_)
@@ -112,6 +115,7 @@ public:
         , enable_expression_visitor_logging(enable_expression_visitor_logging_)
         , throw_on_engine_predicate_error(throw_on_engine_predicate_error_)
         , enable_engine_predicate(enable_engine_predicate_)
+        , update_stats_func(update_stats_func_)
     {
         if (filter_)
         {
@@ -227,14 +231,30 @@ public:
                 }
                 else
                 {
-                    LOG_TEST(log, "All data files were listed");
                     {
                         std::lock_guard lock(next_mutex);
                         iterator_finished = true;
                         LOG_TEST(log, "Set finished");
                     }
                     data_files_cv.notify_all();
-                    LOG_TEST(log, "Notified");
+
+                    LOG_TRACE(
+                        log, "All data files at version {} were listed "
+                        "(scan exception: {}, total data files: {}, total rows: {}, total bytes: {})",
+                        kernel_snapshot_state->snapshot_version,
+                        bool(scan_exception),
+                        total_data_files,
+                        total_rows ? DB::toString(*total_rows) : "Unknown",
+                        total_bytes);
+
+                    if (update_stats_func && !scan_exception)
+                    {
+                        update_stats_func(SnapshotStats{
+                            .version = kernel_snapshot_state->snapshot_version,
+                            .total_bytes = total_bytes,
+                            .total_rows = total_rows
+                        });
+                    }
                     return;
                 }
             }
@@ -418,6 +438,16 @@ public:
             std::lock_guard lock(context->next_mutex);
             context->data_files.push_back(std::move(object));
         }
+
+        context->total_data_files += 1;
+        context->total_bytes += size;
+        if (stats)
+        {
+            if (!context->total_rows.has_value())
+                context->total_rows.emplace();
+            *context->total_rows += stats->num_records;
+        }
+
         context->data_files_cv.notify_one();
     }
 
@@ -442,6 +472,7 @@ private:
     const bool enable_expression_visitor_logging;
     const bool throw_on_engine_predicate_error;
     const bool enable_engine_predicate;
+    const UpdateStatsFunc update_stats_func;
 
     std::exception_ptr scan_exception;
     std::exception_ptr engine_predicate_exception;
@@ -454,6 +485,10 @@ private:
     /// A flag meaning that all data files were scanned
     /// and data scanning thread is finished.
     bool iterator_finished = false;
+
+    std::optional<size_t> total_rows;
+    size_t total_bytes = 0;
+    size_t total_data_files = 0;
 
     /// A CV to notify data scanning thread to continue,
     /// as current data batch is fully read.
@@ -486,6 +521,7 @@ size_t TableSnapshot::getVersion() const
 
 TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStats() const
 {
+    std::lock_guard lock(snapshot_stats_mutex);
     if (!snapshot_stats.has_value() || snapshot_stats->version != getVersion())
         snapshot_stats = getSnapshotStatsImpl();
     return snapshot_stats.value();
@@ -663,6 +699,16 @@ DB::ObjectIterator TableSnapshot::iterate(
     size_t list_batch_size)
 {
     initSnapshot();
+    auto update_stats_func = [self = shared_from_this(), this](SnapshotStats && stats)
+    {
+        std::unique_lock lock(snapshot_stats_mutex, std::defer_lock);
+        /// Suppress warning because tsa annotations do not work properly
+        /// with std::unique_lock, which is taken here
+        if (lock.try_lock() && !TSA_SUPPRESS_WARNING_FOR_READ(snapshot_stats).has_value())
+        {
+            TSA_SUPPRESS_WARNING_FOR_WRITE(snapshot_stats).emplace(std::move(stats));
+        }
+    };
     return std::make_shared<TableSnapshot::Iterator>(
         kernel_snapshot_state,
         helper,
@@ -677,6 +723,7 @@ DB::ObjectIterator TableSnapshot::iterate(
         enable_expression_visitor_logging,
         throw_on_engine_visitor_error,
         enable_engine_predicate,
+        std::move(update_stats_func),
         log);
 }
 
