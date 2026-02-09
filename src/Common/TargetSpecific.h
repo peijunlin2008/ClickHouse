@@ -79,14 +79,17 @@
 namespace DB
 {
 
+/// See https://en.wikipedia.org/wiki/X86-64#Microarchitecture_levels for more details on the instruction sets supported by each level.
+/// We use these levels as a convenient way to group related instruction sets and avoid long lists of features and many different instruction
+/// sets with small differences.
 enum class TargetArch : UInt32
 {
-    Default = 0,                      /// Without any additional compiler options.
-    x86_64_v2 = (1 << 0),             /// Intel Sandy Bridge (2011), AMD Bulldozer (2011)
-    x86_64_v3 = (1 << 1),             /// Intel Haswell (2013), AMD Excavator (2015)
-    x86_64_v4 = (1 << 2),             /// Intel Skylake-X (2017), AMD Zen 4 (2022)
-    x86_64_icelake = (1 << 3),        /// Adds: AVX512VBMI (Vector Byte Manipulation Instructions) and others. Matches `clang -march=icelake-server`
-    x86_64_sapphirerapids = (1 << 4), /// Adds: AVX512BF16 (BFloat16) and others. Matches `clang -march=sapphirerapids`
+    Default = 0,
+    x86_64_v2 = (1 << 0),
+    x86_64_v3 = (1 << 1),
+    x86_64_v4 = (1 << 2),
+    x86_64_icelake = (1 << 3),
+    x86_64_sapphirerapids = (1 << 4),
     GenuineIntel = (1 << 5),          /// Not an instruction set, but a CPU vendor. Used for optimizations that are only applicable for Intel CPUs, like prefetching
 };
 
