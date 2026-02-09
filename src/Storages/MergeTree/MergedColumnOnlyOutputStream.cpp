@@ -78,7 +78,7 @@ void MergedColumnOnlyOutputStream::write(const Block & block)
     new_serialization_infos.add(block);
 }
 
-MergeTreeData::DataPart::Checksums MergedColumnOnlyOutputStream::fillChecksums(MergeTreeData::MutableDataPartPtr & new_part, GatheredData & all_gathered_data)
+MergeTreeData::DataPart::Checksums MergedColumnOnlyOutputStream::fillChecksums(MergeTreeData::MutableDataPartPtr & new_part, MergeTreeDataPartChecksums & all_checksums)
 {
     /// Finish columns serialization.
     MergeTreeData::DataPart::Checksums checksums;
@@ -86,7 +86,7 @@ MergeTreeData::DataPart::Checksums MergedColumnOnlyOutputStream::fillChecksums(M
     writer->fillChecksums(checksums, checksums_to_remove);
 
     for (const auto & filename : checksums_to_remove)
-        all_gathered_data.checksums.files.erase(filename);
+        all_checksums.files.erase(filename);
 
     for (const auto & [projection_name, projection_part] : new_part->getProjectionParts())
     {
@@ -111,7 +111,7 @@ MergeTreeData::DataPart::Checksums MergedColumnOnlyOutputStream::fillChecksums(M
     for (const String & removed_file : removed_files)
     {
         new_part->getDataPartStorage().removeFileIfExists(removed_file);
-        all_gathered_data.checksums.files.erase(removed_file);
+        all_checksums.files.erase(removed_file);
     }
 
     new_part->setColumns(columns, serialization_infos, metadata_snapshot->getMetadataVersion());

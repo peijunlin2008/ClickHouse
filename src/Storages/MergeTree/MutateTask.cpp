@@ -1828,9 +1828,10 @@ private:
         for (auto it = ctx->source_part->getDataPartStorage().iterate(); it->isValid(); it->next())
         {
             if (!entries_to_hardlink.contains(it->name()))
-                continue;
-
-            if (it->isFile())
+            {
+                /// Do nothing for skipped files
+            }
+            else if (it->isFile())
             {
                 ctx->new_data_part->getDataPartStorage().createHardLinkFrom(
                     ctx->source_part->getDataPartStorage(), it->name(), it->name());
@@ -2134,8 +2135,8 @@ private:
                 // it's a projection part directory
                 ctx->new_data_part->getDataPartStorage().createProjection(destination);
 
-                auto projection_data_part_storage_src = ctx->source_part->getDataPartStorage().getProjection(file_name);
-                auto projection_data_part_storage_dst = ctx->new_data_part->getDataPartStorage().getProjection(file_name);
+                auto projection_data_part_storage_src = ctx->source_part->getDataPartStorage().getProjection(destination);
+                auto projection_data_part_storage_dst = ctx->new_data_part->getDataPartStorage().getProjection(destination);
 
                 for (auto p_it = projection_data_part_storage_src->iterate(); p_it->isValid(); p_it->next())
                 {
@@ -2239,7 +2240,7 @@ private:
             ctx->mutating_pipeline.reset();
 
             auto out_mut = static_pointer_cast<MergedColumnOnlyOutputStream>(ctx->out);
-            auto changed_checksums = out_mut->fillChecksums(ctx->new_data_part, ctx->all_gathered_data);
+            auto changed_checksums = out_mut->fillChecksums(ctx->new_data_part, ctx->new_data_part->checksums);
             ctx->new_data_part->checksums.add(std::move(changed_checksums));
 
             auto new_columns_substreams = ctx->new_data_part->getColumnsSubstreams();

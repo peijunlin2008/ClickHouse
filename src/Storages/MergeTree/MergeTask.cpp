@@ -1513,7 +1513,7 @@ void MergeTask::VerticalMergeStage::finalizeVerticalMergeForOneColumn() const
 
     ctx->executor.reset();
 
-    auto changed_checksums = ctx->column_to->fillChecksums(global_ctx->new_data_part, global_ctx->gathered_data);
+    auto changed_checksums = ctx->column_to->fillChecksums(global_ctx->new_data_part, global_ctx->new_data_part->checksums);
     global_ctx->gathered_data.checksums.add(std::move(changed_checksums));
 
     const auto & columns_substreams = ctx->column_to->getColumnsSubstreams();
