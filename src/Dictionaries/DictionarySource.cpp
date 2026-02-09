@@ -40,7 +40,7 @@ private:
         key_columns.reserve(key_columns_to_read.size());
         key_types.reserve(key_columns_to_read.size());
 
-        std::unordered_map<std::string_view, ColumnPtr> name_to_column;
+        UnorderedMapWithMemoryTracking<std::string_view, ColumnPtr> name_to_column;
 
         for (const auto & key_column_to_read : key_columns_to_read)
         {

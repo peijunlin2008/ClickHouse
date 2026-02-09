@@ -174,7 +174,7 @@ BlockIO CassandraDictionarySource::loadKeys(const Columns & key_columns, const s
         throw Exception(ErrorCodes::LOGICAL_ERROR, "No rows requested");
 
     /// TODO is there a better way to load data by complex keys?
-    std::unordered_map<UInt64, std::vector<size_t>> partitions;
+    UnorderedMapWithMemoryTracking<UInt64, std::vector<size_t>> partitions;
     for (const auto & row : requested_rows)
     {
         SipHash partition_key;

@@ -1,7 +1,7 @@
 #include <optional>
 #include <string_view>
 
-#include <unordered_map>
+#include <Common/UnorderedMapWithMemoryTracking.h>
 #include <base/defines.h>
 
 #include <Poco/Logger.h>
@@ -146,7 +146,7 @@ struct RegExpTreeDictionary::RegexTreeNode
         constexpr bool containsBackRefs() const { return !pieces.empty(); }
     };
 
-    std::unordered_map<String, AttributeValue> attributes;
+    UnorderedMapWithMemoryTracking<String, AttributeValue> attributes;
 };
 
 std::vector<StringPiece> createStringPieces(const String & value, int num_captures, const String & regex, LoggerPtr logger)
@@ -436,7 +436,7 @@ RegExpTreeDictionary::RegExpTreeDictionary(
 
 // Thin wrapper around unordered_map<String, Field> that manages the collection of attribute values subject to the
 // behavior specified by collect_values_limit
-class RegExpTreeDictionary::AttributeCollector : public std::unordered_map<String, Field>
+class RegExpTreeDictionary::AttributeCollector : public UnorderedMapWithMemoryTracking<String, Field>
 {
 private:
     std::optional<size_t> collect_values_limit; // std::nullopt means single-value mode, i.e. don't collect
@@ -451,7 +451,7 @@ public:
     constexpr bool collecting() const { return collect_values_limit != std::nullopt; }
 
     // Add a name-value pair to the collection if there's space
-    void add(const String & attr_name, Field field, std::unordered_set<String> * const defaults = nullptr)
+    void add(const String & attr_name, Field field, UnorderedSetWithMemoryTracking<String> * const defaults = nullptr)
     {
         if (collect_values_limit)
         {
@@ -474,7 +474,7 @@ public:
     }
 
     // Just occupy a space
-    void addDefault(const String & attr_name, std::unordered_set<String> * const defaults)
+    void addDefault(const String & attr_name, UnorderedSetWithMemoryTracking<String> * const defaults)
     {
         assert (!collect_values_limit);
         if (!this->contains(attr_name) && !defaults->contains(attr_name))
@@ -485,7 +485,7 @@ public:
     }
 
     // Checks if no more values can be added for a given attribute
-    bool full(const String & attr_name, std::unordered_set<String> * const defaults = nullptr) const
+    bool full(const String & attr_name, UnorderedSetWithMemoryTracking<String> * const defaults = nullptr) const
     {
         if (collect_values_limit)
         {
@@ -526,9 +526,9 @@ bool RegExpTreeDictionary::setAttributes(
     UInt64 id,
     AttributeCollector & attributes_to_set,
     const String & data,
-    std::unordered_set<UInt64> & visited_nodes,
-    const std::unordered_map<String, const DictionaryAttribute &> & attributes,
-    const std::unordered_map<String, ColumnPtr> & defaults,
+    UnorderedSetWithMemoryTracking<UInt64> & visited_nodes,
+    const UnorderedMapWithMemoryTracking<String, const DictionaryAttribute &> & attributes,
+    const UnorderedMapWithMemoryTracking<String, ColumnPtr> & defaults,
     size_t key_index) const
 {
 
@@ -576,9 +576,9 @@ bool RegExpTreeDictionary::setAttributesShortCircuit(
     UInt64 id,
     AttributeCollector & attributes_to_set,
     const String & data,
-    std::unordered_set<UInt64> & visited_nodes,
-    const std::unordered_map<String, const DictionaryAttribute &> & attributes,
-    std::unordered_set<String> * defaults) const
+    UnorderedSetWithMemoryTracking<UInt64> & visited_nodes,
+    const UnorderedMapWithMemoryTracking<String, const DictionaryAttribute &> & attributes,
+    UnorderedSetWithMemoryTracking<String> * defaults) const
 {
     if (visited_nodes.contains(id))
         return attributes_to_set.attributesFull() == attributes.size();
@@ -624,7 +624,7 @@ struct MatchContext
     std::vector<std::pair<UInt64, UInt64>> matched_idx_sorted_list;
 
     const std::vector<UInt64> & regexp_ids ;
-    const std::unordered_map<UInt64, UInt64> & topology_order;
+    const UnorderedMapWithMemoryTracking<UInt64, UInt64> & topology_order;
     const char * data;
     size_t length;
     const std::map<UInt64, RegExpTreeDictionary::RegexTreeNodePtr> & regex_nodes;
@@ -634,7 +634,7 @@ struct MatchContext
 
     MatchContext(
         const std::vector<UInt64> & regexp_ids_,
-        const std::unordered_map<UInt64, UInt64> & topology_order_,
+        const UnorderedMapWithMemoryTracking<UInt64, UInt64> & topology_order_,
         const char * data_, size_t length_,
         const std::map<UInt64, RegExpTreeDictionary::RegexTreeNodePtr> & regex_nodes_)
         : regexp_ids(regexp_ids_),
@@ -680,10 +680,10 @@ struct MatchContext
     }
 };
 
-std::unordered_map<String, ColumnPtr> RegExpTreeDictionary::match(
+UnorderedMapWithMemoryTracking<String, ColumnPtr> RegExpTreeDictionary::match(
     const ColumnString::Chars & keys_data,
     const ColumnString::Offsets & keys_offsets,
-    const std::unordered_map<String, const DictionaryAttribute &> & attributes,
+    const UnorderedMapWithMemoryTracking<String, const DictionaryAttribute &> & attributes,
     DefaultMapOrFilter default_or_filter,
     std::optional<size_t> collect_values_limit) const
 {
@@ -705,7 +705,7 @@ std::unordered_map<String, ColumnPtr> RegExpTreeDictionary::match(
     MultiRegexps::ScratchPtr smart_scratch(scratch);
 #endif
 
-    std::unordered_map<String, MutableColumnPtr> columns;
+    UnorderedMapWithMemoryTracking<String, MutableColumnPtr> columns;
 
     size_t input_rows_count = keys_offsets.size();
 
@@ -779,7 +779,7 @@ std::unordered_map<String, ColumnPtr> RegExpTreeDictionary::match(
         match_result.sort();
         /// Walk through the regex tree util all attributes are set;
         AttributeCollector attributes_to_set{collect_values_limit};
-        std::unordered_set<UInt64> visited_nodes;
+        UnorderedSetWithMemoryTracking<UInt64> visited_nodes;
 
         /// Some node matches but its parents cannot match. In this case we must regard this node unmatched.
         auto is_valid = [&](UInt64 id)
@@ -797,7 +797,7 @@ std::unordered_map<String, ColumnPtr> RegExpTreeDictionary::match(
 
         if (is_short_circuit)
         {
-            std::unordered_set<String> defaults;
+            UnorderedSetWithMemoryTracking<String> defaults;
 
             for (auto item : match_result.matched_idx_sorted_list)
             {
@@ -859,7 +859,7 @@ std::unordered_map<String, ColumnPtr> RegExpTreeDictionary::match(
         curr_offset = next_offset;
     }
 
-    std::unordered_map<String, ColumnPtr> result;
+    UnorderedMapWithMemoryTracking<String, ColumnPtr> result;
     for (auto & [name_, mutable_ptr] : columns)
         result.emplace(name_, std::move(mutable_ptr));
 
@@ -931,8 +931,8 @@ Columns RegExpTreeDictionary::getColumnsImpl(
     }
     structure.validateKeyTypes(key_types);
 
-    std::unordered_map<String, const DictionaryAttribute &> attributes;
-    std::unordered_map<String, ColumnPtr> defaults;
+    UnorderedMapWithMemoryTracking<String, const DictionaryAttribute &> attributes;
+    UnorderedMapWithMemoryTracking<String, ColumnPtr> defaults;
 
     for (size_t i = 0; i < attribute_names.size(); i++)
     {

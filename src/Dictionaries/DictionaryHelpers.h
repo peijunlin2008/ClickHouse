@@ -202,7 +202,7 @@ public:
     }
 private:
     NamesAndTypes dictionary_attributes_names_and_types;
-    std::unordered_map<String, size_t> attributes_to_fetch_name_to_index;
+    UnorderedMapWithMemoryTracking<String, size_t> attributes_to_fetch_name_to_index;
     std::vector<bool> attributes_to_fetch_filter;
     std::vector<DefaultValueProvider> attributes_default_value_providers;
 };

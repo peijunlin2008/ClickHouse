@@ -1,6 +1,5 @@
 #pragma once
 
-#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -11,9 +10,10 @@
 
 #include <Core/Field.h>
 #include <Core/TypeId.h>
-#include <IO/ReadBufferFromString.h>
 #include <DataTypes/IDataType.h>
+#include <IO/ReadBufferFromString.h>
 #include <Interpreters/IExternalLoadable.h>
+#include <Common/UnorderedMapWithMemoryTracking.h>
 
 
 namespace DB
@@ -103,7 +103,7 @@ struct DictionaryStructure final
     std::optional<DictionaryTypedSpecialAttribute> id;
     std::optional<std::vector<DictionaryAttribute>> key;
     std::vector<DictionaryAttribute> attributes;
-    std::unordered_map<std::string, size_t> attribute_name_to_index;
+    UnorderedMapWithMemoryTracking<std::string, size_t> attribute_name_to_index;
     std::optional<DictionaryTypedSpecialAttribute> range_min;
     std::optional<DictionaryTypedSpecialAttribute> range_max;
     std::optional<size_t> hierarchical_attribute_index;

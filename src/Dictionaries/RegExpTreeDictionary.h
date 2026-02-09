@@ -2,8 +2,6 @@
 
 #include <atomic>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <variant>
 
 #include <base/types.h>
@@ -15,6 +13,8 @@
 #include <Functions/Regexps.h>
 #include <QueryPipeline/Pipe.h>
 #include <Common/Exception.h>
+#include <Common/UnorderedMapWithMemoryTracking.h>
+#include <Common/UnorderedSetWithMemoryTracking.h>
 
 #include <Dictionaries/DictionaryStructure.h>
 #include <Dictionaries/IDictionary.h>
@@ -177,12 +177,12 @@ private:
     void initTopologyOrder(UInt64 node_idx, std::set<UInt64> & visited, UInt64 & topology_id);
     void initGraph();
 
-    using RefDefaultMap = std::reference_wrapper<const std::unordered_map<String, ColumnPtr>>;
+    using RefDefaultMap = std::reference_wrapper<const UnorderedMapWithMemoryTracking<String, ColumnPtr>>;
     using DefaultMapOrFilter = std::variant<RefDefaultMap, RefFilter>;
-    std::unordered_map<String, ColumnPtr> match(
+    UnorderedMapWithMemoryTracking<String, ColumnPtr> match(
         const ColumnString::Chars & keys_data,
         const ColumnString::Offsets & keys_offsets,
-        const std::unordered_map<String, const DictionaryAttribute &> & attributes,
+        const UnorderedMapWithMemoryTracking<String, const DictionaryAttribute &> & attributes,
         DefaultMapOrFilter default_or_filter,
         std::optional<size_t> collect_values_limit) const;
 
@@ -192,18 +192,18 @@ private:
         UInt64 id,
         AttributeCollector & attributes_to_set,
         const String & data,
-        std::unordered_set<UInt64> & visited_nodes,
-        const std::unordered_map<String, const DictionaryAttribute &> & attributes,
-        const std::unordered_map<String, ColumnPtr> & defaults,
+        UnorderedSetWithMemoryTracking<UInt64> & visited_nodes,
+        const UnorderedMapWithMemoryTracking<String, const DictionaryAttribute &> & attributes,
+        const UnorderedMapWithMemoryTracking<String, ColumnPtr> & defaults,
         size_t key_index) const;
 
     bool setAttributesShortCircuit(
         UInt64 id,
         AttributeCollector & attributes_to_set,
         const String & data,
-        std::unordered_set<UInt64> & visited_nodes,
-        const std::unordered_map<String, const DictionaryAttribute &> & attributes,
-        std::unordered_set<String> * defaults) const;
+        UnorderedSetWithMemoryTracking<UInt64> & visited_nodes,
+        const UnorderedMapWithMemoryTracking<String, const DictionaryAttribute &> & attributes,
+        UnorderedSetWithMemoryTracking<String> * defaults) const;
 
     struct RegexTreeNode;
     using RegexTreeNodePtr = std::shared_ptr<RegexTreeNode>;
@@ -217,8 +217,8 @@ private:
     std::vector<RegexTreeNodePtr> complex_regexp_nodes;
 
     std::map<UInt64, RegexTreeNodePtr> regex_nodes;
-    std::unordered_map<UInt64, UInt64> topology_order;
-    #if USE_VECTORSCAN
+    UnorderedMapWithMemoryTracking<UInt64, UInt64> topology_order;
+#if USE_VECTORSCAN
     MultiRegexps::DeferredConstructedRegexpsPtr hyperscan_regex;
     MultiRegexps::ScratchPtr origin_scratch;
     MultiRegexps::DataBasePtr origin_db;
