@@ -11,10 +11,14 @@ struct WriteSettings;
 struct MergeTreeDataPartChecksums;
 class WriteBufferFromFileBase;
 
+class ICompressionCodec;
+using CompressionCodecPtr = std::shared_ptr<ICompressionCodec>;
+
 std::unique_ptr<WriteBufferFromFileBase> serializeStatisticsPacked(
     IDataPartStorage & data_part_storage,
     MergeTreeDataPartChecksums & out_checksums,
     const ColumnsStatistics & statistics,
+    const CompressionCodecPtr & compression_codec,
     const WriteSettings & write_settings);
 
 }

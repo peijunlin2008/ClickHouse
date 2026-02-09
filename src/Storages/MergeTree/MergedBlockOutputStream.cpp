@@ -352,7 +352,7 @@ MergedBlockOutputStream::WrittenFiles MergedBlockOutputStream::finalizePartOnDis
 
     if (!statistics.empty())
     {
-        auto out = serializeStatisticsPacked(new_part->getDataPartStorage(), checksums, statistics, writer_settings.query_write_settings);
+        auto out = serializeStatisticsPacked(new_part->getDataPartStorage(), checksums, statistics, default_codec, writer_settings.query_write_settings);
         written_files.emplace_back(std::move(out));
     }
 

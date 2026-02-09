@@ -946,8 +946,9 @@ ColumnsStatistics IMergeTreeDataPart::loadStatisticsPacked(const PackedFilesRead
         size_t file_size = reader.getFileSize(filename);
         auto file_buf = reader.readFile(filename, read_settings, file_size, file_size);
 
+        CompressedReadBuffer compressed_buf(*file_buf);
         const auto & column_desc = columns_description->get(column_name);
-        auto column_stat = ColumnStatistics::deserialize(*file_buf, column_desc.type);
+        auto column_stat = ColumnStatistics::deserialize(compressed_buf, column_desc.type);
         result.emplace(column_name, std::move(column_stat));
     }
 
@@ -958,11 +959,6 @@ ColumnsStatistics IMergeTreeDataPart::loadStatistics() const
 {
     if (auto * reader = getStatisticsPackedReader())
         return loadStatisticsPacked(*reader, {});
-
-    // if (auto all_stats_file = readFileIfExists(String(ColumnsStatistics::FILENAME)))
-    // {
-    //     return ColumnsStatistics::deserialize(*all_stats_file, *columns_description);
-    // }
 
     return {};
 }

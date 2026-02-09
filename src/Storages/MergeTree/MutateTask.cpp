@@ -1202,7 +1202,7 @@ void finalizeMutatedPart(
 
     if (!statistics.empty())
     {
-        auto out = serializeStatisticsPacked(new_data_part->getDataPartStorage(), new_data_part->checksums, statistics, context->getWriteSettings());
+        auto out = serializeStatisticsPacked(new_data_part->getDataPartStorage(), new_data_part->checksums, statistics, codec, context->getWriteSettings());
         written_files.push_back(std::move(out));
     }
 
