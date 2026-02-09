@@ -344,6 +344,12 @@ std::optional<UInt64> StorageObjectStorage::totalRows(ContextPtr query_context) 
     if (!configuration->supportsTotalRows(query_context, object_storage->getType()))
         return std::nullopt;
 
+    /// Trivial count optimization can be applied only on initiator replica.
+    /// (distributed_processing=true on non-initiator replicas).
+    /// This is needed only for old analyzer.
+    if (distributed_processing)
+        return std::nullopt;
+
     configuration->update(
         object_storage,
         query_context,
@@ -354,6 +360,9 @@ std::optional<UInt64> StorageObjectStorage::totalRows(ContextPtr query_context) 
 std::optional<UInt64> StorageObjectStorage::totalBytes(ContextPtr query_context) const
 {
     if (!configuration->supportsTotalBytes(query_context, object_storage->getType()))
+        return std::nullopt;
+
+    if (distributed_processing)
         return std::nullopt;
 
     configuration->update(

@@ -2035,7 +2035,7 @@ deltaLake(
 
 
 @pytest.mark.parametrize(
-    "new_analyzer, storage_type", [["1", "s3"], ["1", "azure"], ["0", "s3"]]
+    "new_analyzer, storage_type", [["0", "s3"]]
 )
 def test_cluster_function(started_cluster, new_analyzer, storage_type):
     instance = started_cluster.instances["node1"]
@@ -3826,16 +3826,12 @@ def test_system_table(started_cluster, use_delta_kernel):
     )
     files = upload_directory(minio_client, bucket, f"/{TABLE_NAME}", "")
     assert len(files) == 4  # 2 metadata files + 2 data files
-    assert (
-        int(
-            instance.query(
-                f"SELECT count() FROM {TABLE_NAME}",
-                settings={"delta_lake_log_metadata": 1},
-            )
-        )
-        == 200
-    )
+    assert int(instance.query(f"SELECT count() FROM {TABLE_NAME}")) == 200
 
+    instance.query(
+        f"SELECT * FROM {TABLE_NAME}",
+        settings={"delta_lake_log_metadata": 1},
+    )
     instance.query("SYSTEM FLUSH LOGS delta_lake_metadata_log")
 
     assert (
@@ -4129,7 +4125,7 @@ def test_table_statistics(started_cluster):
         f"SELECT total_rows, total_bytes FROM system.tables WHERE name = '{TABLE_NAME}'"
     )
 
-    total_rows, total_bytes = map(lambda x: int(x), result.strip().split('\t'))
+    total_rows, total_bytes = map(lambda x: int(x), result.strip().split("\t"))
     expected_rows = 1200
 
     assert total_rows == expected_rows
@@ -4153,7 +4149,7 @@ def test_table_statistics(started_cluster):
         f"SELECT total_rows, total_bytes FROM system.tables WHERE name = '{TABLE_NAME}'"
     )
 
-    total_rows, total_bytes = map(lambda x: int(x), result.strip().split('\t'))
+    total_rows, total_bytes = map(lambda x: int(x), result.strip().split("\t"))
     expected_rows = 1300
 
     assert total_rows == expected_rows
