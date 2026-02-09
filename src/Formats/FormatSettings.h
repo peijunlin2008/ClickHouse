@@ -91,6 +91,7 @@ struct FormatSettings
 
     UInt64 schema_inference_make_columns_nullable = 1;
     bool schema_inference_make_json_columns_nullable = false;
+    bool schema_inference_allow_nullable_tuple_type = false;
 
     DateTimeOutputFormat date_time_output_format = DateTimeOutputFormat::Simple;
 
@@ -261,6 +262,7 @@ struct FormatSettings
         bool empty_as_default = false;
         bool type_json_skip_invalid_typed_paths = false;
         bool type_json_skip_duplicated_paths = false;
+        std::optional<size_t> max_dynamic_subcolumns_in_json_type_parsing = std::nullopt;
         bool type_json_allow_duplicated_key_with_literal_and_nested_object = false;
         bool type_json_use_partial_match_to_skip_paths_by_regexp = true;
         bool pretty_print = true;
