@@ -1,21 +1,22 @@
 #include <optional>
 #include <string_view>
 
-#include <Common/UnorderedMapWithMemoryTracking.h>
 #include <base/defines.h>
 
 #include <Poco/Logger.h>
 #include <Poco/RegularExpression.h>
 
-#include <Common/ArenaUtils.h>
-#include <Common/Exception.h>
-#include <Common/logger_useful.h>
-#include <Common/OptimizedRegularExpression.h>
 #include <Core/ColumnsWithTypeAndName.h>
 #include <Core/Settings.h>
-#include <Interpreters/Context.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
+#include <Interpreters/Context.h>
+#include <Common/ArenaUtils.h>
+#include <Common/Exception.h>
+#include <Common/MapWithMemoryTracking.h>
+#include <Common/OptimizedRegularExpression.h>
+#include <Common/UnorderedMapWithMemoryTracking.h>
+#include <Common/logger_useful.h>
 
 #include <Functions/Regexps.h>
 #include <Functions/checkHyperscanRegexp.h>
@@ -627,7 +628,7 @@ struct MatchContext
     const UnorderedMapWithMemoryTracking<UInt64, UInt64> & topology_order;
     const char * data;
     size_t length;
-    const std::map<UInt64, RegExpTreeDictionary::RegexTreeNodePtr> & regex_nodes;
+    const MapWithMemoryTracking<UInt64, RegExpTreeDictionary::RegexTreeNodePtr> & regex_nodes;
 
     size_t pre_match_counter = 0;
     size_t match_counter = 0;
@@ -635,13 +636,14 @@ struct MatchContext
     MatchContext(
         const VectorWithMemoryTracking<UInt64> & regexp_ids_,
         const UnorderedMapWithMemoryTracking<UInt64, UInt64> & topology_order_,
-        const char * data_, size_t length_,
-        const std::map<UInt64, RegExpTreeDictionary::RegexTreeNodePtr> & regex_nodes_)
-        : regexp_ids(regexp_ids_),
-        topology_order(topology_order_),
-        data(data_),
-        length(length_),
-        regex_nodes(regex_nodes_)
+        const char * data_,
+        size_t length_,
+        const MapWithMemoryTracking<UInt64, RegExpTreeDictionary::RegexTreeNodePtr> & regex_nodes_)
+        : regexp_ids(regexp_ids_)
+        , topology_order(topology_order_)
+        , data(data_)
+        , length(length_)
+        , regex_nodes(regex_nodes_)
     {
     }
 

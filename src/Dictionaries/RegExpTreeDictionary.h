@@ -216,7 +216,7 @@ private:
     VectorWithMemoryTracking<UInt64>      regexp_ids;
     VectorWithMemoryTracking<RegexTreeNodePtr> complex_regexp_nodes;
 
-    std::map<UInt64, RegexTreeNodePtr> regex_nodes;
+    MapWithMemoryTracking<UInt64, RegexTreeNodePtr> regex_nodes;
     UnorderedMapWithMemoryTracking<UInt64, UInt64> topology_order;
 #if USE_VECTORSCAN
     MultiRegexps::DeferredConstructedRegexpsPtr hyperscan_regex;

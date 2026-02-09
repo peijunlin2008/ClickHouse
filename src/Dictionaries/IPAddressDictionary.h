@@ -4,15 +4,16 @@
 #include <memory>
 #include <variant>
 #include <Columns/ColumnDecimal.h>
-#include <Columns/ColumnString.h>
-#include <Common/HashTable/HashMap.h>
 #include <Columns/ColumnFixedString.h>
+#include <Columns/ColumnString.h>
 #include <Columns/ColumnVector.h>
-#include <Poco/Net/IPAddress.h>
+#include <Dictionaries/DictionaryHelpers.h>
 #include <Dictionaries/DictionaryStructure.h>
 #include <Dictionaries/IDictionary.h>
 #include <Dictionaries/IDictionarySource.h>
-#include <Dictionaries/DictionaryHelpers.h>
+#include <Poco/Net/IPAddress.h>
+#include <Common/HashTable/HashMap.h>
+#include <Common/MapWithMemoryTracking.h>
 
 namespace DB
 {
@@ -235,7 +236,7 @@ private:
     /// Contains corresponding indices in attributes array.
     ContainerType<size_t> row_idx;
 
-    std::map<std::string, size_t> attribute_index_by_name;
+    MapWithMemoryTracking<std::string, size_t> attribute_index_by_name;
     VectorWithMemoryTracking<Attribute> attributes;
 
     size_t bytes_allocated = 0;
