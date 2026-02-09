@@ -291,7 +291,7 @@ void RegExpTreeDictionary::initGraph()
         else
             throw Exception(ErrorCodes::INCORRECT_DICTIONARY_DEFINITION, "Unknown parent id {} in regexp tree dictionary", pid);
     }
-    std::set<UInt64> visited;
+    SetWithMemoryTracking<UInt64> visited;
     UInt64 topology_id = 0;
     for (const auto & [id, value]: regex_nodes)
         if (value->parent_id == 0) // this is root node.
@@ -301,7 +301,7 @@ void RegExpTreeDictionary::initGraph()
         throw Exception(ErrorCodes::INCORRECT_DICTIONARY_DEFINITION, "The regexp tree is cyclical. Please check your config.");
 }
 
-void RegExpTreeDictionary::initTopologyOrder(UInt64 node_idx, std::set<UInt64> & visited, UInt64 & topology_id)
+void RegExpTreeDictionary::initTopologyOrder(UInt64 node_idx, SetWithMemoryTracking<UInt64> & visited, UInt64 & topology_id)
 {
     visited.insert(node_idx);
     for (UInt64 child_idx : regex_nodes[node_idx]->children)
@@ -621,7 +621,7 @@ bool RegExpTreeDictionary::setAttributesShortCircuit(
 /// a temp struct to store all the matched result.
 struct MatchContext
 {
-    std::set<UInt64> matched_idx_set;
+    SetWithMemoryTracking<UInt64> matched_idx_set;
     VectorWithMemoryTracking<std::pair<UInt64, UInt64>> matched_idx_sorted_list;
 
     const VectorWithMemoryTracking<UInt64> & regexp_ids ;

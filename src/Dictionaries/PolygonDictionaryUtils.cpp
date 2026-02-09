@@ -1,7 +1,7 @@
 #include <Dictionaries/PolygonDictionaryUtils.h>
 
+#include <Common/SetWithMemoryTracking.h>
 #include <Common/ThreadPool.h>
-
 #include <Common/logger_useful.h>
 
 #include <algorithm>
@@ -116,7 +116,7 @@ void SlabsPolygonIndex::indexBuild(const VectorWithMemoryTracking<Polygon> & pol
     {
         return Edge::compareByRightPoint(a, b);
     };
-    std::set<Edge, decltype(cmp)> interesting_edges(cmp);
+    SetWithMemoryTracking<Edge, decltype(cmp)> interesting_edges(cmp);
 
     /** Size of index (number of different x coordinates) */
     size_t n = 0;

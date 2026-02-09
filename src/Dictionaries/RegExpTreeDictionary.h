@@ -13,6 +13,7 @@
 #include <Functions/Regexps.h>
 #include <QueryPipeline/Pipe.h>
 #include <Common/Exception.h>
+#include <Common/SetWithMemoryTracking.h>
 #include <Common/UnorderedMapWithMemoryTracking.h>
 #include <Common/UnorderedSetWithMemoryTracking.h>
 
@@ -174,7 +175,7 @@ private:
     void loadData();
 
     void initRegexNodes(Block & block);
-    void initTopologyOrder(UInt64 node_idx, std::set<UInt64> & visited, UInt64 & topology_id);
+    void initTopologyOrder(UInt64 node_idx, SetWithMemoryTracking<UInt64> & visited, UInt64 & topology_id);
     void initGraph();
 
     using RefDefaultMap = std::reference_wrapper<const UnorderedMapWithMemoryTracking<String, ColumnPtr>>;
