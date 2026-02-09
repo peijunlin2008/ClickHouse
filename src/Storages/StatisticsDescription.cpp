@@ -6,8 +6,6 @@
 #include <Parsers/ASTStatisticsDeclaration.h>
 #include <Parsers/ParserCreateQuery.h>
 #include <Storages/ColumnsDescription.h>
-#include "Common/Logger.h"
-#include "Common/logger_useful.h"
 
 
 namespace DB
