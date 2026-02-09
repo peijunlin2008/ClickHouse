@@ -46,16 +46,16 @@ class BucketCountQuantile
             chassert(node < 4 * buckets_count);
             buckets[node].fetch_add(delta, std::memory_order::relaxed);
 
-            const int64_t midle = (left_border + right_border) / 2;
-            if (bucket_number < midle)
+            const int64_t middle = (left_border + right_border) / 2;
+            if (bucket_number < middle)
             {
                 node = 2 * node + 1;
-                right_border = midle;
+                right_border = middle;
             }
             else
             {
                 node = 2 * node + 2;
-                left_border = midle;
+                left_border = middle;
             }
         }
 
@@ -73,18 +73,18 @@ class BucketCountQuantile
             chassert(2 * node + 1 < 4 * buckets_count);
             chassert(2 * node + 2 < 4 * buckets_count);
 
-            const int64_t midle = (left_border + right_border) / 2;
+            const int64_t middle = (left_border + right_border) / 2;
             const int64_t left_subtree_count = buckets[2 * node + 1].load(std::memory_order::relaxed);
 
             if (left_subtree_count >= need_to_observe)
             {
                 node = 2 * node + 1;
-                right_border = midle;
+                right_border = middle;
             }
             else
             {
                 node = 2 * node + 2;
-                left_border = midle;
+                left_border = middle;
                 need_to_observe -= left_subtree_count;
             }
         }
@@ -126,7 +126,7 @@ public:
         if (global == 0)
             return 0;
 
-        const int64_t need_to_observe = std::max<int64_t>(1, static_cast<int64_t>(global * request));
+        const int64_t need_to_observe = std::max<int64_t>(1, static_cast<int64_t>(static_cast<double>(global) * request));
         const int64_t quantile_bucket_number = findQuantileBucket(need_to_observe);
         return getBucketMiddle(quantile_bucket_number);
     }

@@ -22,7 +22,7 @@ public:
 
 private:
     const CurrentMetrics::Metric destination_metric;
-    alignas(64) std::atomic<CurrentMetrics::Value> accounted_value = 0;
+    std::atomic<CurrentMetrics::Value> accounted_value = 0;
 };
 
 class GlobalQuantile
@@ -41,7 +41,7 @@ private:
     void * shared_update = nullptr;
 
     bool was_accounted = false;
-    alignas(64) std::atomic<CurrentMetrics::Value> accounted_value = 0;
+    std::atomic<CurrentMetrics::Value> accounted_value = 0;
 };
 
 }
