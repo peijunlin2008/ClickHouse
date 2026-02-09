@@ -1,6 +1,5 @@
 #include <Dictionaries/RedisSource.h>
 
-#include <Common/VectorWithMemoryTracking.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnsNumber.h>

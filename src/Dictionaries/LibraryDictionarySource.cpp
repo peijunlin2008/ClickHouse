@@ -119,7 +119,7 @@ BlockIO LibraryDictionarySource::loadIds(const VectorWithMemoryTracking<UInt64> 
 {
     LOG_TRACE(log, "loadIds {} size = {}", toString(), ids.size());
     BlockIO io;
-    io.pipeline = bridge_helper->loadIds({ids.begin(), ids.end()});
+    io.pipeline = bridge_helper->loadIds(ids);
     return io;
 }
 
