@@ -247,7 +247,7 @@ public:
                         total_rows ? DB::toString(*total_rows) : "Unknown",
                         total_bytes);
 
-                    if (update_stats_func && !scan_exception)
+                    if (update_stats_func && !scan_exception && !filter.has_value())
                     {
                         update_stats_func(SnapshotStats{
                             .version = kernel_snapshot_state->snapshot_version,
