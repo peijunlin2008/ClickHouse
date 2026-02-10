@@ -1,0 +1,21 @@
+after first insert, no statistics
+all_1_1_0	a	UInt64	[]	\N	\N	\N
+all_1_1_0	b	String	[]	\N	\N	\N
+all_1_1_0	c	UInt64	[]	\N	\N	\N
+10000
+10000	5	3
+after second insert, partially materialized statistics
+all_1_1_0	a	UInt64	[]	\N	\N	\N
+all_1_1_0	b	String	[]	\N	\N	\N
+all_1_1_0	c	UInt64	[]	\N	\N	\N
+all_2_2_0	a	UInt64	['Uniq','MinMax']	10000	10000	19999
+all_2_2_0	b	String	['Uniq']	7	\N	\N
+all_2_2_0	c	UInt64	['Uniq','MinMax']	4	10	13
+20000
+20000	12	7
+after optimize final
+all_1_2_1	a	UInt64	['Uniq','MinMax']	20000	0	19999
+all_1_2_1	b	String	['Uniq']	12	\N	\N
+all_1_2_1	c	UInt64	['Uniq','MinMax']	7	0	13
+20000
+20000	12	7
