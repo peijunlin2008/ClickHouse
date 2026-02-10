@@ -11,7 +11,7 @@ function run_test() {
     local test_suffix=$2
     
     CLICKHOUSE_TABLE="test_insert_on_connection_drop${test_suffix}"
-    SETTINGS="input_format_parallel_parsing=${parallel_parsing},min_insert_block_size_bytes=0,min_insert_block_size_rows=0"
+    SETTINGS="min_chunk_bytes_for_parallel_parsing=10485760,input_format_parallel_parsing=${parallel_parsing},min_insert_block_size_bytes=0,min_insert_block_size_rows=0,max_insert_block_size=1048449,max_block_size=65409"
     CLICKHOUSE_INSERT_URL="${CLICKHOUSE_URL}&max_query_size=1000&query=INSERT%20INTO%20${CLICKHOUSE_TABLE}%20SETTINGS%20${SETTINGS//,/%2C}%20FORMAT%20CSV"
     
     echo "DROP TABLE IF EXISTS ${CLICKHOUSE_TABLE}" | \

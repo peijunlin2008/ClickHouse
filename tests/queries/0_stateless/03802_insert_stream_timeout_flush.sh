@@ -26,6 +26,9 @@ function run_test() {
         --input_format_max_block_wait_ms=2000 \
         --min_insert_block_size_bytes=0 \
         --min_insert_block_size_rows=0 \
+	--min_chunk_bytes_for_parallel_parsing=10485760 \
+	--max_block_size=65409 \
+	--max_insert_block_size=1048449 \
         --input_format_parallel_parsing=${parallel_parsing}
     
     sleep 1
