@@ -241,6 +241,11 @@ ContextMutablePtr updateSettingsAndClientInfoForCluster(const Cluster & cluster,
         new_settings[Setting::load_balancing] = LoadBalancing::ROUND_ROBIN;
     }
 
+    /// disable plan serialization for sample and custom key modes
+    /// until filter generation for these modes are done on query plan level
+    if (context->canUseOffsetParallelReplicas())
+        new_settings[Setting::serialize_query_plan] = false;
+
     auto new_context = Context::createCopy(context);
     new_context->setSettings(new_settings);
     new_context->setClientInfo(new_client_info);
