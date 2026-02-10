@@ -124,5 +124,6 @@ std::pair<bool, size_t> fileSegmentationEngineCSVImpl(
     size_t min_rows,
     size_t max_rows,
     size_t max_block_wait_ms,
+    bool in_transaction,
     const FormatSettings & settings);
 }

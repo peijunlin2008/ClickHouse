@@ -186,7 +186,7 @@ void registerInputFormatRegexp(FormatFactory & factory)
 }
 
 static std::pair<bool, size_t>
-segmentationEngine(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms)
+segmentationEngine(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
 {
     char * pos = in.position();
     bool need_more_data = true;
@@ -229,7 +229,7 @@ segmentationEngine(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, siz
     }
     catch (Exception & e)
     {
-        if (isConnectionError(e.code()))
+        if (!in_transaction && isConnectionError(e.code()))
         {
             memory.resize(last_complete_row_memory_size);
             return {false, number_of_rows};

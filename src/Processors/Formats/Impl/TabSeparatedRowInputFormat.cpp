@@ -457,7 +457,7 @@ void registerTSVSchemaReader(FormatFactory & factory)
 }
 
 static std::pair<bool, size_t> fileSegmentationEngineTabSeparatedImpl(
-    ReadBuffer & in, DB::Memory<> & memory, bool is_raw, size_t min_bytes, size_t min_rows, size_t max_rows, size_t max_block_wait_ms)
+    ReadBuffer & in, DB::Memory<> & memory, bool is_raw, size_t min_bytes, size_t min_rows, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
 {
     bool need_more_data = true;
     char * pos = in.position();
@@ -521,7 +521,7 @@ static std::pair<bool, size_t> fileSegmentationEngineTabSeparatedImpl(
     }
     catch (Exception & e)
     {
-        if (isConnectionError(e.code()))
+        if (!in_transaction && isConnectionError(e.code()))
         {
             memory.resize(last_complete_row_memory_size);
             return {false, number_of_rows};
@@ -540,8 +540,8 @@ void registerFileSegmentationEngineTabSeparated(FormatFactory & factory)
             static constexpr size_t min_rows = 3; /// Make it 3 for header auto detection (first 3 rows must be always in the same segment).
             factory.registerFileSegmentationEngine(
                 format_name,
-                [is_raw](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms)
-                { return fileSegmentationEngineTabSeparatedImpl(in, memory, is_raw, min_bytes, min_rows, max_rows, max_block_wait_ms); });
+                [is_raw](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms,bool in_transaction)
+                { return fileSegmentationEngineTabSeparatedImpl(in, memory, is_raw, min_bytes, min_rows, max_rows, max_block_wait_ms, in_transaction); });
         };
 
         registerWithNamesAndTypes(is_raw ? "TSVRaw" : "TSV", register_func);
@@ -557,8 +557,8 @@ void registerFileSegmentationEngineTabSeparated(FormatFactory & factory)
     // We can use the same segmentation engine for TSKV.
     factory.registerFileSegmentationEngine(
         "TSKV",
-        [](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms)
-        { return fileSegmentationEngineTabSeparatedImpl(in, memory, false, min_bytes, 1, max_rows, max_block_wait_ms); });
+        [](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
+        { return fileSegmentationEngineTabSeparatedImpl(in, memory, false, min_bytes, 1, max_rows, max_block_wait_ms, in_transaction); });
 }
 
 }

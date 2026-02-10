@@ -1041,7 +1041,7 @@ void BSONEachRowSchemaReader::transformTypesIfNeeded(DataTypePtr & type, DataTyp
 }
 
 static std::pair<bool, size_t>
-fileSegmentationEngineBSONEachRow(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms)
+fileSegmentationEngineBSONEachRow(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
 {
     size_t number_of_rows = 0;
     size_t last_complete_row_memory_size = 0;
@@ -1083,7 +1083,7 @@ fileSegmentationEngineBSONEachRow(ReadBuffer & in, DB::Memory<> & memory, size_t
     }
     catch (Exception & e)
     {
-        if (isConnectionError(e.code()))
+        if (!in_transaction && isConnectionError(e.code()))
         {
             memory.resize(last_complete_row_memory_size);
             return {false, number_of_rows};

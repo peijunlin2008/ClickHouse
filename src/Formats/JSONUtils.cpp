@@ -32,7 +32,7 @@ namespace JSONUtils
 {
 template <const char opening_bracket, const char closing_bracket>
 static std::pair<bool, size_t> fileSegmentationEngineJSONEachRowImpl(
-    ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t min_rows, size_t max_rows, size_t max_block_wait_ms)
+    ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t min_rows, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
 {
     skipWhitespaceIfAny(in);
 
@@ -122,7 +122,7 @@ static std::pair<bool, size_t> fileSegmentationEngineJSONEachRowImpl(
     }
     catch (Exception & e)
     {
-        if (isConnectionError(e.code()))
+        if (!in_transaction && isConnectionError(e.code()))
         {
             memory.resize(last_complete_row_memory_size);
             return {false, number_of_rows};
@@ -133,15 +133,15 @@ static std::pair<bool, size_t> fileSegmentationEngineJSONEachRowImpl(
 }
 
 std::pair<bool, size_t>
-fileSegmentationEngineJSONEachRow(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms)
+fileSegmentationEngineJSONEachRow(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
 {
-    return fileSegmentationEngineJSONEachRowImpl<'{', '}'>(in, memory, min_bytes, 1, max_rows, max_block_wait_ms);
+    return fileSegmentationEngineJSONEachRowImpl<'{', '}'>(in, memory, min_bytes, 1, max_rows, max_block_wait_ms, in_transaction);
 }
 
 std::pair<bool, size_t> fileSegmentationEngineJSONCompactEachRow(
-    ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t min_rows, size_t max_rows, size_t max_block_wait_ms)
+    ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t min_rows, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
 {
-    return fileSegmentationEngineJSONEachRowImpl<'[', ']'>(in, memory, min_bytes, min_rows, max_rows, max_block_wait_ms);
+    return fileSegmentationEngineJSONEachRowImpl<'[', ']'>(in, memory, min_bytes, min_rows, max_rows, max_block_wait_ms, in_transaction);
 }
 
     template <const char opening_bracket, const char closing_bracket>

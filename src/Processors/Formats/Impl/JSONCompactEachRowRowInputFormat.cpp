@@ -304,8 +304,8 @@ void registerFileSegmentationEngineJSONCompactEachRow(FormatFactory & factory)
         size_t min_rows = 1 + int(with_names) + int(with_types);
         factory.registerFileSegmentationEngine(
             format_name,
-            [min_rows](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms)
-            { return JSONUtils::fileSegmentationEngineJSONCompactEachRow(in, memory, min_bytes, min_rows, max_rows, max_block_wait_ms); });
+            [min_rows](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
+            { return JSONUtils::fileSegmentationEngineJSONCompactEachRow(in, memory, min_bytes, min_rows, max_rows, max_block_wait_ms, in_transaction); });
     };
 
     registerWithNamesAndTypes("JSONCompactEachRow", register_func);

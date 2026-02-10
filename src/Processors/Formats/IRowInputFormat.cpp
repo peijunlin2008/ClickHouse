@@ -254,15 +254,15 @@ Chunk IRowInputFormat::read()
     }
     catch (Exception & e)
     {
-        if (isConnectionError(e.code()))
+        if (!params.in_transaction && isConnectionError(e.code()))
         {
-            got_connection_exception  = true;
+           got_connection_exception  = true;
 
-            for (size_t column_idx = 0; column_idx < num_columns; ++column_idx)
+           for (size_t column_idx = 0; column_idx < num_columns; ++column_idx)
             {
-                auto & column = columns[column_idx];
+               auto & column = columns[column_idx];
                 if (column->size() > num_rows)
-                    column->popBack(column->size() - num_rows);
+                   column->popBack(column->size() - num_rows);
             }
         }
         else
