@@ -225,7 +225,6 @@ private:
 
         MergedBlockOutputStream::GatheredData gathered_data{};
         std::unordered_map<String, ColumnsStatistics> statistics_to_build_by_part;
-        std::unordered_map<String, BuildStatisticsTransformPtr> build_statistics_transforms;
 
         IndicesDescription merging_skip_indexes;
         std::unordered_map<String, IndicesDescription> skip_indexes_by_column;
@@ -295,6 +294,7 @@ private:
         std::vector<Squashing> projection_squashes;
         size_t projection_block_num = 0;
         ExecutableTaskPtr merge_projection_parts_task_ptr;
+        std::unordered_map<String, BuildStatisticsTransformPtr> build_statistics_transforms;
 
         size_t initial_reservation{0};
         bool read_with_direct_io{false};
@@ -400,6 +400,7 @@ private:
         size_t column_elems_written{0};
         QueryPipeline column_parts_pipeline;
         std::unique_ptr<PullingPipelineExecutor> executor;
+        std::unordered_map<String, BuildStatisticsTransformPtr> build_statistics_transforms;
         UInt64 elapsed_execute_ns{0};
     };
 
@@ -562,7 +563,7 @@ private:
     static bool isVerticalLightweightDelete(const GlobalRuntimeContext & global_ctx);
     static void addSkipIndexesExpressionSteps(QueryPlan & plan, const IndicesDescription & indices_description, const GlobalRuntimeContextPtr & global_ctx);
     static void addBuildTextIndexesStep(QueryPlan & plan, const IMergeTreeDataPart & data_part, const GlobalRuntimeContextPtr & global_ctx);
-    static void addBuildStatisticsStep(QueryPlan & plan, const IMergeTreeDataPart & data_part, const GlobalRuntimeContextPtr & global_ctx);
+    static BuildStatisticsTransformPtr addBuildStatisticsStep(QueryPlan & plan, const IMergeTreeDataPart & data_part, const GlobalRuntimeContextPtr & global_ctx);
 };
 
 /// FIXME

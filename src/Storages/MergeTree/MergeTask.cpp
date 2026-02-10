@@ -1201,9 +1201,18 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::executeImpl() const
 
 void MergeTask::ExecuteAndFinalizeHorizontalPart::finalize() const
 {
+    /// Merge statistics built on the horizontal merge stage.
+    /// Merge and reset them here to avoid storing in memory for too long.
+    for (const auto & [_, transform] : ctx->build_statistics_transforms)
+    {
+        const auto & built_statistics = transform->getStatistics();
+        global_ctx->gathered_data.part_statistics.statistics.merge(built_statistics);
+    }
+
     finalizeProjections();
     global_ctx->merging_executor.reset();
     global_ctx->merged_pipeline.reset();
+    ctx->build_statistics_transforms.clear();
 
     global_ctx->checkOperationIsNotCanceled();
 
@@ -1364,7 +1373,9 @@ MergeTask::VerticalMergeStage::createPipelineForReadingOneColumn(const String & 
         if (!global_ctx->merge_may_reduce_rows)
         {
             addBuildTextIndexesStep(*plan_for_part, *global_ctx->future_part->parts[part_num], global_ctx);
-            addBuildStatisticsStep(*plan_for_part, *global_ctx->future_part->parts[part_num], global_ctx);
+
+            if (auto transform = addBuildStatisticsStep(*plan_for_part, *global_ctx->future_part->parts[part_num], global_ctx))
+                ctx->build_statistics_transforms.emplace(global_ctx->future_part->parts[part_num]->name, std::move(transform));
         }
 
         plans.emplace_back(std::move(plan_for_part));
@@ -1420,7 +1431,9 @@ MergeTask::VerticalMergeStage::createPipelineForReadingOneColumn(const String & 
     if (global_ctx->merge_may_reduce_rows)
     {
         addBuildTextIndexesStep(merge_column_query_plan, *global_ctx->new_data_part, global_ctx);
-        addBuildStatisticsStep(merge_column_query_plan, *global_ctx->new_data_part, global_ctx);
+
+        if (auto transform = addBuildStatisticsStep(merge_column_query_plan, *global_ctx->new_data_part, global_ctx))
+            ctx->build_statistics_transforms.emplace(global_ctx->new_data_part->name, std::move(transform));
     }
 
     QueryPlanOptimizationSettings optimization_settings(global_ctx->context);
@@ -1513,6 +1526,16 @@ void MergeTask::VerticalMergeStage::finalizeVerticalMergeForOneColumn() const
 
     ctx->executor.reset();
 
+    /// Merge statistics built for the current column on the vertical merge stage.
+    /// Merge and reset them here to avoid storing in memory for too long.
+    for (const auto & [_, transform] : ctx->build_statistics_transforms)
+    {
+        const auto & built_statistics = transform->getStatistics();
+        global_ctx->gathered_data.part_statistics.statistics.merge(built_statistics);
+    }
+
+    ctx->build_statistics_transforms.clear();
+
     auto changed_checksums = ctx->column_to->fillChecksums(global_ctx->new_data_part, global_ctx->new_data_part->checksums);
     global_ctx->gathered_data.checksums.add(std::move(changed_checksums));
 
@@ -1582,12 +1605,6 @@ bool MergeTask::MergeProjectionsStage::mergeStatisticsAndPrepareProjections() co
 
     if (global_ctx->merged_part_offsets && !global_ctx->merged_part_offsets->isFinalized())
         global_ctx->merged_part_offsets->flush();
-
-    for (const auto & [part_name, transform] : global_ctx->build_statistics_transforms)
-    {
-        const auto & built_statistics = transform->getStatistics();
-        global_ctx->gathered_data.part_statistics.statistics.merge(built_statistics);
-    }
 
     for (const auto & projection : global_ctx->projections_to_merge)
     {
@@ -2361,11 +2378,11 @@ void MergeTask::addBuildTextIndexesStep(QueryPlan & plan, const IMergeTreeDataPa
     plan.addStep(std::move(build_text_index_step));
 }
 
-void MergeTask::addBuildStatisticsStep(QueryPlan & plan, const IMergeTreeDataPart & data_part, const GlobalRuntimeContextPtr & global_ctx)
+BuildStatisticsTransformPtr MergeTask::addBuildStatisticsStep(QueryPlan & plan, const IMergeTreeDataPart & data_part, const GlobalRuntimeContextPtr & global_ctx)
 {
     auto it = global_ctx->statistics_to_build_by_part.find(data_part.name);
     if (it == global_ctx->statistics_to_build_by_part.end() || it->second.empty())
-        return;
+        return nullptr;
 
     auto read_column_names = plan.getCurrentHeader()->getNameSet();
     ColumnsStatistics statistics_to_build;
@@ -2377,16 +2394,15 @@ void MergeTask::addBuildStatisticsStep(QueryPlan & plan, const IMergeTreeDataPar
     }
 
     if (statistics_to_build.empty())
-        return;
+        return nullptr;
 
     auto transform = std::make_shared<BuildStatisticsTransform>(
         plan.getCurrentHeader(),
         std::move(statistics_to_build));
 
     auto build_statistics_step = std::make_unique<BuildStatisticsStep>(plan.getCurrentHeader(), transform);
-    /// Save transform to the context to be able to take statistics for merging from it later.
-    global_ctx->build_statistics_transforms[data_part.name] = std::move(transform);
     plan.addStep(std::move(build_statistics_step));
+    return transform;
 }
 
 void MergeTask::ExecuteAndFinalizeHorizontalPart::createMergedStream() const
@@ -2495,7 +2511,9 @@ void MergeTask::ExecuteAndFinalizeHorizontalPart::createMergedStream() const
         if (!global_ctx->merge_may_reduce_rows)
         {
             addBuildTextIndexesStep(*plan_for_part, *part, global_ctx);
-            addBuildStatisticsStep(*plan_for_part, *part, global_ctx);
+
+            if (auto transform = addBuildStatisticsStep(*plan_for_part, *part, global_ctx))
+                ctx->build_statistics_transforms.emplace(part->name, std::move(transform));
         }
 
         plans.emplace_back(std::move(plan_for_part));
@@ -2642,7 +2660,9 @@ void MergeTask::ExecuteAndFinalizeHorizontalPart::createMergedStream() const
     if (global_ctx->merge_may_reduce_rows)
     {
         addBuildTextIndexesStep(merge_parts_query_plan, *global_ctx->new_data_part, global_ctx);
-        addBuildStatisticsStep(merge_parts_query_plan, *global_ctx->new_data_part, global_ctx);
+
+        if (auto transform = addBuildStatisticsStep(merge_parts_query_plan, *global_ctx->new_data_part, global_ctx))
+            ctx->build_statistics_transforms.emplace(global_ctx->new_data_part->name, std::move(transform));
     }
 
     {

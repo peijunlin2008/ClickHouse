@@ -19,3 +19,18 @@ all_1_2_1	b	String	['Uniq']	12	\N	\N
 all_1_2_1	c	UInt64	['Uniq','MinMax']	7	0	13
 20000
 20000	12	7
+after third insert, some statistics are partially materialized
+all_1_2_1	a	UInt64	['Uniq','MinMax']	20000	0	19999
+all_1_2_1	b	String	['Uniq']	12	\N	\N
+all_1_2_1	c	UInt64	['Uniq','MinMax']	7	0	13
+all_3_3_0	a	UInt64	['TDigest','Uniq','CountMinSketch','MinMax']	10000	20000	29999
+all_3_3_0	b	String	['Uniq','CountMinSketch']	7	\N	\N
+all_3_3_0	c	UInt64	['TDigest','Uniq','CountMinSketch','MinMax']	4	20	23
+30000
+30000	19	11
+after second optimize final, all statistics are materialized
+all_1_3_2	a	UInt64	['TDigest','Uniq','CountMinSketch','MinMax']	30000	0	29999
+all_1_3_2	b	String	['Uniq','CountMinSketch']	19	\N	\N
+all_1_3_2	c	UInt64	['TDigest','Uniq','CountMinSketch','MinMax']	11	0	23
+30000
+30000	19	11

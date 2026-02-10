@@ -59,4 +59,29 @@ ORDER BY name, column;
 SELECT count() FROM test_table;
 SELECT uniqExact(a), uniqExact(b), uniqExact(c) FROM test_table;
 
+ALTER TABLE test_table MODIFY SETTING auto_statistics_types = 'uniq,minmax,tdigest,countmin';
+INSERT INTO test_table SELECT number + 20000, toString(number % 7 + 20), number % 4 + 20 FROM numbers(10000);
+
+SELECT 'after third insert, some statistics are partially materialized';
+
+SELECT name, column, type, statistics, estimates.cardinality, estimates.min, estimates.max
+FROM system.parts_columns
+WHERE database = currentDatabase() AND table = 'test_table' AND active
+ORDER BY name, column;
+
+SELECT count() FROM test_table;
+SELECT uniqExact(a), uniqExact(b), uniqExact(c) FROM test_table;
+
+OPTIMIZE TABLE test_table FINAL;
+
+SELECT 'after second optimize final, all statistics are materialized';
+
+SELECT name, column, type, statistics, estimates.cardinality, estimates.min, estimates.max
+FROM system.parts_columns
+WHERE database = currentDatabase() AND table = 'test_table' AND active
+ORDER BY name, column;
+
+SELECT count() FROM test_table;
+SELECT uniqExact(a), uniqExact(b), uniqExact(c) FROM test_table;
+
 DROP TABLE IF EXISTS test_table;
