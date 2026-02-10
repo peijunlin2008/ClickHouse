@@ -1017,24 +1017,16 @@ JoinTreeQueryPlan buildQueryPlanForTableExpression(QueryTreeNodePtr table_expres
 
                     if (table_node)
                     {
-                        bool use_parallel_replicas = false;
-
                         String table_name;
                         if (!table_node->getTemporaryTableName().empty())
                             table_name = table_node->getTemporaryTableName();
                         else
-                        {
                             table_name = table_node->getStorageID().getFullTableName();
-
-                            if (const auto * pr_table = planner_context->getGlobalPlannerContext()->parallel_replicas_table)
-                                use_parallel_replicas = (table_name == pr_table->getStorageID().getFullTableName());
-                        }
 
                         auto reading_from_table = std::make_unique<ReadFromTableStep>(
                             sample_block,
                             table_name,
-                            table_expression_query_info.table_expression_modifiers.value_or(TableExpressionModifiers{}),
-                            use_parallel_replicas);
+                            table_expression_query_info.table_expression_modifiers.value_or(TableExpressionModifiers{}));
 
                         query_plan.addStep(std::move(reading_from_table));
                     }

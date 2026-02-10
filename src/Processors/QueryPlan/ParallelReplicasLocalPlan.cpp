@@ -11,6 +11,7 @@
 #include <Processors/QueryPlan/JoinStep.h>
 #include <Processors/QueryPlan/JoinStepLogical.h>
 #include <Processors/QueryPlan/ReadFromMergeTree.h>
+#include <Processors/QueryPlan/ReadFromTableStep.h>
 #include <Storages/MergeTree/MergeTreeDataSelectExecutor.h>
 #include <Storages/MergeTree/RequestResponse.h>
 
@@ -20,6 +21,33 @@ namespace DB
 namespace FailPoints
 {
     extern const char slowdown_parallel_replicas_local_plan_read[];
+}
+
+ReadFromTableStep * findReadFromTableStep(QueryPlan::Node * node)
+{
+    ReadFromTableStep * read_step = nullptr;
+    while (node)
+    {
+        read_step = typeid_cast<ReadFromTableStep *>(node->step.get());
+        if (read_step)
+            break;
+
+        if (!node->children.empty())
+        {
+            // in case of RIGHT JOIN, - reading from right table is parallelized among replicas
+            const JoinStep * join = typeid_cast<JoinStep *>(node->step.get());
+            const JoinStepLogical * join_logical = typeid_cast<JoinStepLogical *>(node->step.get());
+            if ((join && join->getJoin()->getTableJoin().kind() == JoinKind::Right)
+                || (join_logical && join_logical->getJoinOperator().kind == JoinKind::Right))
+                node = node->children.at(1);
+            else
+                node = node->children.at(0);
+        }
+        else
+            node = nullptr;
+    }
+
+    return read_step;
 }
 
 std::shared_ptr<const QueryPlan> createRemotePlanForParallelReplicas(
@@ -47,6 +75,11 @@ std::shared_ptr<const QueryPlan> createRemotePlanForParallelReplicas(
     auto interpreter = InterpreterSelectQueryAnalyzer(query_ast, new_context, select_query_options);
     auto query_plan = std::make_shared<QueryPlan>(std::move(interpreter).extractQueryPlan());
     addConvertingActions(*query_plan, header, context);
+
+    auto * parallel_replica_read_step = findReadFromTableStep(query_plan->getRootNode());
+    if (parallel_replica_read_step)
+        parallel_replica_read_step->useParallelReplicas() = true;
+
     return query_plan;
 }
 
