@@ -247,7 +247,9 @@ public:
                         total_rows ? DB::toString(*total_rows) : "Unknown",
                         total_bytes);
 
-                    if (update_stats_func && !scan_exception && !filter.has_value())
+                    if (update_stats_func
+                        && !scan_exception
+                        && (!filter.has_value() || !enable_engine_predicate))
                     {
                         update_stats_func(SnapshotStats{
                             .version = kernel_snapshot_state->snapshot_version,
@@ -523,7 +525,12 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStats() const
 {
     std::lock_guard lock(snapshot_stats_mutex);
     if (!snapshot_stats.has_value() || snapshot_stats->version != getVersion())
+    {
         snapshot_stats = getSnapshotStatsImpl();
+        LOG_TEST(
+            log, "Updated statistics for snapshot version {}",
+            snapshot_stats->version);
+    }
     return snapshot_stats.value();
 }
 
@@ -704,9 +711,14 @@ DB::ObjectIterator TableSnapshot::iterate(
         std::unique_lock lock(snapshot_stats_mutex, std::defer_lock);
         /// Suppress warning because tsa annotations do not work properly
         /// with std::unique_lock, which is taken here
-        if (lock.try_lock() && !TSA_SUPPRESS_WARNING_FOR_READ(snapshot_stats).has_value())
+        if (lock.try_lock()
+            && (!TSA_SUPPRESS_WARNING_FOR_READ(snapshot_stats).has_value()
+                || TSA_SUPPRESS_WARNING_FOR_READ(snapshot_stats)->version < stats.version))
         {
             TSA_SUPPRESS_WARNING_FOR_WRITE(snapshot_stats).emplace(std::move(stats));
+            LOG_TEST(
+                log, "Updated statistics from data files iterator for snapshot version {}",
+                stats.version);
         }
     };
     return std::make_shared<TableSnapshot::Iterator>(

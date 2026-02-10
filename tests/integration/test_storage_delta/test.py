@@ -2033,9 +2033,8 @@ deltaLake(
         )
     )
 
-
 @pytest.mark.parametrize(
-    "new_analyzer, storage_type", [["0", "s3"]]
+    "new_analyzer, storage_type", [["1", "s3"], ["1", "azure"], ["0", "s3"]]
 )
 def test_cluster_function(started_cluster, new_analyzer, storage_type):
     instance = started_cluster.instances["node1"]
@@ -4090,12 +4089,28 @@ def test_table_statistics(started_cluster):
     instance = started_cluster.instances["node1"]
     spark = started_cluster.spark_session
     TABLE_NAME = randomize_table_name("test_table_statistics")
+    minio_client = started_cluster.minio_client
+    bucket = started_cluster.minio_bucket
+
+    def get_parquet_files_size(table_name):
+        """Calculate total size of parquet files in S3 for the Delta table."""
+        total_size = 0
+        s3_objects = minio_client.list_objects(bucket, table_name, recursive=True)
+        for obj in s3_objects:
+            # Only count parquet files, exclude _delta_log directory
+            if (
+                obj.object_name.endswith(".parquet")
+                and "/_delta_log/" not in obj.object_name
+            ):
+                total_size += obj.size
+        return total_size
 
     delta_path = f"/{TABLE_NAME}"
     write_delta_from_df(
         spark,
         generate_data(spark, 0, 100),
         delta_path,
+        partition_by="a",
         mode="overwrite",
     )
 
@@ -4104,6 +4119,7 @@ def test_table_statistics(started_cluster):
             spark,
             generate_data(spark, i * 100, (i + 1) * 100),
             delta_path,
+            partition_by="a",
             mode="append",
         )
 
@@ -4127,14 +4143,16 @@ def test_table_statistics(started_cluster):
 
     total_rows, total_bytes = map(lambda x: int(x), result.strip().split("\t"))
     expected_rows = 1200
+    expected_bytes = get_parquet_files_size(TABLE_NAME)
 
     assert total_rows == expected_rows
-    assert total_bytes == 32172
+    assert total_bytes == expected_bytes
 
     write_delta_from_df(
         spark,
         generate_data(spark, 1200, 1300),
         delta_path,
+        partition_by="a",
         mode="append",
     )
 
@@ -4151,7 +4169,69 @@ def test_table_statistics(started_cluster):
 
     total_rows, total_bytes = map(lambda x: int(x), result.strip().split("\t"))
     expected_rows = 1300
+    expected_bytes = get_parquet_files_size(TABLE_NAME)
 
     assert total_rows == expected_rows
-    assert total_bytes == 34948
-    assert expected_rows == int(instance.query(f"SELECT count() FROM {TABLE_NAME}"))
+    assert total_bytes == expected_bytes
+
+    def check_with_condition(count, start_row, snapshot_version):
+        expected_rows = start_row + 100
+        query_id_1 = f"test_stats_partial_{TABLE_NAME}_{count}_query"
+        query_id_2 = f"test_stats_full_{TABLE_NAME}_query_2"
+
+        write_delta_from_df(
+            spark,
+            generate_data(spark, start_row, start_row + 100),
+            delta_path,
+            partition_by="a",
+            mode="append",
+        )
+        default_upload_directory(
+            started_cluster,
+            "s3",
+            delta_path,
+            "",
+        )
+
+        if count:
+            assert 100 == int(
+                instance.query(
+                    f"SELECT count() FROM {TABLE_NAME} WHERE a >= {start_row}",
+                    query_id=query_id_1,
+                )
+            )
+        else:
+            instance.query(
+                f"SELECT * FROM {TABLE_NAME} WHERE a >= 1200", query_id=query_id_1
+            )
+
+        if count:
+            assert expected_rows == int(
+                instance.query(f"SELECT count() FROM {TABLE_NAME}", query_id=query_id_2)
+            )
+        else:
+            instance.query(f"SELECT * FROM {TABLE_NAME}", query_id=query_id_2)
+
+        instance.query("SYSTEM FLUSH LOGS")
+
+        if count:
+            message = "Updated statistics for snapshot version " + str(snapshot_version)
+        else:
+            message = (
+                "Updated statistics from data files iterator for snapshot version "
+                + str(snapshot_version)
+            )
+        log_result_1 = instance.query(
+            f"SELECT count() FROM system.text_log WHERE query_id = '{query_id_1}' "
+            f"AND message LIKE '%{message}%'"
+        )
+        assert int(log_result_1) == 0
+
+        log_result_2 = instance.query(
+            f"SELECT count() FROM system.text_log WHERE query_id = '{query_id_2}' "
+            f"AND message LIKE '%{message}%'"
+        )
+        assert int(log_result_2) == 1
+
+    check_with_condition(True, 1300, 13)
+    check_with_condition(False, 1400, 14)
