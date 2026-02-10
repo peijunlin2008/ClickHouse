@@ -999,13 +999,34 @@ MetadataFileWithInfo getLatestOrExplicitMetadataFileAndVersion(
                 if (*it == "." || *it == "..")
                     throw Exception(ErrorCodes::BAD_ARGUMENTS, "Relative paths are not allowed");
             }
-            if (!explicit_metadata_path.starts_with(table_path))
-                explicit_metadata_path = std::filesystem::path(table_path) / explicit_metadata_path;
+            if (p.is_absolute())
+            {
+                if (!explicit_metadata_path.starts_with(table_path))
+                    throw Exception(
+                        ErrorCodes::BAD_ARGUMENTS,
+                        "Explicit metadata file path {} should be in the table path directory : {}",
+                        explicit_metadata_path,
+                        table_path);
+            }
+            else
+            {
+                explicit_metadata_path = std::filesystem::path(table_path) / p;
+                if (!explicit_metadata_path.starts_with(table_path))
+                    throw Exception(
+                        ErrorCodes::LOGICAL_ERROR,
+                        "Explicit metadata file path {} should be in the table path directory : {}",
+                        explicit_metadata_path,
+                        table_path);
+            }
             return getMetadataFileAndVersion(explicit_metadata_path);
         }
-        catch (const std::exception & ex)
+        catch (const fs::filesystem_error & ex)
         {
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid path {} specified for iceberg_metadata_file_path: '{}'", explicit_metadata_path, ex.what());
+            throw Exception(
+                ErrorCodes::BAD_ARGUMENTS,
+                "Invalid path {} specified for iceberg_metadata_file_path: '{}'",
+                explicit_metadata_path,
+                ex.what());
         }
     }
     else if (data_lake_settings[DataLakeStorageSetting::iceberg_metadata_table_uuid].changed)
