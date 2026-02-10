@@ -41,13 +41,15 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
         /// Note: please check if the key already exists to prevent duplicate entries.
         addSettingsChanges(settings_changes_history, "26.2",
         {
+            {"check_named_collection_dependencies", true, true, "New setting to check if dropping a named collection would break dependent tables."},
             {"deduplicate_insert", "backward_compatible_choice", "backward_compatible_choice", "New setting to control deduplication for INSERT queries."},
+            {"use_parquet_metadata_cache", true, true, "Enables cache of parquet file metadata."},
             {"enable_join_runtime_filters", false, true, "Enabled this optimization"},
             {"parallel_replicas_filter_pushdown", false, false, "New setting"},
             {"use_page_cache_for_local_disks", false, false, "New setting to use userspace page cache for local disks"},
             {"use_page_cache_for_object_storage", false, false, "New setting to use userspace page cache for object storage table functions"},
             {"use_statistics_cache", false, true, "Enable statistics cache"},
-            {"check_named_collection_dependencies", true, true, "New setting to check if dropping a named collection would break dependent tables."},
+            {"ignore_format_null_for_explain", false, true, "FORMAT Null is now ignored for EXPLAIN queries by default"},
         });
         addSettingsChanges(settings_changes_history, "26.1",
         {
