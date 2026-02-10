@@ -1,0 +1,12 @@
+--- Correctness: FULL JOIN ---
+75000	50000	50000
+75000	50000	50000
+--- Correctness: RIGHT JOIN ---
+50000	25000	50000
+50000	25000	50000
+--- Parallelism: multiple JoiningTransforms emit non-joined rows ---
+PARALLEL	1
+--- Parallelism: all JoiningTransforms produce output ---
+1	1
+--- Parallelism: work distributed across transforms ---
+1
