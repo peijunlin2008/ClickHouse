@@ -32,6 +32,7 @@ enum class OpNum : int32_t
     List = 12,
     Check = 13,
     Multi = 14,
+    Create2 = 15,
     Reconfig = 16,
     CheckWatch = 17,
     RemoveWatch = 18,
@@ -47,6 +48,8 @@ enum class OpNum : int32_t
     CreateIfNotExists = 502,
     RemoveRecursive = 503,
     CheckStat = 504,
+    TryRemove = 505,
+    FilteredListWithStatsAndData = 506,
 
     SessionID = 997, /// Special internal request
 };

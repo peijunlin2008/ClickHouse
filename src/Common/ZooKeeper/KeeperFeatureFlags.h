@@ -26,6 +26,9 @@ enum class KeeperFeatureFlag : size_t
     MULTI_WATCHES,
     CHECK_STAT,
     PERSISTENT_WATCHES,
+    CREATE_WITH_STATS,
+    TRY_REMOVE,
+    LIST_WITH_STAT_AND_DATA,
 };
 
 class KeeperFeatureFlags
