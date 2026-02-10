@@ -114,11 +114,21 @@ String toString(TargetArch arch);
 
 /// Function-specific attributes using arch= for cleaner specification
 /// This matches -march= compiler flags and avoids long feature lists
+///
+/// IMPORTANT: Clang's default tuning for `x86-64-v4` includes `TuningPrefer256Bit` (see X86_64V4Tuning
+/// in contrib/llvm-project/llvm/lib/Target/X86/X86.td). This was added conservatively to avoid AVX-512
+/// frequency throttling on early implementations like Skylake-X. However, for ClickHouse's data-intensive
+/// workloads, 512-bit operations often provide better performance despite potential frequency drops because:
+/// - Memory-bound operations are less sensitive to frequency reduction
+/// - Processing 64 bytes vs 32 bytes per instruction overcomes the penalty for large datasets
+/// - Newer CPUs (Ice Lake, Sapphire Rapids, AMD Zen 4/5) have minimal throttling
+///
+/// We explicitly override with `no-prefer-256-bit` to enable 512-bit vectorization for AVX-512 targets.
 #define X86_64_V2_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=x86-64-v2")))
 #define X86_64_V3_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=x86-64-v3")))
-#define X86_64_V4_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=x86-64-v4")))
-#define X86_64_ICELAKE_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=icelake-server")))
-#define X86_64_SAPPHIRE_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=sapphirerapids")))
+#define X86_64_V4_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=x86-64-v4,no-prefer-256-bit")))
+#define X86_64_ICELAKE_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=icelake-server,no-prefer-256-bit")))
+#define X86_64_SAPPHIRE_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=sapphirerapids,no-prefer-256-bit")))
 
 #define DEFAULT_FUNCTION_SPECIFIC_ATTRIBUTE
 
@@ -128,11 +138,11 @@ String toString(TargetArch arch);
 #define BEGIN_X86_64_V3_SPECIFIC_CODE \
     _Pragma("clang attribute push(__attribute__((target(\"arch=x86-64-v3\"))),apply_to=function)")
 #define BEGIN_X86_64_V4_SPECIFIC_CODE \
-    _Pragma("clang attribute push(__attribute__((target(\"arch=x86-64-v4\"))),apply_to=function)")
+    _Pragma("clang attribute push(__attribute__((target(\"arch=x86-64-v4,no-prefer-256-bit\"))),apply_to=function)")
 #define BEGIN_X86_64_ICELAKE_SPECIFIC_CODE \
-    _Pragma("clang attribute push(__attribute__((target(\"arch=icelake-server\"))),apply_to=function)")
+    _Pragma("clang attribute push(__attribute__((target(\"arch=icelake-server,no-prefer-256-bit\"))),apply_to=function)")
 #define BEGIN_X86_64_SAPPHIRE_SPECIFIC_CODE \
-    _Pragma("clang attribute push(__attribute__((target(\"arch=sapphirerapids\"))),apply_to=function)")
+    _Pragma("clang attribute push(__attribute__((target(\"arch=sapphirerapids,no-prefer-256-bit\"))),apply_to=function)")
 
 #define END_TARGET_SPECIFIC_CODE \
     _Pragma("clang attribute pop")
