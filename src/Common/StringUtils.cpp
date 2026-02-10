@@ -34,6 +34,7 @@ static bool isAllASCII(const UInt8 * data, size_t size)
 
 DECLARE_X86_64_V2_SPECIFIC_CODE(
 /// Copy from https://github.com/lemire/fastvalidate-utf-8/blob/master/include/simdasciicheck.h
+/// See also https://lemire.me/blog/2025/12/20/performance-trick-optimistic-vs-pessimistic-checks/
 static bool isAllASCII(const UInt8 * data, size_t size)
 {
     __m128i masks = _mm_setzero_si128();
