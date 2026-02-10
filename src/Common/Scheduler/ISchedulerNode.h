@@ -335,13 +335,18 @@ public:
             pending.notify_one();
     }
 
-    /// Removes an activation from queue
+    /// Removes an activation from queue and waits for any in-progress activation to complete
     void cancelActivation(ISchedulerNode * node)
     {
         std::unique_lock lock{mutex};
         if (node->is_linked())
             activations.erase(activations.iterator_to(*node));
         node->activation_event_id = 0;
+        lock.unlock();
+        // Wait for any in-progress activation processing to complete.
+        // This ensures that after cancelActivation() returns, the scheduler thread
+        // is done with any activation that was already dequeued.
+        std::unique_lock activation_lock{activation_mutex};
     }
 
     /// Process single event if it exists
@@ -473,7 +478,9 @@ private:
         ISchedulerNode * node = &activations.front();
         activations.pop_front();
         node->activation_event_id = 0;
-        lock.unlock(); // do not hold queue mutex while processing events
+        // Acquire activation_mutex before releasing queue mutex to prevent race with cancelActivation()
+        std::unique_lock activation_lock{activation_mutex};
+        lock.unlock();
         if (node->parent)
             node->parent->activateChild(node);
     }
@@ -496,6 +503,7 @@ private:
     }
 
     std::mutex mutex;
+    std::mutex activation_mutex; // Serializes activation processing with cancelActivation()
     std::condition_variable pending;
 
     // `events` and `activations` logically represent one ordered queue. To preserve the common order we use `EventId`
