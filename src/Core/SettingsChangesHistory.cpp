@@ -45,6 +45,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"use_parquet_metadata_cache", true, true, "Enables cache of parquet file metadata."},
             {"enable_join_runtime_filters", false, true, "Enabled this optimization"},
             {"parallel_replicas_filter_pushdown", false, false, "New setting"},
+            {"parallel_non_joined_rows_processing", true, true, "New setting to enable parallel processing of non-joined rows in RIGHT/FULL parallel_hash joins."},
             {"use_page_cache_for_local_disks", false, false, "New setting to use userspace page cache for local disks"},
             {"use_page_cache_for_object_storage", false, false, "New setting to use userspace page cache for object storage table functions"},
             {"use_statistics_cache", false, true, "Enable statistics cache"},

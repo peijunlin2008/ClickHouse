@@ -445,7 +445,8 @@ IBlocksStreamPtr ConcurrentHashJoin::getNonJoinedBlocks(
 
 bool ConcurrentHashJoin::supportParallelNonJoinedBlocksProcessing() const
 {
-    return JoinCommon::hasNonJoinedBlocks(*table_join)
+    return table_join->allowParallelNonJoinedRowsProcessing()
+        && JoinCommon::hasNonJoinedBlocks(*table_join)
         && hash_joins[0]->data->twoLevelMapIsUsed();
 }
 

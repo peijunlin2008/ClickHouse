@@ -1593,9 +1593,8 @@ private:
                     ++it;
 
                     /// if we crossed into a bucket not owned by this stream, skip ahead
-                    if (it != end && !isBucketInRange(it.getBucket()))
-                        if (!skipToNextOwnedBucket())
-                            break;
+                    if (it != end && !isBucketInRange(it.getBucket()) && !skipToNextOwnedBucket())
+                        break;
                 }
             }
             else

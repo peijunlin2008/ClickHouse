@@ -10,3 +10,5 @@ PARALLEL	1
 1	1
 --- Parallelism: work distributed across transforms ---
 1
+--- Setting disabled: falls back to sequential ---
+SEQUENTIAL	1
