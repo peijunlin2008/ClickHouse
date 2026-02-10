@@ -718,7 +718,7 @@ DB::ObjectIterator TableSnapshot::iterate(
             TSA_SUPPRESS_WARNING_FOR_WRITE(snapshot_stats).emplace(std::move(stats));
             LOG_TEST(
                 log, "Updated statistics from data files iterator for snapshot version {}",
-                stats.version);
+                snapshot_stats->version);
         }
     };
     return std::make_shared<TableSnapshot::Iterator>(
