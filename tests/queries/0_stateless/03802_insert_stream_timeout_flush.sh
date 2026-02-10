@@ -18,12 +18,12 @@ function run_test() {
             for i in $(seq 1 40); do
                 echo "{\"id\":$(( (iteration*100) + i )),\"data\":\"batch_${iteration}\"}"
             done
-            sleep 3
+            sleep 6
             echo "{\"id\":$(( (iteration*100) + 99 )),\"data\":\"trigger_${iteration}\"}"
         done
     } | ${CLICKHOUSE_CLIENT} --query "INSERT INTO test_insert_timeout${test_suffix} FORMAT JSONEachRow" \
         --max_insert_block_size=1000 \
-        --input_format_max_block_wait_ms=1000 \
+        --input_format_max_block_wait_ms=2000 \
         --min_insert_block_size_bytes=0 \
         --min_insert_block_size_rows=0 \
         --input_format_parallel_parsing=${parallel_parsing}
