@@ -36,7 +36,7 @@ function run_test() {
     
     PIPELINE_PID=$!
     
-    sleep 8
+    sleep 10
     
     kill -9 $PIPELINE_PID 2>/dev/null
     wait $PIPELINE_PID 2>/dev/null
