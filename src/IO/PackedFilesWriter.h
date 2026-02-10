@@ -32,14 +32,7 @@ class PackedFilesWriter
 {
 public:
     using OutBufferPtr = std::unique_ptr<WriteBufferFromFileBase>;
-    using OutBufferGetter = std::function<OutBufferPtr(const WriteSettings & settings)>;
-
-    PackedFilesWriter() = default;
-
-    explicit PackedFilesWriter(OutBufferGetter out_buffer_getter_)
-        : out_buffer_getter(std::move(out_buffer_getter_))
-    {
-    }
+    using CommitDataFunc = std::function<void(String serialized_data, const WriteSettings & settings, bool need_sync)>;
 
     /// Creates memory buffer for the data of file
     /// and returns fake WriteBufferFromFileBase.
@@ -64,7 +57,8 @@ public:
     /// Returns calculated index of written files.
     /// The caller can provide files order hint to optimize the order of files in the archive. The files listed in the hint
     /// Will be written first in the archive in the specified order, and the rest of the files will be written after them.
-    PackedFilesIO::Index finalize(const Strings & files_order_hint = {});
+    PackedFilesIO::Index finalize(CommitDataFunc commit_func, const Strings & files_order_hint = {});
+    /// Returns a pair of (packed files index, need to fsync the archive)
     std::pair<PackedFilesIO::Index, bool> finalize(WriteBuffer & out, const Strings & files_order_hint = {});
 
     /// Applies changes of files metadata both to the @written_files and @index.
@@ -164,9 +158,6 @@ private:
 
     template <typename Map>
     void applyRemoveFile(MetadataChange & change, Map & index_map);
-
-    /// Callback to create file to which archive should be dumped.
-    OutBufferGetter out_buffer_getter;
 
     /// Map from the name of file to its content.
     std::map<String, std::shared_ptr<Data>> written_files;

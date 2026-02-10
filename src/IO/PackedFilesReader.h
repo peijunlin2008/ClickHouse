@@ -4,7 +4,6 @@
 #include <IO/ReadSettings.h>
 #include <Core/Names.h>
 #include <base/types.h>
-#include <map>
 #include <IO/ReadBuffer.h>
 
 namespace DB

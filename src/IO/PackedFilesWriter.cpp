@@ -1,7 +1,9 @@
 #include <IO/WriteSettings.h>
 #include <IO/WriteHelpers.h>
 #include <IO/PackedFilesWriter.h>
+#include <IO/WriteBufferFromString.h>
 #include <Common/escapeForFileName.h>
+
 
 namespace DB
 {
@@ -10,7 +12,6 @@ namespace ErrorCodes
 {
     extern const int FILE_ALREADY_EXISTS;
     extern const int FILE_DOESNT_EXIST;
-    extern const int LOGICAL_ERROR;
 }
 
 std::unique_ptr<WriteBufferFromFileBase>
@@ -126,19 +127,14 @@ void PackedFilesWriter::writePackedIndex(WriteBuffer & out, const PackedFilesIO:
     }
 }
 
-PackedFilesIO::Index PackedFilesWriter::finalize(const Strings & files_order_hint)
+PackedFilesIO::Index PackedFilesWriter::finalize(CommitDataFunc commit_func, const Strings & files_order_hint)
 {
-    if (!out_buffer_getter)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Out buffer getter is not set");
+    WriteBufferFromOwnString serialized;
+    auto [index, need_sync] = finalize(serialized, files_order_hint);
 
-    auto out = out_buffer_getter(write_settings.value_or(WriteSettings{}));
-    auto [index, need_sync] = finalize(*out, files_order_hint);
-
-    out->preFinalize();
-    out->finalize();
-    if (need_sync)
-        out->sync();
-
+    serialized.preFinalize();
+    serialized.finalize();
+    commit_func(serialized.str(), write_settings.value_or(WriteSettings{}), need_sync);
     return index;
 }
 
