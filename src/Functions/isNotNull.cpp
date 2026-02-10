@@ -11,6 +11,7 @@
 #include <Functions/IFunction.h>
 #include <Interpreters/Context.h>
 #include <Common/assert_cast.h>
+#include <Common/TargetSpecific.h>
 
 #if USE_EMBEDDED_COMPILER
 #    include <DataTypes/Native.h>
