@@ -190,3 +190,52 @@ def test_keeper_opentelemetry_tracing(started_cluster):
         # other replicas
         assert keeper1.query(query) == ""
         assert keeper3.query(query) == ""
+
+
+def test_keeper_opentelemetry_tracing_without_server_trace(started_cluster):
+    """
+    Test that keeper request tracing works independently of server request tracing.
+    With opentelemetry_start_trace_probability=0.0 and opentelemetry_start_keeper_trace_probability=1.0,
+    traces for ZooKeeper requests should still be created from scratch and propagated to all keeper replicas.
+    """
+
+    clickhouse = started_cluster.instances["clickhouse"]
+    keeper1 = started_cluster.instances["clickhouseKeeper1"]
+    keeper2 = started_cluster.instances["clickhouseKeeper2"]
+    keeper3 = started_cluster.instances["clickhouseKeeper3"]
+
+    db = f"test_no_server_trace_{uuid.uuid4()}_database"
+
+    # run DDL with server tracing disabled but keeper tracing enabled per-query
+    clickhouse.query(
+        f"CREATE DATABASE `{db}` ENGINE=Replicated('/test/{db}', 'shard1', 'replica1')",
+        settings={
+            "opentelemetry_start_trace_probability": "0.0",
+            "opentelemetry_start_keeper_trace_probability": "1.0",
+        },
+    )
+
+    # flush logs
+    for node in (keeper1, keeper2, keeper3, clickhouse):
+        node.query("SYSTEM FLUSH LOGS system.opentelemetry_span_log")
+
+    # find traces pertaining to zookeeper write requests related to our DDL
+    # these traces were started from scratch by create_trace_if_not_exists
+    zookeeper_write_traces = clickhouse.query(
+        f"""
+        SELECT trace_id
+        FROM system.opentelemetry_span_log
+        WHERE 1
+            AND operation_name IN ('zookeeper.create', 'zookeeper.set', 'zookeeper.multi')
+            AND attribute['zk.path'] LIKE '/test/{db}%'
+        FORMAT TSV
+        """
+    ).strip()
+    assert zookeeper_write_traces != ""
+
+    # for each trace, verify that all keeper replicas have spans for it
+    for trace_id in zookeeper_write_traces.split('\n'):
+        for keeper in (keeper1, keeper2, keeper3):
+            assert int(
+                keeper.query(f"SELECT count() FROM system.opentelemetry_span_log WHERE trace_id = '{trace_id}'").strip()
+            ) > 0
