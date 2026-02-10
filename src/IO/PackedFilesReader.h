@@ -33,8 +33,7 @@ public:
     std::unique_ptr<ReadBufferFromFileBase> readFile(
         const String & file_name,
         const ReadSettings & settings,
-        std::optional<size_t> read_hint,
-        std::optional<size_t> file_size) const;
+        std::optional<size_t> read_hint) const;
 
     const PackedFilesIO::Index & getIndex() const { return index; }
 

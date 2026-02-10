@@ -89,8 +89,7 @@ static ReadSettings patchSettings(ReadSettings settings)
 std::unique_ptr<ReadBufferFromFileBase> PackedFilesReader::readFile(
     const String & file_name,
     const ReadSettings & settings,
-    std::optional<size_t> read_hint,
-    std::optional<size_t>) const
+    std::optional<size_t> read_hint) const
 {
     auto it = index.find(file_name);
     if (it == index.end())
