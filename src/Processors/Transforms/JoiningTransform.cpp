@@ -40,13 +40,17 @@ JoiningTransform::JoiningTransform(
     size_t max_block_size_,
     bool on_totals_,
     bool default_totals_,
-    FinishCounterPtr finish_counter_)
+    FinishCounterPtr finish_counter_,
+    size_t stream_index_,
+    size_t num_streams_)
     : IProcessor({input_header}, {output_header})
     , join(std::move(join_))
     , on_totals(on_totals_)
     , default_totals(default_totals_)
     , finish_counter(std::move(finish_counter_))
     , max_block_size(max_block_size_)
+    , stream_index(stream_index_)
+    , num_streams(num_streams_)
 {
     if (!join->isFilled())
         inputs.emplace_back(Block(), this); // Wait for FillingRightJoinSideTransform
@@ -142,14 +146,46 @@ void JoiningTransform::work()
     {
         if (!non_joined_blocks)
         {
-            if (!finish_counter || !finish_counter->isLast())
+            if (!finish_counter)
             {
                 process_non_joined = false;
                 return;
             }
 
-            non_joined_blocks = join->getNonJoinedBlocks(
-                inputs.front().getHeader(), outputs.front().getHeader(), max_block_size);
+            if (join->supportParallelNonJoinedBlocksProcessing() && num_streams > 1)
+            {
+                /// parallel mode
+                /// all JoiningTransforms participate in non-joined row emission
+                /// first, arrive at the barrier (increment counter exactly once)
+                if (!finish_counter_incremented)
+                {
+                    finish_counter->isLast(); /// increment (return value ignored)
+                    finish_counter_incremented = true;
+                }
+
+                /// Wait until all transforms have finished their input before reading non-joined rows
+                /// because used_flags may still be updated by other transforms during the probe phase
+                if (!finish_counter->isFinished())
+                    return; /// yield — prepare() will return Status::Ready, so we'll be called again
+
+                /// all transforms done — create a partitioned stream for this transform's bucket range
+                non_joined_blocks = join->getNonJoinedBlocks(
+                    inputs.front().getHeader(), outputs.front().getHeader(), max_block_size,
+                    stream_index, num_streams);
+            }
+            else
+            {
+                /// sequential mode: only the last transform to finish proceeds
+                if (!finish_counter->isLast())
+                {
+                    process_non_joined = false;
+                    return;
+                }
+
+                non_joined_blocks = join->getNonJoinedBlocks(
+                    inputs.front().getHeader(), outputs.front().getHeader(), max_block_size);
+            }
+
             if (!non_joined_blocks)
             {
                 process_non_joined = false;

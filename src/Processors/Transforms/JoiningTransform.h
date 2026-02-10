@@ -25,6 +25,9 @@ public:
 
     bool isLast() { return finished.fetch_add(1) + 1 >= total; }
 
+    /// if all streams have finished (non-blocking, no side effects)
+    bool isFinished() const { return finished.load(std::memory_order_acquire) >= total; }
+
 private:
     const size_t total;
     std::atomic_size_t finished{0};
@@ -47,7 +50,9 @@ public:
         size_t max_block_size_,
         bool on_totals_ = false,
         bool default_totals_ = false,
-        FinishCounterPtr finish_counter_ = nullptr);
+        FinishCounterPtr finish_counter_ = nullptr,
+        size_t stream_index_ = 0,
+        size_t num_streams_ = 0);
 
     ~JoiningTransform() override;
 
@@ -84,6 +89,9 @@ private:
     FinishCounterPtr finish_counter;
     IBlocksStreamPtr non_joined_blocks;
     size_t max_block_size;
+    size_t stream_index;
+    size_t num_streams;
+    bool finish_counter_incremented = false;
 
     Block readExecute(Chunk & chunk);
 };

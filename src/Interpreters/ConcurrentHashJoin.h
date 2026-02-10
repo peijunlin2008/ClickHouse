@@ -67,6 +67,12 @@ public:
     IBlocksStreamPtr
     getNonJoinedBlocks(const Block & left_sample_block, const Block & result_sample_block, UInt64 max_block_size) const override;
 
+    bool supportParallelNonJoinedBlocksProcessing() const override;
+
+    IBlocksStreamPtr getNonJoinedBlocks(
+        const Block & left_sample_block, const Block & result_sample_block, UInt64 max_block_size,
+        size_t stream_idx, size_t num_streams) const override;
+
     static bool canProcessNonJoinedBlocks(const TableJoin & table_join_)
     {
         return isRight(table_join_.kind());
