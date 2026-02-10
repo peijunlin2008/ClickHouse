@@ -71,8 +71,24 @@ When enabled, tables are not fully loaded during database startup. Instead, a li
 CREATE DATABASE db_name ENGINE = Atomic SETTINGS lazy_load_tables = 1;
 ```
 
-Before a table is accessed, it appears with engine `TableProxy` in `system.tables`. After first access, it shows its real engine name.
-
 Applies to database engines that store table metadata on disk (e.g. `Atomic`, `Ordinary`). Views, materialized views, dictionaries, and tables backed by table functions are always loaded eagerly regardless of this setting.
+
+**When to use:** This setting is useful for databases with a large number of tables (hundreds or thousands) where only a subset is actively queried. It reduces server startup time and memory usage by deferring the creation of table engine objects, scanning of data parts, and initialization of background threads until first access.
+
+**Impact on `system.tables`:**
+
+- Before a table is accessed, `system.tables` shows its engine as `TableProxy`. After first access, it shows the real engine name (e.g. `MergeTree`).
+- Columns like `total_rows` and `total_bytes` return `NULL` for unloaded tables because the real storage has not been created yet.
+
+**Interaction with DDL operations:**
+
+- `SELECT`, `INSERT`, `ALTER`, `DROP` transparently trigger loading of the real table engine on first use.
+- `RENAME TABLE` works without triggering a load.
+- Once a table is loaded, it stays loaded for the lifetime of the server process.
+
+**Limitations:**
+
+- Monitoring tools that rely on `system.tables` metadata (e.g. `total_rows`, `engine`) may see incomplete information for unloaded tables.
+- The first query to an unloaded table incurs a one-time loading cost (parsing the stored `CREATE TABLE` statement and initializing the engine).
 
 Default value: `0` (disabled).

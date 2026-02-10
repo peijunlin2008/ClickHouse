@@ -3,6 +3,7 @@
 #include <functional>
 
 #include <Storages/StorageProxy.h>
+#include <Common/Exception.h>
 #include <Common/Logger.h>
 #include <Common/logger_useful.h>
 
@@ -53,6 +54,7 @@ public:
     StoragePolicyPtr getStoragePolicy() const override { return nullptr; }
     bool isView() const override { return false; }
 
+    /// Startup is deferred until first access via `getNested`.
     void startup() override { }
 
     void shutdown(bool is_drop) override
@@ -69,10 +71,36 @@ public:
             nested->flushAndPrepareForShutdown();
     }
 
-    /// Force-load to clean up data from disk.
     void drop() override
     {
-        getNested()->drop();
+        std::lock_guard lock{nested_mutex};
+
+        if (nested)
+        {
+            nested->drop();
+            return;
+        }
+
+        try
+        {
+            LOG_TRACE(log, "Loading table for drop without startup");
+
+            if (!get_nested)
+            {
+                LOG_WARNING(log, "Cannot load table for drop, data cleanup will be handled by the database engine");
+                return;
+            }
+
+            auto nested_storage = get_nested();
+            nested_storage->drop();
+            get_nested = {};
+        }
+        catch (...)
+        {
+            LOG_WARNING(log, "Failed to load table for drop: {}. "
+                             "Data cleanup will be handled by the database engine.",
+                        getCurrentExceptionMessage(false));
+        }
     }
 
     void read(
@@ -105,13 +133,15 @@ public:
     void renameInMemory(const StorageID & new_table_id) override
     {
         std::lock_guard lock{nested_mutex};
+        IStorage::renameInMemory(new_table_id);
         if (nested)
-            StorageProxy::renameInMemory(new_table_id);
-        else
-            IStorage::renameInMemory(new_table_id); /// NOLINT
+            nested->renameInMemory(new_table_id);
     }
 
-    void checkTableCanBeDropped([[maybe_unused]] ContextPtr query_context) const override { }
+    void checkTableCanBeDropped(ContextPtr query_context) const override
+    {
+        getNested()->checkTableCanBeDropped(query_context);
+    }
 
     std::optional<UInt64> totalRows(ContextPtr query_context) const override
     {
@@ -146,9 +176,9 @@ public:
     }
 
 private:
-    mutable std::recursive_mutex nested_mutex;
-    mutable std::function<StoragePtr()> get_nested;
-    mutable StoragePtr nested;
+    mutable std::recursive_mutex nested_mutex; /// Guards both `get_nested` and `nested`.
+    mutable std::function<StoragePtr()> get_nested; /// Factory that creates the real storage. Cleared after first use.
+    mutable StoragePtr nested; /// The materialized real storage, set on first access.
     LoggerPtr log;
 };
 
