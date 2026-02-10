@@ -6,11 +6,11 @@ CREATE TABLE t(a UInt64, s String) ENGINE = MergeTree ORDER BY a SETTINGS storag
 
 SYSTEM STOP MERGES t;
 
-INSERT INTO t SELECT *, randomString(100) FROM numbers_mt(300_000);
-INSERT INTO t SELECT *, randomString(100) FROM numbers(1_000);
-INSERT INTO t SELECT *, randomString(100) FROM numbers(1_000);
-INSERT INTO t SELECT *, randomString(100) FROM numbers(1_000);
-INSERT INTO t SELECT *, randomString(100) FROM numbers(1_000);
+INSERT INTO t SELECT *, randomString(10) FROM numbers_mt(3_000_000);
+INSERT INTO t SELECT *, randomString(10) FROM numbers(1_000);
+INSERT INTO t SELECT *, randomString(10) FROM numbers(1_000);
+INSERT INTO t SELECT *, randomString(10) FROM numbers(1_000);
+INSERT INTO t SELECT *, randomString(10) FROM numbers(1_000);
 
 -- The problem with too small task sizes specifically happens when we have compact parts.
 -- Because for them we don't know individual column sizes, see `calculateMinMarksPerTask()` function.
