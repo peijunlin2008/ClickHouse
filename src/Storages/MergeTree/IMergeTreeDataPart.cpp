@@ -928,9 +928,11 @@ PackedFilesReader * IMergeTreeDataPart::getStatisticsPackedReader() const
 
 static const ColumnDescription * getColumnForStatisticsFile(const String & filename, const ColumnsDescription & all_columns, const NameSet & required_columns)
 {
+    chassert(filename.starts_with(STATS_FILE_PREFIX));
     chassert(filename.ends_with(STATS_FILE_SUFFIX));
-    String column_name = fs::path(filename).stem().string();
-    column_name = column_name.substr(STATS_FILE_PREFIX.size());
+
+    size_t num_chars_to_truncate = STATS_FILE_PREFIX.size() + STATS_FILE_SUFFIX.size();
+    String column_name = filename.substr(STATS_FILE_PREFIX.size(), filename.size() - num_chars_to_truncate);
 
     if (!required_columns.empty() && !required_columns.contains(column_name))
         return nullptr;
