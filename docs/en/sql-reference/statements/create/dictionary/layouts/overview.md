@@ -39,7 +39,6 @@ There are a variety of ways to store dictionaries in memory, each with CPU and R
 Caching layouts are not recommended due to potentially poor performance and difficulty tuning parameters — see [cache](./cache.md) for details.
 :::
 
-
 ## Specify dictionary layout {#specify-dictionary-layout}
 
 <CloudDetails />
