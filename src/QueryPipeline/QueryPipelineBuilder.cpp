@@ -532,6 +532,14 @@ std::unique_ptr<QueryPipelineBuilder> QueryPipelineBuilder::joinPipelinesRightLe
             delayed_root_output_ports.emplace_back(&outport);
     }
 
+    /// When true, non-joined rows are emitted by separate NonJoinedBlocksTransform sources in parallel
+    /// when false, the last JoiningTransform to finish emits them (via finish_counter)
+    bool use_parallel_non_joined = !delayed_root && join->supportParallelNonJoinedBlocksProcessing();
+
+    /// nullptr disables non-joined emission inside JoiningTransform (parallel path handles it)
+    auto joining_finish_counter = use_parallel_non_joined
+        ? nullptr
+        : std::make_shared<FinishCounter>(num_streams);
 
     SharedHeader left_header = left->getSharedHeader();
     for (size_t i = 0; i < num_streams; ++i)
@@ -546,7 +554,7 @@ std::unique_ptr<QueryPipelineBuilder> QueryPipelineBuilder::joinPipelinesRightLe
         }
 
         auto joining = std::make_shared<JoiningTransform>(
-            left_header, output_header, join, max_block_size, false, default_totals, joining_finish_counter, i, num_streams);
+            left_header, output_header, join, max_block_size, false, default_totals, joining_finish_counter);
 
         connect(*left_port, joining->getInputs().front());
         connect(**rit, joining->getInputs().back());
@@ -569,6 +577,19 @@ std::unique_ptr<QueryPipelineBuilder> QueryPipelineBuilder::joinPipelinesRightLe
                 collected_processors->emplace_back(delayed);
             left->pipe.processors->emplace_back(std::move(delayed));
         }
+        else if (use_parallel_non_joined)
+        {
+            /// Parallel non-joined source, activated by DelayedPortsProcessor after all probing finishes
+            auto non_joined = std::make_shared<NonJoinedBlocksTransform>(
+                output_header, join, *left_header, max_block_size, i, num_streams);
+
+            joined_output_ports.push_back(&joining->getOutputs().front());
+            joined_output_ports.push_back(&non_joined->getPort());
+
+            if (collected_processors)
+                collected_processors->emplace_back(non_joined);
+            left->pipe.processors->emplace_back(std::move(non_joined));
+        }
         else
         {
             *lit = &joining->getOutputs().front();
@@ -583,7 +604,7 @@ std::unique_ptr<QueryPipelineBuilder> QueryPipelineBuilder::joinPipelinesRightLe
         left->pipe.processors->emplace_back(std::move(joining));
     }
 
-    if (delayed_root)
+    if (delayed_root || use_parallel_non_joined)
     {
         // Process DelayedJoinedBlocksTransform after all JoiningTransforms.
         DelayedPortsProcessor::PortNumbers delayed_ports_numbers;
