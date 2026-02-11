@@ -219,6 +219,7 @@ static QueryPlanResourceHolder replaceReadingFromTable(QueryPlan::Node & node, Q
         options.ignore_rename_columns = true;
         InterpreterSelectQueryAnalyzer interpreter(wrapWithUnion(std::move(query)), context, options);
         reading_plan = std::move(interpreter).extractQueryPlan();
+        reading_plan.addInterpreterContext(context);
     }
     else
     {
@@ -245,6 +246,10 @@ static QueryPlanResourceHolder replaceReadingFromTable(QueryPlan::Node & node, Q
             context->getSettingsRef()[Setting::max_block_size],
             context->getSettingsRef()[Setting::max_threads]
         );
+
+        /// Preserve the mutable_context for the lifetime of query execution
+        /// because source processors (e.g., StorageKeeperMapSource) may hold weak_ptr to it
+        reading_plan.addInterpreterContext(mutable_context);
     }
 
     if (!reading_plan.isInitialized())
@@ -266,7 +271,6 @@ static QueryPlanResourceHolder replaceReadingFromTable(QueryPlan::Node & node, Q
     node.step = std::make_unique<ExpressionStep>(reading_plan.getCurrentHeader(), std::move(converting_actions));
     node.children = {reading_plan.getRootNode()};
 
-    reading_plan.addInterpreterContext(context);
     reading_plan.addStorageHolder(std::move(storage));
     reading_plan.addTableLock(std::move(table_lock));
 
