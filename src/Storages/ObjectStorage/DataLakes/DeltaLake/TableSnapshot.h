@@ -18,6 +18,9 @@
 namespace DeltaLake
 {
 
+/// TODO: Reorganize TableSnapshot to refer only to a single version,
+/// so we could add a proper cache of metadata per version.
+
 /**
  * A class representing DeltaLake table snapshot -
  * a snapshot of table state, its schema, data files, etc.
@@ -36,11 +39,12 @@ public:
     /// Get snapshot version.
     size_t getVersion() const;
 
-    std::optional<size_t> getTotalRows() const;
-    std::optional<size_t> getTotalBytes() const;
+    std::optional<size_t> getTotalRows(DB::ContextPtr context) const;
+    std::optional<size_t> getTotalBytes(DB::ContextPtr context) const;
 
-    /// Update snapshot to latest version.
-    void updateToLatestVersion(const DB::ContextPtr & context);
+    /// Update snapshot to latest version
+    /// or the one specified in delta_lake_snapshot_version setting.
+    void updateSnapshotVersion(const DB::ContextPtr & context);
 
     /// Iterate over DeltaLake data files.
     DB::ObjectIterator iterate(
@@ -76,10 +80,14 @@ private:
     const DB::ObjectStoragePtr object_storage;
     const LoggerPtr log;
 
-    bool enable_expression_visitor_logging;
-    bool throw_on_engine_visitor_error;
-    bool enable_engine_predicate;
-    std::optional<size_t> snapshot_version_to_read;
+    struct QuerySettings
+    {
+        bool enable_expression_visitor_logging;
+        bool throw_on_engine_visitor_error;
+        bool enable_engine_predicate;
+        std::optional<size_t> snapshot_version_to_read;
+    };
+    mutable QuerySettings query_settings;
 
     struct KernelSnapshotState : private boost::noncopyable
     {
@@ -119,13 +127,13 @@ private:
     mutable std::optional<SnapshotStats> snapshot_stats TSA_GUARDED_BY(snapshot_stats_mutex);
     mutable std::mutex snapshot_stats_mutex;
 
-    void initSnapshot(bool recreate = false) const;
+    void initSnapshot(std::optional<size_t> version = std::nullopt, bool recreate = false) const;
     void initSchema() const;
 
-    SnapshotStats getSnapshotStats() const;
-    SnapshotStats getSnapshotStatsImpl() const;
+    SnapshotStats getSnapshotStats(size_t version) const;
+    SnapshotStats getSnapshotStatsImpl(size_t version) const;
 
-    void updateSettings(const DB::ContextPtr & context);
+    void updateSettings(const DB::ContextPtr & context) const;
 };
 
 }

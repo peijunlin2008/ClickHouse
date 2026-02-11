@@ -102,13 +102,21 @@ bool DeltaLakeMetadataDeltaKernel::operator ==(const IDataLakeMetadata & metadat
     return table_snapshot->getVersion() == delta_lake_metadata.table_snapshot->getVersion();
 }
 
-std::optional<size_t> DeltaLakeMetadataDeltaKernel::totalRows(ContextPtr) const
+std::optional<size_t> DeltaLakeMetadataDeltaKernel::totalRows(ContextPtr context) const
 {
+    const auto & settings = context->getSettingsRef();
+    if (auto start_version = settings[Setting::delta_lake_snapshot_start_version].value;
+        start_version != DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION)
+    {
+        /// TODO: Support total rows/bytes for CDF.
+        return std::nullopt;
+    }
+
     std::lock_guard lock(table_snapshot_mutex);
 
     try
     {
-        return table_snapshot->getTotalRows();
+        return table_snapshot->getTotalRows(context);
     }
     catch (...)
     {
@@ -118,12 +126,21 @@ std::optional<size_t> DeltaLakeMetadataDeltaKernel::totalRows(ContextPtr) const
     }
 }
 
-std::optional<size_t> DeltaLakeMetadataDeltaKernel::totalBytes(ContextPtr) const
+std::optional<size_t> DeltaLakeMetadataDeltaKernel::totalBytes(ContextPtr context) const
 {
+    const auto & settings = context->getSettingsRef();
+    if (auto start_version = settings[Setting::delta_lake_snapshot_start_version].value;
+        start_version != DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION)
+    {
+        /// TODO: Support total rows/bytes for CDF.
+        return std::nullopt;
+    }
+
     std::lock_guard lock(table_snapshot_mutex);
+
     try
     {
-        return table_snapshot->getTotalBytes();
+        return table_snapshot->getTotalBytes(context);
     }
     catch (...)
     {
@@ -136,7 +153,7 @@ std::optional<size_t> DeltaLakeMetadataDeltaKernel::totalBytes(ContextPtr) const
 void DeltaLakeMetadataDeltaKernel::update(const ContextPtr & context)
 {
     std::lock_guard lock(table_snapshot_mutex);
-    table_snapshot->updateToLatestVersion(context);
+    table_snapshot->updateSnapshotVersion(context);
 }
 
 DeltaLake::TableChangesPtr DeltaLakeMetadataDeltaKernel::getTableChanges(

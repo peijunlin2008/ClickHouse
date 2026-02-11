@@ -4235,3 +4235,67 @@ def test_table_statistics(started_cluster):
 
     check_with_condition(True, 1300, 13)
     check_with_condition(False, 1400, 14)
+
+    # Test switching between snapshot versions
+    # Query with version 0 - should have 100 rows
+    query_id_v0 = f"test_switch_v0_{TABLE_NAME}"
+    result_v0 = instance.query(
+        f"SELECT count() FROM {TABLE_NAME} SETTINGS delta_lake_snapshot_version = 0",
+        query_id=query_id_v0,
+    )
+    assert int(result_v0.strip()) == 100
+
+    instance.query("SYSTEM FLUSH LOGS")
+    message_v0 = "Updated statistics for snapshot version 0"
+    log_result_v0 = instance.query(
+        f"SELECT count() FROM system.text_log WHERE query_id = '{query_id_v0}' "
+        f"AND message LIKE '%{message_v0}%'"
+    )
+    assert int(log_result_v0) == 1
+
+    # Query with version 5 - should have 600 rows
+    query_id_v5 = f"test_switch_v5_{TABLE_NAME}"
+    result_v5 = instance.query(
+        f"SELECT count() FROM {TABLE_NAME} SETTINGS delta_lake_snapshot_version = 5",
+        query_id=query_id_v5,
+    )
+    assert int(result_v5.strip()) == 600
+
+    instance.query("SYSTEM FLUSH LOGS")
+    message_v5 = "Updated statistics for snapshot version 5"
+    log_result_v5 = instance.query(
+        f"SELECT count() FROM system.text_log WHERE query_id = '{query_id_v5}' "
+        f"AND message LIKE '%{message_v5}%'"
+    )
+    assert int(log_result_v5) == 1
+
+    # Switch to version 10
+    query_id_v10 = f"test_switch_v10_{TABLE_NAME}"
+    result_v10 = instance.query(
+        f"SELECT count() FROM {TABLE_NAME} SETTINGS delta_lake_snapshot_version = 10",
+        query_id=query_id_v10,
+    )
+    assert int(result_v10.strip()) == 1100
+
+    instance.query("SYSTEM FLUSH LOGS")
+    message_v10 = "Updated statistics for snapshot version 10"
+    log_result_v10 = instance.query(
+        f"SELECT count() FROM system.text_log WHERE query_id = '{query_id_v10}' "
+        f"AND message LIKE '%{message_v10}%'"
+    )
+    assert int(log_result_v10) == 1
+
+    # Query without version - should use latest with 1500 rows
+    query_id_latest = f"test_switch_latest_{TABLE_NAME}"
+    result_latest = instance.query(
+        f"SELECT count() FROM {TABLE_NAME}", query_id=query_id_latest
+    )
+    assert int(result_latest.strip()) == 1500
+
+    instance.query("SYSTEM FLUSH LOGS")
+    message_latest = "Updated statistics for snapshot version 14"
+    log_result_latest = instance.query(
+        f"SELECT count() FROM system.text_log WHERE query_id = '{query_id_latest}' "
+        f"AND message LIKE '%{message_latest}%'"
+    )
+    assert int(log_result_latest) == 1
