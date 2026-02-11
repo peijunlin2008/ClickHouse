@@ -25,6 +25,7 @@ ${CLICKHOUSE_CLIENT} --query "CREATE TABLE test_insert_timeout (id UInt64, data 
     done
 }  | ${CLICKHOUSE_CLIENT} --query "INSERT INTO test_insert_timeout FORMAT JSONEachRow" \
     --max_insert_block_size=1000 \
+    --input_format_connection_handling=1 \
     --input_format_max_block_wait_ms=2000 \
     --min_insert_block_size_bytes=0 \
     --min_insert_block_size_rows=0
