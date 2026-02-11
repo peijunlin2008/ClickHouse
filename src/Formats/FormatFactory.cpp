@@ -474,9 +474,9 @@ InputFormatPtr FormatFactory::getInput(
         && settings[Setting::min_chunk_bytes_for_parallel_parsing] * max_parsing_threads * 2 > settings[Setting::max_memory_usage_for_user])
         parallel_parsing = false;
 
-    if (format_settings.max_block_wait_ms) 
+    if (format_settings.max_block_wait_ms)
         parallel_parsing = false;
-    
+
 
     if (parallel_parsing)
     {
