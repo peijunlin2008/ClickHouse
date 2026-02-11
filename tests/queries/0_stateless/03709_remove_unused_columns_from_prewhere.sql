@@ -31,5 +31,3 @@ SELECT
 FROM test
 WHERE (day >= '2025-07-01') AND (day <= '2025-07-31') AND (source_type IN ('1')) AND (account_id < 900000000)
 SETTINGS query_plan_remove_unused_columns = 1;
-
--- TODO(antaljanosbenjamin): add checks for other merge tree variants
