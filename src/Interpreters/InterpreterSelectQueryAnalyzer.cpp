@@ -209,7 +209,8 @@ InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(
               InterpreterSelectQueryAnalyzer interpreter(ast, ctx, select_options, column_names);
               auto plan = std::move(interpreter).extractQueryPlan();
               auto optimization_settings = QueryPlanOptimizationSettings(ctx);
-              // Same as for `query_plan_optimize_primary_key` above.
+              // We should build sets and create `CreatingSetsStep` only in the original plan. The automatic parallel replicas optimization happens before building sets,
+              // so even if we decide to use the plan with parallel replicas, we will substitute it in place of the original plan and then build sets.
               optimization_settings.build_sets = false;
               plan.optimize(optimization_settings);
               return std::make_unique<QueryPlan>(std::move(plan));
@@ -258,7 +259,8 @@ InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(
               InterpreterSelectQueryAnalyzer interpreter(ast, ctx, storage, select_options, column_names);
               auto plan = std::move(interpreter).extractQueryPlan();
               auto optimization_settings = QueryPlanOptimizationSettings(ctx);
-              // Same as for `query_plan_optimize_primary_key` above.
+              // We should build sets and create `CreatingSetsStep` only in the original plan. The automatic parallel replicas optimization happens before building sets,
+              // so even if we decide to use the plan with parallel replicas, we will substitute it in place of the original plan and then build sets.
               optimization_settings.build_sets = false;
               plan.optimize(optimization_settings);
               return std::make_unique<QueryPlan>(std::move(plan));
@@ -299,7 +301,8 @@ InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(
               InterpreterSelectQueryAnalyzer interpreter(tree, ctx, select_options);
               auto plan = std::move(interpreter).extractQueryPlan();
               auto optimization_settings = QueryPlanOptimizationSettings(ctx);
-              // Same as for `query_plan_optimize_primary_key` above.
+              // We should build sets and create `CreatingSetsStep` only in the original plan. The automatic parallel replicas optimization happens before building sets,
+              // so even if we decide to use the plan with parallel replicas, we will substitute it in place of the original plan and then build sets.
               optimization_settings.build_sets = false;
               plan.optimize(optimization_settings);
               return std::make_unique<QueryPlan>(std::move(plan));
