@@ -35,10 +35,17 @@ add_dependencies(generate-source generate-contributors)
 
 set(GENERATED_LICENSES_SRC "${CMAKE_CURRENT_BINARY_DIR}/StorageSystemLicenses.generated.cpp")
 
-add_custom_command(
-    OUTPUT StorageSystemLicenses.generated.cpp
-    COMMAND ./StorageSystemLicenses.sh "${CMAKE_SOURCE_DIR}" > ${GENERATED_LICENSES_SRC}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+# Generate license data at configure time to avoid creating a build-time dependency
+# that blocks all downstream targets (table_functions, server-lib, etc.) via the
+# CMake order-only dependency chain.
+execute_process(
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/StorageSystemLicenses.sh "${CMAKE_SOURCE_DIR}"
+    OUTPUT_FILE ${GENERATED_LICENSES_SRC}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    RESULT_VARIABLE LICENSES_RESULT)
+if (NOT LICENSES_RESULT EQUAL 0)
+    message(WARNING "Failed to generate StorageSystemLicenses.generated.cpp")
+endif()
 
 list (APPEND storages_system_sources ${GENERATED_LICENSES_SRC})
 
@@ -47,6 +54,11 @@ set_source_files_properties(${GENERATED_LICENSES_SRC} PROPERTIES COMPILE_FLAGS -
 
 list (SORT storages_system_sources) # Reproducible build
 add_library(clickhouse_storages_system ${storages_system_sources})
+
+# Limit StorageSystem compilation parallelism: with configure-time license generation
+# these ~100 TUs all become ready much earlier and can starve critical-path TUs of cores.
+set_property(GLOBAL APPEND PROPERTY JOB_POOLS storages_system_pool=32)
+set_property(TARGET clickhouse_storages_system PROPERTY JOB_POOL_COMPILE storages_system_pool)
 
 target_link_libraries(clickhouse_storages_system PRIVATE
     dbms
