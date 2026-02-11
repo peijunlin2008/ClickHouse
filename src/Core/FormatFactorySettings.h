@@ -1524,7 +1524,7 @@ This option only works if `input_format_connection_handling` is enabled. Setting
 )", 0) \
     DECLARE(UInt64, input_format_connection_handling, false, R"(
     When this option is enabled, if the connection closes unexpectedly, any remaining data in the buffer will be parsed and processed instead of being treated as an error
-    
+
 :::note
 Enabling this option disables parallel parsing and makes deduplication impossible
 :::
