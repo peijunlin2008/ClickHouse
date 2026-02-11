@@ -148,13 +148,13 @@ QueryPlanPtr buildQueryPlanForAutomaticParallelReplicas(
         return QueryPlanPtr{};
     ctx->setSetting("enable_parallel_replicas", true);
     // If the parallel replicas plan will be chosen, the index analysis result will be reused from the single-replica plan. No need to optimize primary key here.
-    ctx->setSetting("query_plan_optimize_primary_key", false);
     InterpreterSelectQueryAnalyzer interpreter(ast, ctx, select_options, std::forward<Args>(args)...);
     auto plan = std::move(interpreter).extractQueryPlan();
     auto optimization_settings = QueryPlanOptimizationSettings(ctx);
     // We should build sets and create `CreatingSetsStep` only in the original plan. The automatic parallel replicas optimization happens before building sets,
     // so even if we decide to use the plan with parallel replicas, we will substitute it in place of the original plan and then build sets.
     optimization_settings.build_sets = false;
+    optimization_settings.query_plan_optimize_primary_key = false;
     plan.optimize(optimization_settings);
     return std::make_unique<QueryPlan>(std::move(plan));
 }
