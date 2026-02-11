@@ -55,11 +55,6 @@ set_source_files_properties(${GENERATED_LICENSES_SRC} PROPERTIES COMPILE_FLAGS -
 list (SORT storages_system_sources) # Reproducible build
 add_library(clickhouse_storages_system ${storages_system_sources})
 
-# Limit StorageSystem compilation parallelism: with configure-time license generation
-# these ~100 TUs all become ready much earlier and can starve critical-path TUs of cores.
-set_property(GLOBAL APPEND PROPERTY JOB_POOLS storages_system_pool=32)
-set_property(TARGET clickhouse_storages_system PROPERTY JOB_POOL_COMPILE storages_system_pool)
-
 target_link_libraries(clickhouse_storages_system PRIVATE
     dbms
     common
