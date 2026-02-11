@@ -58,6 +58,7 @@ using BuildTextIndexTransformPtr = std::shared_ptr<BuildTextIndexTransform>;
 
 class BuildStatisticsTransform;
 using BuildStatisticsTransformPtr = std::shared_ptr<BuildStatisticsTransform>;
+using BuildStatisticsTransformMap = std::unordered_map<String, BuildStatisticsTransformPtr>;
 
 /**
  * Overview of the merge algorithm
@@ -294,7 +295,7 @@ private:
         std::vector<Squashing> projection_squashes;
         size_t projection_block_num = 0;
         ExecutableTaskPtr merge_projection_parts_task_ptr;
-        std::unordered_map<String, BuildStatisticsTransformPtr> build_statistics_transforms;
+        BuildStatisticsTransformMap build_statistics_transforms;
 
         size_t initial_reservation{0};
         bool read_with_direct_io{false};
@@ -391,6 +392,7 @@ private:
         {
             QueryPipeline pipeline;
             MergeTreeIndices indexes_to_recalc;
+            BuildStatisticsTransformMap build_statistics_transforms;
         };
 
         std::optional<PreparedColumnPipeline> prepared_pipeline;
@@ -400,7 +402,7 @@ private:
         size_t column_elems_written{0};
         QueryPipeline column_parts_pipeline;
         std::unique_ptr<PullingPipelineExecutor> executor;
-        std::unordered_map<String, BuildStatisticsTransformPtr> build_statistics_transforms;
+        BuildStatisticsTransformMap build_statistics_transforms;
         UInt64 elapsed_execute_ns{0};
     };
 
@@ -563,6 +565,7 @@ private:
     static bool isVerticalLightweightDelete(const GlobalRuntimeContext & global_ctx);
     static void addSkipIndexesExpressionSteps(QueryPlan & plan, const IndicesDescription & indices_description, const GlobalRuntimeContextPtr & global_ctx);
     static void addBuildTextIndexesStep(QueryPlan & plan, const IMergeTreeDataPart & data_part, const GlobalRuntimeContextPtr & global_ctx);
+    static void mergeBuiltStatistics(BuildStatisticsTransformMap && build_statistics_transforms, const GlobalRuntimeContextPtr & global_ctx);
     static BuildStatisticsTransformPtr addBuildStatisticsStep(QueryPlan & plan, const IMergeTreeDataPart & data_part, const GlobalRuntimeContextPtr & global_ctx);
 };
 

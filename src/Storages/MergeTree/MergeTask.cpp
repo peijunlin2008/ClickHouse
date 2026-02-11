@@ -1205,14 +1205,7 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::executeImpl() const
 
 void MergeTask::ExecuteAndFinalizeHorizontalPart::finalize() const
 {
-    /// Merge statistics built on the horizontal merge stage.
-    /// Merge and reset them here to avoid storing in memory for too long.
-    for (const auto & [_, transform] : ctx->build_statistics_transforms)
-    {
-        const auto & built_statistics = transform->getStatistics();
-        global_ctx->gathered_data.part_statistics.statistics.merge(built_statistics);
-    }
-
+    mergeBuiltStatistics(std::move(ctx->build_statistics_transforms), global_ctx);
     finalizeProjections();
     global_ctx->to->finalizeIndexGranularity();
     global_ctx->merging_executor.reset();
@@ -1349,6 +1342,8 @@ MergeTask::VerticalMergeStage::createPipelineForReadingOneColumn(const String & 
     size_t part_starting_offset = 0;
     /// Do not apply mask for lightweight delete in vertical merge, because it is applied in merging algorithm
     bool apply_deleted_mask = !global_ctx->vertical_lightweight_delete;
+    /// Collect statistics transforms for this column separately.
+    BuildStatisticsTransformMap column_build_statistics_transforms;
 
     for (size_t part_num = 0; part_num < global_ctx->future_part->parts.size(); ++part_num)
     {
@@ -1380,7 +1375,7 @@ MergeTask::VerticalMergeStage::createPipelineForReadingOneColumn(const String & 
             addBuildTextIndexesStep(*plan_for_part, *global_ctx->future_part->parts[part_num], global_ctx);
 
             if (auto transform = addBuildStatisticsStep(*plan_for_part, *global_ctx->future_part->parts[part_num], global_ctx))
-                ctx->build_statistics_transforms.emplace(global_ctx->future_part->parts[part_num]->name, std::move(transform));
+                column_build_statistics_transforms.emplace(global_ctx->future_part->parts[part_num]->name, std::move(transform));
         }
 
         plans.emplace_back(std::move(plan_for_part));
@@ -1438,7 +1433,7 @@ MergeTask::VerticalMergeStage::createPipelineForReadingOneColumn(const String & 
         addBuildTextIndexesStep(merge_column_query_plan, *global_ctx->new_data_part, global_ctx);
 
         if (auto transform = addBuildStatisticsStep(merge_column_query_plan, *global_ctx->new_data_part, global_ctx))
-            ctx->build_statistics_transforms.emplace(global_ctx->new_data_part->name, std::move(transform));
+            column_build_statistics_transforms.emplace(global_ctx->new_data_part->name, std::move(transform));
     }
 
     QueryPlanOptimizationSettings optimization_settings(global_ctx->context);
@@ -1446,7 +1441,7 @@ MergeTask::VerticalMergeStage::createPipelineForReadingOneColumn(const String & 
     pipeline_settings.temporary_file_lookup = ctx->rows_sources_temporary_file;
     auto builder = merge_column_query_plan.buildQueryPipeline(optimization_settings, pipeline_settings);
 
-    return {QueryPipelineBuilder::getPipeline(std::move(*builder)), std::move(indexes_to_recalc)};
+    return {QueryPipelineBuilder::getPipeline(std::move(*builder)), std::move(indexes_to_recalc), std::move(column_build_statistics_transforms)};
 }
 
 void MergeTask::VerticalMergeStage::prepareVerticalMergeForOneColumn() const
@@ -1471,6 +1466,7 @@ void MergeTask::VerticalMergeStage::prepareVerticalMergeForOneColumn() const
         column_pipepline = createPipelineForReadingOneColumn(column_name);
     }
 
+    ctx->build_statistics_transforms = std::move(column_pipepline.build_statistics_transforms);
     ctx->column_parts_pipeline = std::move(column_pipepline.pipeline);
 
     /// Dereference unique_ptr
@@ -1530,16 +1526,7 @@ void MergeTask::VerticalMergeStage::finalizeVerticalMergeForOneColumn() const
     global_ctx->checkOperationIsNotCanceled();
 
     ctx->executor.reset();
-
-    /// Merge statistics built for the current column on the vertical merge stage.
-    /// Merge and reset them here to avoid storing in memory for too long.
-    for (const auto & [_, transform] : ctx->build_statistics_transforms)
-    {
-        const auto & built_statistics = transform->getStatistics();
-        global_ctx->gathered_data.part_statistics.statistics.merge(built_statistics);
-    }
-
-    ctx->build_statistics_transforms.clear();
+    mergeBuiltStatistics(std::move(ctx->build_statistics_transforms), global_ctx);
 
     ctx->column_to->finalizeIndexGranularity();
     auto changed_checksums = ctx->column_to->fillChecksums(global_ctx->new_data_part, global_ctx->new_data_part->checksums);
@@ -2409,6 +2396,15 @@ BuildStatisticsTransformPtr MergeTask::addBuildStatisticsStep(QueryPlan & plan, 
     auto build_statistics_step = std::make_unique<BuildStatisticsStep>(plan.getCurrentHeader(), transform);
     plan.addStep(std::move(build_statistics_step));
     return transform;
+}
+
+void MergeTask::mergeBuiltStatistics(BuildStatisticsTransformMap && build_statistics_transforms, const GlobalRuntimeContextPtr & global_ctx)
+{
+    for (const auto & [name, transform] : build_statistics_transforms)
+    {
+        const auto & built_statistics = transform->getStatistics();
+        global_ctx->gathered_data.part_statistics.statistics.merge(built_statistics);
+    }
 }
 
 void MergeTask::ExecuteAndFinalizeHorizontalPart::createMergedStream() const
