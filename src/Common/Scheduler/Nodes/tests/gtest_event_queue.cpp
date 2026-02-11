@@ -63,6 +63,7 @@ private:
 struct QueueTest {
     String log;
     EventQueue event_queue;
+    EventQueue::SchedulerThread scheduler_thread{&event_queue};
     FakeSchedulerNode root_node;
 
     QueueTest()
@@ -150,11 +151,6 @@ TEST(SchedulerEventQueue, Smoke)
 }
 
 // Test for data race between processActivation() and cancelActivation() during node destruction.
-// Original race from TSAN:
-// - Thread 1 (scheduler): activateChild() writes to child_active
-// - Thread 2 (destroyer): removeChild() writes to child_active
-// Fix: cancelActivation() must wait for any in-progress activateChild() to complete.
-// Any code that modifies state accessed by activateChild must call cancelActivation() first.
 TEST(SchedulerEventQueue, ActivationCancelRace)
 {
     constexpr int iterations = 1000;
@@ -196,6 +192,7 @@ TEST(SchedulerEventQueue, ActivationCancelRace)
         // Scheduler thread - processes activations
         std::thread processor([&]
         {
+            EventQueue::SchedulerThread scheduler_thread(&event_queue);
             while (!stop.load(std::memory_order_relaxed))
                 event_queue.tryProcess();
             while (event_queue.tryProcess()) {}
