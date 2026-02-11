@@ -944,11 +944,15 @@ JoinTreeQueryPlan buildQueryPlanForTableExpression(QueryTreeNodePtr table_expres
 
                 if (prewhere_actions && select_query_options.build_logical_plan)
                 {
+                    /// Check if prewhere column should be removed
+                    const auto prewhere_column_name = prewhere_actions->getOutputs().at(0)->result_name;
+                    const bool remove_prewhere_column = !std::ranges::contains(columns_names, prewhere_column_name);
+
                     where_filters.emplace_back(
                         FilterDAGInfo{
                             prewhere_actions->clone(),
-                            prewhere_actions->getOutputs().at(0)->result_name,
-                            true},
+                            prewhere_column_name,
+                            remove_prewhere_column},
                         makeDescription("Prewhere"));
                 }
                 else if (prewhere_actions)
