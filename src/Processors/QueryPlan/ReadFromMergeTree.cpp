@@ -4004,7 +4004,7 @@ IQueryPlanStep::RemovedUnusedColumns ReadFromMergeTree::removeUnusedColumns(Name
                                            [&](const auto * output)
                                            {
                                                return output->result_name != query_info.prewhere_info->prewhere_column_name
-                                                   && columns_to_keep.find(output->result_name) == columns_to_keep.end();
+                                                   && !columns_to_keep.contains(output->result_name);
                                            })
             > 0;
 
@@ -4029,7 +4029,7 @@ IQueryPlanStep::RemovedUnusedColumns ReadFromMergeTree::removeUnusedColumns(Name
                                                    [&](const auto * output)
                                                    {
                                                        return output->result_name != query_info.row_level_filter->column_name
-                                                           && columns_to_keep.find(output->result_name) == columns_to_keep.end();
+                                                           && !columns_to_keep.contains(output->result_name);
                                                    })
             > 0;
 
