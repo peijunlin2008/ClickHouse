@@ -524,7 +524,7 @@ private:
         StageRuntimeContextPtr getContextForNextStage() override;
         ProfileEvents::Event getTotalTimeProfileEvent() const override { return ProfileEvents::MergeProjectionStageTotalMilliseconds; }
 
-        bool mergeStatisticsAndPrepareProjections() const;
+        bool prepareProjections() const;
         bool executeProjections() const;
         bool finalizeProjectionsAndWholeMerge() const;
 
@@ -533,7 +533,7 @@ private:
 
         const MergeProjectionsStageSubtasks subtasks
         {
-            &MergeProjectionsStage::mergeStatisticsAndPrepareProjections,
+            &MergeProjectionsStage::prepareProjections,
             &MergeProjectionsStage::executeProjections,
             &MergeProjectionsStage::finalizeProjectionsAndWholeMerge
         };

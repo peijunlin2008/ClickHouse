@@ -149,7 +149,7 @@ namespace ErrorCodes
     extern const int SUPPORT_IS_DISABLED;
 }
 
-/// Transform that builds statistics for columns by processing blocks of data.
+/// Transform that builds statistics for columns and doesn't change the chunk.
 class BuildStatisticsTransform : public ISimpleTransform
 {
 public:
@@ -202,7 +202,7 @@ private:
         return Traits
         {
             {
-                .returns_single_stream = false,
+                .returns_single_stream = true,
                 .preserves_number_of_streams = true,
                 .preserves_sorting = true,
             },
@@ -669,11 +669,18 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::prepare() const
         mutable_snapshot.addPatches(global_ctx->future_part->patch_parts);
     }
 
-    global_ctx->gathered_data.part_statistics.minmax_idx = std::make_shared<IMergeTreeDataPart::MinMaxIndex>();
     if ((*merge_tree_settings)[MergeTreeSetting::materialize_statistics_on_merge])
-        global_ctx->gathered_data.part_statistics.statistics = ColumnsStatistics(global_ctx->metadata_snapshot->getColumns());
+    {
+        global_ctx->gathered_data.statistics = ColumnsStatistics(global_ctx->metadata_snapshot->getColumns());
+    }
 
-    if (!global_ctx->merge_may_reduce_rows)
+    if (global_ctx->merge_may_reduce_rows)
+    {
+        /// If merge may reduce rows, we need to build statistics for the new part
+        /// at the end of the merge pipeline. See usage of addBuildStatisticsStep.
+        global_ctx->statistics_to_build_by_part[global_ctx->new_data_part->name] = global_ctx->gathered_data.statistics.cloneEmpty();
+    }
+    else
     {
         for (const auto & part : global_ctx->future_part->parts)
         {
@@ -684,8 +691,8 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::prepare() const
             if (part->isEmpty())
                 continue;
 
-            global_ctx->gathered_data.part_statistics.minmax_idx->merge(*part->minmax_idx);
-            const auto & result_statistics = global_ctx->gathered_data.part_statistics.statistics;
+            global_ctx->new_data_part->minmax_idx->merge(*part->minmax_idx);
+            const auto & result_statistics = global_ctx->gathered_data.statistics;
 
             if (result_statistics.empty())
                 continue;
@@ -825,8 +832,6 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::prepare() const
 
     /// Merged stream will be created and available as merged_stream variable
     createMergedStream();
-
-    NameSet merged_columns_set = global_ctx->merging_columns.getNameSet();
 
     auto index_granularity_ptr = createMergeTreeIndexGranularity(
         ctx->sum_input_rows_upper_bound,
@@ -1175,7 +1180,10 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::executeImpl() const
         const_cast<MergedBlockOutputStream &>(*global_ctx->to).write(block);
 
         if (global_ctx->merge_may_reduce_rows)
-            global_ctx->gathered_data.part_statistics.update(block, global_ctx->metadata_snapshot);
+        {
+            global_ctx->new_data_part->minmax_idx->update(
+                block, MergeTreeData::getMinMaxColumnsNames(global_ctx->metadata_snapshot->getPartitionKey()));
+        }
 
         calculateProjections(block, starting_offset);
 
@@ -1577,7 +1585,7 @@ bool MergeTask::VerticalMergeStage::finalizeVerticalMergeForAllColumns() const
 }
 
 
-bool MergeTask::MergeProjectionsStage::mergeStatisticsAndPrepareProjections() const
+bool MergeTask::MergeProjectionsStage::prepareProjections() const
 {
     /// Print overall profiling info. NOTE: it may duplicates previous messages
     {
@@ -2403,7 +2411,7 @@ void MergeTask::mergeBuiltStatistics(BuildStatisticsTransformMap && build_statis
     for (const auto & [name, transform] : build_statistics_transforms)
     {
         const auto & built_statistics = transform->getStatistics();
-        global_ctx->gathered_data.part_statistics.statistics.merge(built_statistics);
+        global_ctx->gathered_data.statistics.merge(built_statistics);
     }
 }
 

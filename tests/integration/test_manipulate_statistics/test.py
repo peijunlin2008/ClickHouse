@@ -329,3 +329,6 @@ def test_statistics_upgrade_from_old_version(started_cluster):
     ), "Old per-column statistics files should be removed, found: {}".format(
         old_stats_files
     )
+
+    node.query("DROP TABLE IF EXISTS test_stat_upgrade SYNC")
+    node.restart_with_original_version()

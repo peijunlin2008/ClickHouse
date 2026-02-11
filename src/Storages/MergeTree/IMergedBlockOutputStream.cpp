@@ -20,17 +20,6 @@ namespace MergeTreeSetting
     extern const MergeTreeSettingsMergeTreeNullableSerializationVersion nullable_serialization_version;
 }
 
-void PartLevelStatistics::update(const Block & block, const StorageMetadataPtr & metadata_snapshot)
-{
-    ProfileEventTimeIncrement<Microseconds> watch(ProfileEvents::MergeTreeDataWriterStatisticsCalculationMicroseconds);
-
-    if (!statistics.empty())
-        statistics.buildIfExists(block);
-
-    if (minmax_idx)
-        minmax_idx->update(block, MergeTreeData::getMinMaxColumnsNames(metadata_snapshot->getPartitionKey()));
-}
-
 IMergedBlockOutputStream::IMergedBlockOutputStream(
     MergeTreeSettingsPtr storage_settings_,
     MutableDataPartStoragePtr data_part_storage_,

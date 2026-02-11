@@ -908,7 +908,7 @@ PackedFilesReader * IMergeTreeDataPart::getStatisticsPackedReader() const
         return statistics_reader.get();
 
     const String filename = String(ColumnsStatistics::FILENAME);
-    if (!getDataPartStorage().existsFile(filename))
+    if (!checksums.has(filename))
         return nullptr;
 
     const auto & storage_path = getDataPartStorage().getRelativePath();
@@ -947,7 +947,7 @@ ColumnsStatistics IMergeTreeDataPart::loadStatisticsPacked(const PackedFilesRead
 
     for (const auto & filename : reader.getFileNames())
     {
-        if (!filename.ends_with(STATS_FILE_SUFFIX))
+        if (!filename.ends_with(STATS_FILE_SUFFIX) || !filename.starts_with(STATS_FILE_PREFIX))
             throw Exception(ErrorCodes::CORRUPTED_DATA, "File {} is not a statistics file", filename);
 
         const auto * column_desc = getColumnForStatisticsFile(filename, *columns_description, required_columns);
@@ -972,7 +972,7 @@ ColumnsStatistics IMergeTreeDataPart::loadStatisticsWide(const NameSet & require
 
     for (const auto & [filename, checksum] : checksums.files)
     {
-        if (!filename.ends_with(STATS_FILE_SUFFIX))
+        if (!filename.ends_with(STATS_FILE_SUFFIX) || !filename.starts_with(STATS_FILE_PREFIX))
             continue;
 
         const auto * column_desc = getColumnForStatisticsFile(filename, *columns_description, required_columns);

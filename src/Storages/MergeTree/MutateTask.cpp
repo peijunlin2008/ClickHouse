@@ -1212,7 +1212,7 @@ void finalizeMutatedPart(
         written_files.push_back(std::move(out_serialization));
     }
 
-    const auto & statistics = all_gathered_data.part_statistics.statistics;
+    const auto & statistics = all_gathered_data.statistics;
     new_data_part->setEstimates(statistics.getEstimates());
 
     if (!statistics.empty())
@@ -1357,6 +1357,7 @@ struct MutationContext
     String mrk_extension;
 
     std::vector<ProjectionDescriptionRawPtr> projections_to_build;
+    IMergeTreeDataPart::MinMaxIndexPtr minmax_idx;
 
     std::set<MergeTreeIndexPtr> indices_to_recalc;
     std::set<MergeTreeIndexPtr> text_indices_to_recalc;
@@ -1535,7 +1536,12 @@ bool PartMergerWriter::mutateOriginalPartAndPrepareProjections()
         }
 
         ctx->out->write(cur_block);
-        ctx->all_gathered_data.part_statistics.update(cur_block, ctx->metadata_snapshot);
+
+        if (ctx->minmax_idx)
+            ctx->minmax_idx->update(cur_block, MergeTreeData::getMinMaxColumnsNames(ctx->metadata_snapshot->getPartitionKey()));
+
+        if (!ctx->all_gathered_data.statistics.empty())
+            ctx->all_gathered_data.statistics.buildIfExists(cur_block);
 
         /// TODO: move this calculation to DELETE FROM mutation
         if (ctx->count_lightweight_deleted_rows)
@@ -1959,13 +1965,13 @@ private:
                 /*blocks_are_granules=*/ false);
         }
 
-        ctx->all_gathered_data.part_statistics.minmax_idx = std::make_shared<IMergeTreeDataPart::MinMaxIndex>();
-        ctx->all_gathered_data.part_statistics.statistics = ColumnsStatistics(ctx->metadata_snapshot->getColumns());
+        ctx->minmax_idx = std::make_shared<IMergeTreeDataPart::MinMaxIndex>();
+        ctx->all_gathered_data.statistics = ColumnsStatistics(ctx->metadata_snapshot->getColumns());
 
         MutationHelpers::processStatisticsChanges(
             ctx->files_to_skip,
             ctx->files_to_rename,
-            ctx->all_gathered_data.part_statistics.statistics,
+            ctx->all_gathered_data.statistics,
             ctx->stats_to_recalc,
             ctx->for_file_renames,
             *ctx->source_part,
@@ -1998,6 +2004,7 @@ private:
     void finalize()
     {
         bool noop;
+        ctx->new_data_part->minmax_idx = std::move(ctx->minmax_idx);
         ctx->new_data_part->loadProjections(false, false, noop, true /* if_not_loaded */);
         ctx->mutating_executor.reset();
         ctx->mutating_pipeline.reset();
@@ -2079,12 +2086,12 @@ public:
 private:
     void prepare()
     {
-        ctx->all_gathered_data.part_statistics.statistics = ctx->source_part->loadStatistics();
+        ctx->all_gathered_data.statistics = ctx->source_part->loadStatistics();
 
         MutationHelpers::processStatisticsChanges(
             ctx->files_to_skip,
             ctx->files_to_rename,
-            ctx->all_gathered_data.part_statistics.statistics,
+            ctx->all_gathered_data.statistics,
             ctx->stats_to_recalc,
             ctx->for_file_renames,
             *ctx->source_part,
