@@ -85,6 +85,7 @@ namespace ProfileEvents
     extern const Event MergeVerticalStageExecuteMilliseconds;
     extern const Event MergeTextIndexStageExecuteMilliseconds;
     extern const Event MergeProjectionStageExecuteMilliseconds;
+    extern const Event MergeTreeDataWriterStatisticsCalculationMicroseconds;
 }
 
 namespace CurrentMetrics
@@ -166,6 +167,7 @@ public:
     void transform(Chunk & chunk) override
     {
         auto block = getInputPort().getHeader().cloneWithColumns(chunk.getColumns());
+        ProfileEventTimeIncrement<Microseconds> watch(ProfileEvents::MergeTreeDataWriterStatisticsCalculationMicroseconds);
         statistics_to_build.buildIfExists(block);
     }
 

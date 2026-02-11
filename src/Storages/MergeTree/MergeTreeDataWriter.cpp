@@ -62,6 +62,7 @@ namespace ProfileEvents
     extern const Event MergeTreeDataProjectionWriterCompressedBytes;
     extern const Event MergeTreeDataProjectionWriterSortingBlocksMicroseconds;
     extern const Event MergeTreeDataProjectionWriterMergingBlocksMicroseconds;
+    extern const Event MergeTreeDataWriterStatisticsCalculationMicroseconds;
     extern const Event RejectedInserts;
 }
 
@@ -718,6 +719,7 @@ MergeTreeTemporaryPartPtr MergeTreeDataWriter::writeTempPartImpl(
     ColumnsStatistics statistics;
     if (context->getSettingsRef()[Setting::materialize_statistics_on_insert])
     {
+        ProfileEventTimeIncrement<Microseconds> watch(ProfileEvents::MergeTreeDataWriterStatisticsCalculationMicroseconds);
         statistics = ColumnsStatistics(metadata_snapshot->getColumns());
         statistics.build(block);
     }

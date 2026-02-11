@@ -4,11 +4,6 @@
 #include <Storages/MergeTree/IMergeTreeDataPartWriter.h>
 #include <Common/logger_useful.h>
 
-namespace ProfileEvents
-{
-    extern const Event MergeTreeDataWriterStatisticsCalculationMicroseconds;
-}
-
 namespace DB
 {
 
