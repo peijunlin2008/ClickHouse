@@ -156,7 +156,6 @@ Chunk IRowInputFormat::read()
         size_t min_block_size_rows = params.min_block_size_rows;
         size_t min_block_size_bytes = params.min_block_size_bytes;
         size_t max_block_wait_ms = params.max_block_wait_ms;
-        bool connection_handling = params.connection_handling;
 
         auto below_some_min_threshold = [&](size_t rows, size_t bytes)-> bool
         {
@@ -258,7 +257,7 @@ Chunk IRowInputFormat::read()
     }
     catch (Exception & e)
     {
-        if (connection_handling && isConnectionError(e.code()))
+        if (params.connection_handling && isConnectionError(e.code()))
         {
             got_connection_exception  = true;
 
