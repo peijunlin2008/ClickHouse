@@ -67,10 +67,11 @@ void registerFileSegmentationEngineHiveText(FormatFactory & factory)
 {
     factory.registerFileSegmentationEngineCreator(
         "HiveText",
-        [](const FormatSettings & settings) -> FormatFactory::FileSegmentationEngine
-        {
-            return [settings](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
-            { return fileSegmentationEngineCSVImpl(in, memory, min_bytes, 0, max_rows, max_block_wait_ms, in_transaction, settings); };
+        [](const FormatSettings & settings) -> FormatFactory::FileSegmentationEngine {
+            return [settings] (ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows)
+            {
+                return fileSegmentationEngineCSVImpl(in, memory, min_bytes, 0, max_rows, settings);
+            };
         });
 }
 

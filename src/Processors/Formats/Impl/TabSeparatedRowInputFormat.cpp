@@ -456,79 +456,59 @@ void registerTSVSchemaReader(FormatFactory & factory)
     }
 }
 
-static std::pair<bool, size_t> fileSegmentationEngineTabSeparatedImpl(
-    ReadBuffer & in, DB::Memory<> & memory, bool is_raw, size_t min_bytes, size_t min_rows, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
+static std::pair<bool, size_t> fileSegmentationEngineTabSeparatedImpl(ReadBuffer & in, DB::Memory<> & memory, bool is_raw, size_t min_bytes, size_t min_rows, size_t max_rows)
 {
     bool need_more_data = true;
     char * pos = in.position();
     size_t number_of_rows = 0;
-    size_t last_complete_row_memory_size = 0;
-    Stopwatch watch(CLOCK_MONOTONIC_COARSE);
 
     if (max_rows && (max_rows < min_rows))
         max_rows = min_rows;
 
-
-    try
+    while (loadAtPosition(in, memory, pos) && need_more_data)
     {
-        while (loadAtPosition(in, memory, pos) && need_more_data)
+        if (is_raw)
+            pos = find_first_symbols<'\r', '\n'>(pos, in.buffer().end());
+        else
+            pos = find_first_symbols<'\\', '\r', '\n'>(pos, in.buffer().end());
+
+        if (pos > in.buffer().end())
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Position in buffer is out of bounds. There must be a bug.");
+        if (pos == in.buffer().end())
+            continue;
+
+        if (!is_raw && *pos == '\\')
         {
-            if (is_raw)
-                pos = find_first_symbols<'\r', '\n'>(pos, in.buffer().end());
+            ++pos;
+            if (loadAtPosition(in, memory, pos))
+                ++pos;
+            continue;
+        }
+
+        if (*pos == '\n')
+        {
+            ++pos;
+            if (loadAtPosition(in, memory, pos) && *pos == '\r')
+                ++pos;
+        }
+        else if (*pos == '\r')
+        {
+            ++pos;
+            if (loadAtPosition(in, memory, pos) && *pos == '\n')
+                ++pos;
             else
-                pos = find_first_symbols<'\\', '\r', '\n'>(pos, in.buffer().end());
-
-            if (pos > in.buffer().end())
-                throw Exception(ErrorCodes::LOGICAL_ERROR, "Position in buffer is out of bounds. There must be a bug.");
-            if (pos == in.buffer().end())
                 continue;
-
-            if (!is_raw && *pos == '\\')
-            {
-                ++pos;
-                if (loadAtPosition(in, memory, pos))
-                    ++pos;
-                continue;
-            }
-
-            if (*pos == '\n')
-            {
-                ++pos;
-                if (loadAtPosition(in, memory, pos) && *pos == '\r')
-                    ++pos;
-            }
-            else if (*pos == '\r')
-            {
-                ++pos;
-                if (loadAtPosition(in, memory, pos) && *pos == '\n')
-                    ++pos;
-                else
-                    continue;
-            }
-
-            ++number_of_rows;
-            if ((max_block_wait_ms != 0 && watch.elapsedMilliseconds() >= max_block_wait_ms)
-                || ((number_of_rows >= min_rows)
-                    && ((memory.size() + static_cast<size_t>(pos - in.position()) >= min_bytes) || (number_of_rows == max_rows))))
-            {
-                need_more_data = false;
-            }
         }
 
-        saveUpToPosition(in, memory, pos);
-
-        return {loadAtPosition(in, memory, pos), number_of_rows};
+        ++number_of_rows;
+        if ((number_of_rows >= min_rows)
+            && ((memory.size() + static_cast<size_t>(pos - in.position()) >= min_bytes) || (number_of_rows == max_rows)))
+            need_more_data = false;
     }
-    catch (Exception & e)
-    {
-        if (!in_transaction && isConnectionError(e.code()))
-        {
-            memory.resize(last_complete_row_memory_size);
-            return {false, number_of_rows};
-        }
 
-        throw;
-    }
+    saveUpToPosition(in, memory, pos);
+
+    return {loadAtPosition(in, memory, pos), number_of_rows};
 }
 
 void registerFileSegmentationEngineTabSeparated(FormatFactory & factory)
@@ -538,10 +518,10 @@ void registerFileSegmentationEngineTabSeparated(FormatFactory & factory)
         auto register_func = [&](const String & format_name, bool, bool)
         {
             static constexpr size_t min_rows = 3; /// Make it 3 for header auto detection (first 3 rows must be always in the same segment).
-            factory.registerFileSegmentationEngine(
-                format_name,
-                [is_raw](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms,bool in_transaction)
-                { return fileSegmentationEngineTabSeparatedImpl(in, memory, is_raw, min_bytes, min_rows, max_rows, max_block_wait_ms, in_transaction); });
+            factory.registerFileSegmentationEngine(format_name, [is_raw](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows)
+            {
+                return fileSegmentationEngineTabSeparatedImpl(in, memory, is_raw, min_bytes, min_rows, max_rows);
+            });
         };
 
         registerWithNamesAndTypes(is_raw ? "TSVRaw" : "TSV", register_func);
@@ -555,10 +535,10 @@ void registerFileSegmentationEngineTabSeparated(FormatFactory & factory)
     }
 
     // We can use the same segmentation engine for TSKV.
-    factory.registerFileSegmentationEngine(
-        "TSKV",
-        [](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
-        { return fileSegmentationEngineTabSeparatedImpl(in, memory, false, min_bytes, 1, max_rows, max_block_wait_ms, in_transaction); });
+    factory.registerFileSegmentationEngine("TSKV", [](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows)
+    {
+        return fileSegmentationEngineTabSeparatedImpl(in, memory, false, min_bytes, 1, max_rows);
+    });
 }
 
 }

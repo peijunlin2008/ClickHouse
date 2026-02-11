@@ -30,14 +30,12 @@ struct RowInputFormatParams
     size_t max_block_wait_ms = 0;
     UInt64 allow_errors_num = 0;
     Float64 allow_errors_ratio = 0;
-    bool in_transaction = false;
 
     Poco::Timespan max_execution_time = 0;
     OverflowMode timeout_overflow_mode = OverflowMode::THROW;
 };
 
 bool isParseError(int code);
-bool isConnectionError(int code);
 bool checkTimeLimit(const RowInputFormatParams & params, const Stopwatch & stopwatch);
 
 /// Row oriented input format: reads data row by row.

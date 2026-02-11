@@ -442,9 +442,6 @@ InputFormatPtr FormatFactory::getInput(
             settings,
             /*num_streams_=*/1);
 
-
-    bool in_transaction = context->getCurrentTransaction() != nullptr;
-
     RowInputFormatParams row_input_format_params;
     row_input_format_params.max_block_size_rows = max_block_size;
     row_input_format_params.max_block_size_bytes = max_block_size_bytes.value_or(format_settings.max_block_size_bytes);
@@ -455,7 +452,6 @@ InputFormatPtr FormatFactory::getInput(
     row_input_format_params.allow_errors_ratio = format_settings.input_allow_errors_ratio;
     row_input_format_params.max_execution_time = settings[Setting::max_execution_time];
     row_input_format_params.timeout_overflow_mode = settings[Setting::timeout_overflow_mode];
-    row_input_format_params.in_transaction = in_transaction;
 
     if (context->hasQueryContext() && settings[Setting::log_queries])
         context->getQueryContext()->addQueryFactoriesInfo(Context::QueryLogFactories::Format, name);
@@ -511,9 +507,7 @@ InputFormatPtr FormatFactory::getInput(
             max_parsing_threads,
             settings[Setting::min_chunk_bytes_for_parallel_parsing],
             max_block_size,
-            format_settings.max_block_wait_ms,
-            context->getApplicationType() == Context::ApplicationType::SERVER,
-            in_transaction};
+            context->getApplicationType() == Context::ApplicationType::SERVER};
 
         format = std::make_shared<ParallelParsingInputFormat>(params);
     }
@@ -526,7 +520,6 @@ InputFormatPtr FormatFactory::getInput(
     {
         format = creators.input_creator(buf, sample, row_input_format_params, format_settings);
     }
-
 
     if (owned_buf)
         format->addBuffer(std::move(owned_buf));

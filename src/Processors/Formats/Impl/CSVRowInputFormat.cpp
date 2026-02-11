@@ -44,7 +44,6 @@ namespace
     }
 }
 
-
 CSVRowInputFormat::CSVRowInputFormat(
     SharedHeader header_,
     ReadBuffer & in_,
@@ -512,104 +511,76 @@ void registerInputFormatCSV(FormatFactory & factory)
     registerWithNamesAndTypes("CSV", register_func);
 }
 
-std::pair<bool, size_t> fileSegmentationEngineCSVImpl(
-    ReadBuffer & in,
-    DB::Memory<> & memory,
-    size_t min_bytes,
-    size_t min_rows,
-    size_t max_rows,
-    size_t max_block_wait_ms,
-    bool in_transaction,
-    const FormatSettings & settings)
+std::pair<bool, size_t> fileSegmentationEngineCSVImpl(ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t min_rows, size_t max_rows, const FormatSettings & settings)
 {
     char * pos = in.position();
     bool quotes = false;
     bool need_more_data = true;
     size_t number_of_rows = 0;
-    size_t last_complete_row_memory_size = 0;
-    Stopwatch watch(CLOCK_MONOTONIC_COARSE);
-    try
+
+    if (max_rows && (max_rows < min_rows))
+        max_rows = min_rows;
+
+    while (loadAtPosition(in, memory, pos) && need_more_data)
     {
-        if (max_rows && (max_rows < min_rows))
-            max_rows = min_rows;
-
-
-        while (loadAtPosition(in, memory, pos) && need_more_data)
+        if (quotes)
         {
-            if (quotes)
+            pos = find_first_symbols<'"'>(pos, in.buffer().end());
+            if (pos > in.buffer().end())
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "Position in buffer is out of bounds. There must be a bug.");
+            if (pos == in.buffer().end())
+                continue;
+            if (*pos == '"')
             {
-                pos = find_first_symbols<'"'>(pos, in.buffer().end());
-                if (pos > in.buffer().end())
-                    throw Exception(ErrorCodes::LOGICAL_ERROR, "Position in buffer is out of bounds. There must be a bug.");
-                if (pos == in.buffer().end())
-                    continue;
-                if (*pos == '"')
-                {
+                ++pos;
+                if (loadAtPosition(in, memory, pos) && *pos == '"')
                     ++pos;
-                    if (loadAtPosition(in, memory, pos) && *pos == '"')
-                        ++pos;
-                    else
-                        quotes = false;
-                }
-            }
-            else
-            {
-                pos = find_first_symbols<'"', '\r', '\n'>(pos, in.buffer().end());
-                if (pos > in.buffer().end())
-                    throw Exception(ErrorCodes::LOGICAL_ERROR, "Position in buffer is out of bounds. There must be a bug.");
-                if (pos == in.buffer().end())
-                    continue;
-
-                if (*pos == '"')
-                {
-                    quotes = true;
-                    ++pos;
-                    continue;
-                }
-
-                if (*pos == '\n')
-                {
-                    ++pos;
-                    if (loadAtPosition(in, memory, pos) && *pos == '\r')
-                        ++pos;
-                }
-                else if (*pos == '\r')
-                {
-                    ++pos;
-                    if (settings.csv.allow_cr_end_of_line)
-                        continue;
-                    if (loadAtPosition(in, memory, pos) && *pos == '\n')
-                        ++pos;
-                    else
-                        continue;
-                }
-
-                last_complete_row_memory_size = memory.size() + static_cast<size_t>(pos - in.position());
-                ++number_of_rows;
-
-
-                if ((max_block_wait_ms != 0 && watch.elapsedMilliseconds() >= max_block_wait_ms)
-                    || ((number_of_rows >= min_rows)
-                        && ((memory.size() + static_cast<size_t>(pos - in.position()) >= min_bytes) || (number_of_rows == max_rows))))
-                {
-                    need_more_data = false;
-                }
+                else
+                    quotes = false;
             }
         }
-
-        saveUpToPosition(in, memory, pos);
-        return {loadAtPosition(in, memory, pos), number_of_rows};
-    }
-    catch (Exception & e)
-    {
-        if (!in_transaction && isConnectionError(e.code()))
+        else
         {
-            memory.resize(last_complete_row_memory_size);
-            return {false, number_of_rows};
-        }
+            pos = find_first_symbols<'"', '\r', '\n'>(pos, in.buffer().end());
+            if (pos > in.buffer().end())
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "Position in buffer is out of bounds. There must be a bug.");
+            if (pos == in.buffer().end())
+                continue;
 
-        throw;
+            if (*pos == '"')
+            {
+                quotes = true;
+                ++pos;
+                continue;
+            }
+
+            if (*pos == '\n')
+            {
+                ++pos;
+                if (loadAtPosition(in, memory, pos) && *pos == '\r')
+                    ++pos;
+            }
+            else if (*pos == '\r')
+            {
+                ++pos;
+                if (settings.csv.allow_cr_end_of_line)
+                    continue;
+                if (loadAtPosition(in, memory, pos) && *pos == '\n')
+                    ++pos;
+                else
+                    continue;
+            }
+
+            ++number_of_rows;
+            if ((number_of_rows >= min_rows)
+                && ((memory.size() + static_cast<size_t>(pos - in.position()) >= min_bytes) || (number_of_rows == max_rows)))
+                need_more_data = false;
+
+        }
     }
+
+    saveUpToPosition(in, memory, pos);
+    return {loadAtPosition(in, memory, pos), number_of_rows};
 }
 
 void registerFileSegmentationEngineCSV(FormatFactory & factory)
@@ -617,13 +588,13 @@ void registerFileSegmentationEngineCSV(FormatFactory & factory)
     auto register_func = [&](const String & format_name, bool, bool)
     {
         static constexpr size_t min_rows = 3; /// Make it 3 for header auto detection (first 3 rows must be always in the same segment).
-        factory.registerFileSegmentationEngineCreator(
-            format_name,
-            [](const FormatSettings & settings) -> FormatFactory::FileSegmentationEngine
+        factory.registerFileSegmentationEngineCreator(format_name, [](const FormatSettings & settings) -> FormatFactory::FileSegmentationEngine
+        {
+            return [settings] (ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows)
             {
-                return [settings](ReadBuffer & in, DB::Memory<> & memory, size_t min_bytes, size_t max_rows, size_t max_block_wait_ms, bool in_transaction)
-                { return fileSegmentationEngineCSVImpl(in, memory, min_bytes, min_rows, max_rows, max_block_wait_ms, in_transaction, settings); };
-            });
+                return fileSegmentationEngineCSVImpl(in, memory, min_bytes, min_rows, max_rows, settings);
+            };
+        });
     };
 
     registerWithNamesAndTypes("CSV", register_func);

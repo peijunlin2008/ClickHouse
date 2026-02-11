@@ -86,9 +86,7 @@ public:
         size_t max_threads;
         size_t min_chunk_bytes;
         size_t max_block_size;
-        size_t max_block_wait_ms;
         bool is_server;
-        bool in_transaction;
     };
 
     explicit ParallelParsingInputFormat(Params params)
@@ -99,8 +97,6 @@ public:
         , format_settings(params.format_settings)
         , min_chunk_bytes(params.min_chunk_bytes)
         , max_block_size(params.max_block_size)
-        , max_block_wait_ms(params.max_block_wait_ms)
-        , is_transaction(params.in_transaction)
         , last_block_missing_values(getPort().getHeader().columns())
         , is_server(params.is_server)
         , runner(getFormatParsingThreadPool().get(), ThreadName::PARALLEL_FORMATER_PARSER)
@@ -214,8 +210,7 @@ private:
     const FormatSettings format_settings;
     const size_t min_chunk_bytes;
     const size_t max_block_size;
-    const size_t max_block_wait_ms;
-    const bool is_transaction;
+
     BlockMissingValues last_block_missing_values;
     size_t last_approx_bytes_read_for_chunk = 0;
     SerializationInfoByName serialization_hints{{}};
