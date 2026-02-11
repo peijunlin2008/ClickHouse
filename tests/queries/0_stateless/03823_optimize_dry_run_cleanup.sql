@@ -31,7 +31,7 @@ SELECT name, rows FROM system.parts WHERE database = currentDatabase() AND table
 SELECT 'data after dry run with CLEANUP';
 SELECT * FROM t_dry_run_cleanup ORDER BY uid, version;
 
-SYSTEM FLUSH LOGS;
+SYSTEM FLUSH LOGS query_log;
 SELECT 'profile events CLEANUP';
 
 SELECT
@@ -42,6 +42,7 @@ SELECT
     ProfileEvents['MergeSourceParts'],
     ProfileEvents['MergeWrittenRows']
 FROM system.query_log
-WHERE current_database = currentDatabase() AND query LIKE 'OPTIMIZE TABLE t_dry_run_cleanup DRY RUN PARTS%' AND type = 'QueryFinish';
+WHERE current_database = currentDatabase() AND query LIKE 'OPTIMIZE TABLE t_dry_run_cleanup DRY RUN PARTS%' AND type = 'QueryFinish'
+ORDER BY event_time_microseconds;
 
 DROP TABLE t_dry_run_cleanup;

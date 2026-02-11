@@ -36,7 +36,7 @@ SELECT name, rows FROM system.parts WHERE database = currentDatabase() AND table
 SELECT 'data after dry run';
 SELECT * FROM t_dry_run_patches ORDER BY id;
 
-SYSTEM FLUSH LOGS;
+SYSTEM FLUSH LOGS query_log;
 SELECT 'profile events patch parts';
 
 SELECT
@@ -48,6 +48,7 @@ SELECT
     ProfileEvents['MergeWrittenRows'],
     ProfileEvents['PatchesAppliedInAllReadTasks']
 FROM system.query_log
-WHERE current_database = currentDatabase() AND query LIKE 'OPTIMIZE TABLE t_dry_run_patches DRY RUN PARTS%' AND type = 'QueryFinish';
+WHERE current_database = currentDatabase() AND query LIKE 'OPTIMIZE TABLE t_dry_run_patches DRY RUN PARTS%' AND type = 'QueryFinish'
+ORDER BY event_time_microseconds;
 
 DROP TABLE t_dry_run_patches SYNC;

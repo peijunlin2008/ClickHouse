@@ -29,7 +29,7 @@ SELECT name, rows FROM system.parts WHERE database = currentDatabase() AND table
 SELECT 'projection parts after dry run';
 SELECT parent_name, name, rows FROM system.projection_parts WHERE database = currentDatabase() AND table = 't_dry_run_proj' AND active ORDER BY parent_name, name;
 
-SYSTEM FLUSH LOGS;
+SYSTEM FLUSH LOGS query_log;
 SELECT 'profile events projections';
 
 SELECT
@@ -40,6 +40,7 @@ SELECT
     ProfileEvents['MergeSourceParts'],
     ProfileEvents['MergeWrittenRows']
 FROM system.query_log
-WHERE current_database = currentDatabase() AND query LIKE 'OPTIMIZE TABLE t_dry_run_proj DRY RUN PARTS%' AND type = 'QueryFinish';
+WHERE current_database = currentDatabase() AND query LIKE 'OPTIMIZE TABLE t_dry_run_proj DRY RUN PARTS%' AND type = 'QueryFinish'
+ORDER BY event_time_microseconds;
 
 DROP TABLE t_dry_run_proj;
