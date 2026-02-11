@@ -191,6 +191,7 @@ namespace Setting
     extern const SettingsBool apply_mutations_on_fly;
     extern const SettingsBool fsync_metadata;
     extern const SettingsSeconds lock_acquire_timeout;
+    extern const SettingsBool optimize_dry_run_check_part;
     extern const SettingsBool materialize_ttl_after_modify;
     extern const SettingsUInt64 max_partition_size_to_drop;
     extern const SettingsMaxThreads max_threads;
@@ -7607,21 +7608,21 @@ void MergeTreeData::optimizeDryRun(
     MergeSelectorChoice choice;
     choice.merge_type = MergeType::Regular;
 
-    std::vector<MergeTreePartInfo> part_infos;
+    std::set<MergeTreePartInfo> part_infos;
     for (const auto & name : part_names)
-        part_infos.push_back(MergeTreePartInfo::fromPartName(name, format_version));
-
-    std::ranges::sort(part_infos);
+    {
+        part_infos.insert(MergeTreePartInfo::fromPartName(name, format_version));
+    }
 
     for (const auto & part_info : part_infos)
     {
         auto part_name = part_info.getPartNameAndCheckFormat(format_version);
 
-        if (part_info.getPartitionId() != part_infos.front().getPartitionId())
+        if (part_info.getPartitionId() != part_infos.begin()->getPartitionId())
         {
             throw Exception(ErrorCodes::BAD_ARGUMENTS,
                 "All parts for OPTIMIZE DRY RUN must belong to the same partition, but part {} belongs to partition {} while part {} belongs to partition {}",
-                part_name, part_info.getPartitionId(), part_infos.front().getPartNameAndCheckFormat(format_version), part_infos.front().getPartitionId());
+                part_name, part_info.getPartitionId(), part_infos.begin()->getPartNameAndCheckFormat(format_version), part_infos.begin()->getPartitionId());
         }
 
         choice.range.push_back(PartProperties{.name = std::move(part_name), .info = part_info});
@@ -7682,6 +7683,21 @@ void MergeTreeData::optimizeDryRun(
     LOG_INFO(log,
         "OPTIMIZE DRY RUN: successfully merged {} parts into temporary part {} ({} rows, {} bytes)",
         choice.range.size(), new_part->name, new_part->rows_count, new_part->getBytesOnDisk());
+
+    /// Allow to disable checking data part to use dry run for performance tests.
+    /// Checking data part may negatively impact performance.
+    if (local_context->getSettingsRef()[Setting::optimize_dry_run_check_part])
+    {
+        bool is_broken_projection = false;
+        checkDataPart(
+            new_part,
+            /*require_checksums=*/ true,
+            is_broken_projection,
+            /*is_cancelled=*/ [] { return false; },
+            /*throw_on_broken_projection=*/ true);
+
+        LOG_INFO(log, "OPTIMIZE DRY RUN: part {} passed checkDataPart", new_part->name);
+    }
 
     new_part->remove();
 }
