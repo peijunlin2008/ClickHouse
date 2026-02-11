@@ -33,7 +33,6 @@ public:
 
     virtual ~IMergedBlockOutputStream() = default;
 
-    using WrittenOffsetColumns = std::set<std::string>;
 
     struct GatheredData
     {

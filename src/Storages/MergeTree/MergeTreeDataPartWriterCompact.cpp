@@ -33,7 +33,8 @@ MergeTreeDataPartWriterCompact::MergeTreeDataPartWriterCompact(
         data_part_storage_, index_granularity_info_, storage_settings_,
         columns_list_, metadata_snapshot_, virtual_columns_,
         indices_to_recalc_, marks_file_extension_,
-        default_codec_, settings_, std::move(index_granularity_))
+        default_codec_, settings_, std::move(index_granularity_),
+        static_cast<WrittenOffsetSubstreams *>(nullptr))
     , plain_file(getDataPartStorage().writeFile(
             MergeTreeDataPartCompact::DATA_FILE_NAME_WITH_EXTENSION,
             settings.max_compress_block_size,
@@ -319,7 +320,7 @@ void MergeTreeDataPartWriterCompact::writeDataBlock(const Block & block, const G
     }
 }
 
-void MergeTreeDataPartWriterCompact::fillDataChecksums(MergeTreeDataPartChecksums & checksums)
+void MergeTreeDataPartWriterCompact::finalizeIndexGranularity()
 {
     if (columns_buffer.size() != 0)
     {
@@ -365,7 +366,10 @@ void MergeTreeDataPartWriterCompact::fillDataChecksums(MergeTreeDataPartChecksum
 
         writeBinaryLittleEndian(static_cast<UInt64>(0), marks_out);
     }
+}
 
+void MergeTreeDataPartWriterCompact::fillDataChecksums(MergeTreeDataPartChecksums & checksums)
+{
     for (const auto & [_, stream] : streams_by_codec)
     {
         stream->hashing_buf.finalize();

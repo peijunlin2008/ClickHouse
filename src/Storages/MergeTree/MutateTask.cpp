@@ -1959,7 +1959,8 @@ private:
             ctx->source_part->getBytesUncompressedOnDisk(),
             /*reset_columns=*/ true,
             /*blocks_are_granules_size=*/ false,
-            ctx->context->getWriteSettings());
+            ctx->context->getWriteSettings(),
+            static_cast<WrittenOffsetSubstreams *>(nullptr));
 
         ctx->mutating_pipeline = QueryPipelineBuilder::getPipeline(std::move(*builder));
         ctx->mutating_pipeline.setProgressCallback(ctx->progress_callback);
@@ -1978,6 +1979,7 @@ private:
         ctx->mutating_pipeline.reset();
 
         auto out_mut = static_pointer_cast<MergedBlockOutputStream>(ctx->out);
+        out_mut->finalizeIndexGranularity();
         out_mut->finalizePart(ctx->new_data_part, ctx->all_gathered_data, ctx->need_sync, nullptr);
         ctx->out.reset();
     }
@@ -2218,7 +2220,8 @@ private:
                 std::vector<MergeTreeIndexPtr>(ctx->indices_to_recalc.begin(), ctx->indices_to_recalc.end()),
                 ctx->compression_codec,
                 ctx->source_part->index_granularity,
-                ctx->source_part->getBytesUncompressedOnDisk());
+                ctx->source_part->getBytesUncompressedOnDisk(),
+                static_cast<WrittenOffsetSubstreams *>(nullptr));
 
             ctx->mutating_pipeline = QueryPipelineBuilder::getPipeline(std::move(*builder));
             ctx->mutating_pipeline.setProgressCallback(ctx->progress_callback);
@@ -2240,6 +2243,7 @@ private:
             ctx->mutating_pipeline.reset();
 
             auto out_mut = static_pointer_cast<MergedColumnOnlyOutputStream>(ctx->out);
+            out_mut->finalizeIndexGranularity();
             auto changed_checksums = out_mut->fillChecksums(ctx->new_data_part, ctx->new_data_part->checksums);
             ctx->new_data_part->checksums.add(std::move(changed_checksums));
 
