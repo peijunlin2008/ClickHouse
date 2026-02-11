@@ -133,7 +133,7 @@ public:
     void renameInMemory(const StorageID & new_table_id) override
     {
         std::lock_guard lock{nested_mutex};
-        IStorage::renameInMemory(new_table_id);
+        IStorage::renameInMemory(new_table_id); // NOLINT(bugprone-parent-virtual-call)
         if (nested)
             nested->renameInMemory(new_table_id);
     }
