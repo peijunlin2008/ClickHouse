@@ -5,10 +5,13 @@ SET enable_parallel_replicas=0, automatic_parallel_replicas_mode=1, parallel_rep
 
 SET automatic_parallel_replicas_min_bytes_per_replica=0;
 
+SET use_query_condition_cache=0;
+
 -- Check that index analysis is performed only once in both cases: when we choose local plan and when we choose parallel replicas
 
 -- Pre-warm the cache
 SELECT URL FROM test.hits WHERE UserID >= 730800628386 FORMAT Null;
+
 SELECT sum(length(URL)) FROM test.hits WHERE UserID >= 730800628386 FORMAT Null;
 
 -- Local plan wins
@@ -24,7 +27,15 @@ insert into t select number from numbers_mt(1e6);
 
 -- Pre-warm the cache
 SELECT sum(length(URL)) FROM test.hits WHERE CounterID IN (SELECT a % 100000 FROM t) FORMAT Null;
+
 SELECT sum(length(URL)) FROM test.hits WHERE CounterID IN (SELECT a % 100000 FROM t) OR UserID IN (SELECT a % 1000000 FROM t) FORMAT Null;
+
+SELECT sum(length(URL)) FROM test.hits WHERE UserID IN (SELECT a % 10000000 FROM t) FORMAT Null;
+
+SELECT sum(length(URL))
+FROM test.hits
+WHERE WatchID IN (SELECT a % 1000000 FROM t)
+FORMAT Null;
 
 --set send_logs_level='trace', send_logs_source_regexp='';
 SELECT sum(length(URL)) FROM test.hits WHERE CounterID IN (SELECT a % 100000 FROM t) FORMAT Null SETTINGS log_comment='query_3';
@@ -32,6 +43,12 @@ set send_logs_level='none', send_logs_source_regexp='';
 
 --set send_logs_level='trace', send_logs_source_regexp='';
 SELECT sum(length(URL)) FROM test.hits WHERE CounterID IN (SELECT a % 100000 FROM t) OR UserID IN (SELECT a % 1000000 FROM t) FORMAT Null SETTINGS log_comment='query_4';
+set send_logs_level='none', send_logs_source_regexp='';
+
+SELECT sum(length(URL)) FROM test.hits WHERE UserID IN (SELECT a % 1000000 FROM t) FORMAT Null SETTINGS log_comment='query_5';
+
+-- set send_logs_level='trace', send_logs_source_regexp='';
+SELECT sum(length(URL)) FROM test.hits WHERE WatchID IN (SELECT a % 1000000 FROM t) FORMAT Null SETTINGS log_comment='query_6';
 set send_logs_level='none', send_logs_source_regexp='';
 
 SET enable_parallel_replicas=0, automatic_parallel_replicas_mode=0;
