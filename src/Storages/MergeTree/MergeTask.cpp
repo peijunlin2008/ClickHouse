@@ -1102,7 +1102,7 @@ bool MergeTask::ExecuteAndFinalizeHorizontalPart::executeImpl() const
         global_ctx->rows_written += block.rows();
         const_cast<MergedBlockOutputStream &>(*global_ctx->to).write(block);
 
-        if (global_ctx->merge_may_reduce_rows)
+        if (global_ctx->merge_may_reduce_rows && block.rows() > 0)
         {
             global_ctx->new_data_part->minmax_idx->update(
                 block, MergeTreeData::getMinMaxColumnsNames(global_ctx->metadata_snapshot->getPartitionKey()));

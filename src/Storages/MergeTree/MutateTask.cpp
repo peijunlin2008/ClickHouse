@@ -1468,7 +1468,7 @@ bool PartMergerWriter::mutateOriginalPartAndPrepareProjections()
             return false;
         }
 
-        if (ctx->minmax_idx)
+        if (ctx->minmax_idx && cur_block.rows() > 0)
             ctx->minmax_idx->update(cur_block, MergeTreeData::getMinMaxColumnsNames(ctx->metadata_snapshot->getPartitionKey()));
 
         ctx->out->write(cur_block);
