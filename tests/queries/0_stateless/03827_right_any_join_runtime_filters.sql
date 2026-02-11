@@ -1,4 +1,5 @@
 -- Tags: no-random-merge-tree-settings
+-- Test for applying join runtime filters to RIGHT ANY joins
 
 SET enable_analyzer = 1;
 SET enable_join_runtime_filters = 1;
@@ -32,6 +33,7 @@ FROM customer RIGHT ANY JOIN nation
 ON c_nationkey = n_nationkey
 SETTINGS enable_join_runtime_filters = 1;
 
+-- No runtime filter for LEFT ANY
 SELECT 'No runtime filter for LEFT ANY';
 SELECT count()
 FROM (
@@ -42,31 +44,36 @@ FROM (
 )
 WHERE (explain ILIKE '%Filter column%') OR (explain LIKE '%BuildRuntimeFilter%');
 
+-- 1 element in filter
 SELECT '1 element in filter';
 SELECT count()
 FROM customer RIGHT ANY JOIN nation
 ON c_nationkey = n_nationkey
 WHERE n_name = 'ETHIOPIA';
 
-SELECT '0 elements in filter';
+-- 0 elements in filter
 -- 'WAKANDA' is not present in `nations` table
+SELECT '0 elements in filter';
 SELECT count()
 FROM customer RIGHT ANY JOIN nation
 ON c_nationkey = n_nationkey
 WHERE n_name = 'WAKANDA';
 
+-- Again 1 element in filter
 SELECT 'Again 1 element in filter';
 SELECT count()
 FROM customer RIGHT ANY JOIN nation
 ON c_nationkey = n_nationkey
 WHERE n_name IN ('WAKANDA', 'GERMANY');
 
+-- 2 elements in filter
 SELECT '2 elements in filter';
 SELECT count()
 FROM customer RIGHT ANY JOIN nation
 ON c_nationkey = n_nationkey
 WHERE n_name IN ('ETHIOPIA', 'GERMANY');
 
+-- 2 elements in filter in bloom filter
 SELECT '2 elements in filter in bloom filter';
 SET join_runtime_filter_exact_values_limit = 1;
 
