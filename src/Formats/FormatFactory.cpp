@@ -487,9 +487,6 @@ InputFormatPtr FormatFactory::getInputImpl(
     if (format_settings.connection_handling)
         parallel_parsing = false;
 
-
-
-
     if (parallel_parsing)
     {
         const auto & non_trivial_prefix_and_suffix_checker = creators.non_trivial_prefix_and_suffix_checker;
