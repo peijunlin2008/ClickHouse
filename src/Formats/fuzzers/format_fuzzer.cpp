@@ -25,6 +25,14 @@ static SharedContextHolder shared_context;
 static ContextMutablePtr context;
 static std::string env_format_name;
 
+bool isMerge(int argc, const char * const * argv)
+{
+    for (int i = 1; i < argc; ++i)
+        if (std::string_view arg{argv[i]}; std::string_view{arg.begin(), std::ranges::find(arg, '=')} == "-merge")
+            return true;
+    return false;
+}
+
 static std::string getFormatNameFromEnv()
 {
     if (char * name = std::getenv("FORMAT_NAME"))
@@ -33,8 +41,12 @@ static std::string getFormatNameFromEnv()
     return "";
 }
 
-extern "C" int LLVMFuzzerInitialize(int *, char ***)
+extern "C" int LLVMFuzzerInitialize(const int * argc, char *** argv)
 {
+    // If it's a merge coordinator don't initialize anything
+    if (isMerge(*argc, *argv))
+        return 0;
+
     if (context)
         return true;
 
