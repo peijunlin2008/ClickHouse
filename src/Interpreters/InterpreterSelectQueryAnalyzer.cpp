@@ -1,3 +1,4 @@
+#include <Interpreters/Context_fwd.h>
 #include <Interpreters/InterpreterFactory.h>
 #include <Interpreters/InterpreterSelectQueryAnalyzer.h>
 
@@ -124,6 +125,39 @@ ContextMutablePtr buildContext(const ContextPtr & context, const SelectQueryOpti
     return result_context;
 }
 
+template <typename... Args>
+QueryPlanPtr buildQueryPlanForAutomaticParallelReplicas(
+    const ASTPtr & ast, const ContextMutablePtr & ctx, const SelectQueryOptions & select_options, Args &&... args)
+{
+    if (!ctx->getSettingsRef()[Setting::parallel_replicas_local_plan])
+    {
+        LOG_TRACE(
+            getLogger("InterpreterSelectQueryAnalyzer"),
+            "Setting 'parallel_replicas_local_plan' is disabled. Skipping building query plan with parallel replicas.");
+        return QueryPlanPtr{};
+    }
+    if (ctx->getSettingsRef()[Setting::cluster_for_parallel_replicas].value.empty())
+    {
+        LOG_DEBUG(
+            getLogger("InterpreterSelectQueryAnalyzer"),
+            "Cluster for parallel replicas is not set, can't build plan with parallel replicas");
+        return QueryPlanPtr{};
+    }
+    /// If the query is executed by remote*/cluster* function, the following attempt to build a plan with parallel replicas may result in exceptions
+    if (ctx->getClientInfo().query_kind == ClientInfo::QueryKind::SECONDARY_QUERY)
+        return QueryPlanPtr{};
+    ctx->setSetting("enable_parallel_replicas", true);
+    // If the parallel replicas plan will be chosen, the index analysis result will be reused from the single-replica plan. No need to optimize primary key here.
+    ctx->setSetting("query_plan_optimize_primary_key", false);
+    InterpreterSelectQueryAnalyzer interpreter(ast, ctx, select_options, std::forward<Args>(args)...);
+    auto plan = std::move(interpreter).extractQueryPlan();
+    auto optimization_settings = QueryPlanOptimizationSettings(ctx);
+    // We should build sets and create `CreatingSetsStep` only in the original plan. The automatic parallel replicas optimization happens before building sets,
+    // so even if we decide to use the plan with parallel replicas, we will substitute it in place of the original plan and then build sets.
+    optimization_settings.build_sets = false;
+    plan.optimize(optimization_settings);
+    return std::make_unique<QueryPlan>(std::move(plan));
+}
 }
 
 void replaceStorageInQueryTree(QueryTreeNodePtr & query_tree, const ContextPtr & context, const StoragePtr & storage)
@@ -185,44 +219,15 @@ InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(
     , planner(query_tree, select_query_options)
     , query_plan_with_parallel_replicas_builder(
           [ast = query_->clone(), ctx = Context::createCopy(context_), select_options = select_query_options_, column_names]()
-          {
-              if (!ctx->getSettingsRef()[Setting::parallel_replicas_local_plan])
-              {
-                  LOG_TRACE(
-                      getLogger("InterpreterSelectQueryAnalyzer"),
-                      "Setting 'parallel_replicas_local_plan' is disabled. Skipping building query plan with parallel replicas.");
-                  return QueryPlanPtr{};
-              }
-              if (ctx->getSettingsRef()[Setting::cluster_for_parallel_replicas].value.empty())
-              {
-                  LOG_DEBUG(
-                      getLogger("InterpreterSelectQueryAnalyzer"),
-                      "Cluster for parallel replicas is not set, can't build plan with parallel replicas");
-                  return QueryPlanPtr{};
-              }
-              /// If the query is executed by remote*/cluster* function, the following attempt to build a plan with parallel replicas may result in exceptions
-              if (ctx->getClientInfo().query_kind == ClientInfo::QueryKind::SECONDARY_QUERY)
-                  return QueryPlanPtr{};
-              ctx->setSetting("enable_parallel_replicas", true);
-              // If the parallel replicas plan will be chosen, the index analysis result will be reused from the single-replica plan. No need to optimize primary key here.
-              ctx->setSetting("query_plan_optimize_primary_key", false);
-              InterpreterSelectQueryAnalyzer interpreter(ast, ctx, select_options, column_names);
-              auto plan = std::move(interpreter).extractQueryPlan();
-              auto optimization_settings = QueryPlanOptimizationSettings(ctx);
-              // We should build sets and create `CreatingSetsStep` only in the original plan. The automatic parallel replicas optimization happens before building sets,
-              // so even if we decide to use the plan with parallel replicas, we will substitute it in place of the original plan and then build sets.
-              optimization_settings.build_sets = false;
-              plan.optimize(optimization_settings);
-              return std::make_unique<QueryPlan>(std::move(plan));
-          })
+          { return buildQueryPlanForAutomaticParallelReplicas(ast, ctx, select_options, column_names); })
 {
 }
 
 InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(
     const ASTPtr & query_,
     const ContextPtr & context_,
-    const StoragePtr & storage_,
     const SelectQueryOptions & select_query_options_,
+    const StoragePtr & storage_,
     const Names & column_names)
     : query(normalizeAndValidateQuery(query_, column_names))
     , context(buildContext(context_, select_query_options_))
@@ -234,37 +239,7 @@ InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(
            ctx = Context::createCopy(context_),
            storage = storage_,
            select_options = select_query_options_,
-           column_names]()
-          {
-              if (!ctx->getSettingsRef()[Setting::parallel_replicas_local_plan])
-              {
-                  LOG_TRACE(
-                      getLogger("InterpreterSelectQueryAnalyzer"),
-                      "Setting 'parallel_replicas_local_plan' is disabled. Skipping building query plan with parallel replicas.");
-                  return QueryPlanPtr{};
-              }
-              if (ctx->getSettingsRef()[Setting::cluster_for_parallel_replicas].value.empty())
-              {
-                  LOG_DEBUG(
-                      getLogger("InterpreterSelectQueryAnalyzer"),
-                      "Cluster for parallel replicas is not set, can't build plan with parallel replicas");
-                  return QueryPlanPtr{};
-              }
-              /// If the query is executed by remote*/cluster* function, the following attempt to build a plan with parallel replicas may result in exceptions
-              if (ctx->getClientInfo().query_kind == ClientInfo::QueryKind::SECONDARY_QUERY)
-                  return QueryPlanPtr{};
-              ctx->setSetting("enable_parallel_replicas", true);
-              // If the parallel replicas plan will be chosen, the index analysis result will be reused from the single-replica plan. No need to optimize primary key here.
-              ctx->setSetting("query_plan_optimize_primary_key", false);
-              InterpreterSelectQueryAnalyzer interpreter(ast, ctx, storage, select_options, column_names);
-              auto plan = std::move(interpreter).extractQueryPlan();
-              auto optimization_settings = QueryPlanOptimizationSettings(ctx);
-              // We should build sets and create `CreatingSetsStep` only in the original plan. The automatic parallel replicas optimization happens before building sets,
-              // so even if we decide to use the plan with parallel replicas, we will substitute it in place of the original plan and then build sets.
-              optimization_settings.build_sets = false;
-              plan.optimize(optimization_settings);
-              return std::make_unique<QueryPlan>(std::move(plan));
-          })
+           column_names]() { return buildQueryPlanForAutomaticParallelReplicas(ast, ctx, select_options, storage, column_names); })
 {
 }
 
@@ -277,36 +252,7 @@ InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(
     , planner(query_tree_, select_query_options)
     , query_plan_with_parallel_replicas_builder(
           [tree = query_tree_->clone(), ctx = Context::createCopy(context_), select_options = select_query_options_]()
-          {
-              if (!ctx->getSettingsRef()[Setting::parallel_replicas_local_plan])
-              {
-                  LOG_TRACE(
-                      getLogger("InterpreterSelectQueryAnalyzer"),
-                      "Setting 'parallel_replicas_local_plan' is disabled. Skipping building query plan with parallel replicas.");
-                  return QueryPlanPtr{};
-              }
-              if (ctx->getSettingsRef()[Setting::cluster_for_parallel_replicas].value.empty())
-              {
-                  LOG_DEBUG(
-                      getLogger("InterpreterSelectQueryAnalyzer"),
-                      "Cluster for parallel replicas is not set, can't build plan with parallel replicas");
-                  return QueryPlanPtr{};
-              }
-              /// If the query is executed by remote*/cluster* function, the following attempt to build a plan with parallel replicas may result in exceptions
-              if (ctx->getClientInfo().query_kind == ClientInfo::QueryKind::SECONDARY_QUERY)
-                  return QueryPlanPtr{};
-              ctx->setSetting("enable_parallel_replicas", true);
-              // If the parallel replicas plan will be chosen, the index analysis result will be reused from the single-replica plan. No need to optimize primary key here.
-              ctx->setSetting("query_plan_optimize_primary_key", false);
-              InterpreterSelectQueryAnalyzer interpreter(tree, ctx, select_options);
-              auto plan = std::move(interpreter).extractQueryPlan();
-              auto optimization_settings = QueryPlanOptimizationSettings(ctx);
-              // We should build sets and create `CreatingSetsStep` only in the original plan. The automatic parallel replicas optimization happens before building sets,
-              // so even if we decide to use the plan with parallel replicas, we will substitute it in place of the original plan and then build sets.
-              optimization_settings.build_sets = false;
-              plan.optimize(optimization_settings);
-              return std::make_unique<QueryPlan>(std::move(plan));
-          })
+          { return buildQueryPlanForAutomaticParallelReplicas(tree->toAST(), ctx, select_options); })
 {
 }
 
