@@ -70,7 +70,7 @@ Each node has the following structure:
 - **attributes**: User-defined dictionary attributes (e.g. `name`, `version`). Attribute values may contain **back references** to capture groups in the regular expression, written as `\1` or `$1` (numbers 1-9). These are replaced with the matched capture group at query time.
 - **child nodes**: A list of children, each with its own attributes and optionally more children. The name of the child list is arbitrary (e.g. `versions` above). String matching proceeds depth-first: if a string matches a node, its children are also checked. Attributes of the deepest matching node take precedence, overriding equally named parent attributes.
 
-## Related pages
+## Related pages {#related-pages}
 
 - [regexp_tree dictionary layout](../layouts/regexp-tree.md) — layout configuration, query examples, and matching modes
 - [dictGet](/sql-reference/functions/ext-dict-functions#dictGet), [dictGetAll](/sql-reference/functions/ext-dict-functions#dictGetAll) — functions for querying regexp tree dictionaries
