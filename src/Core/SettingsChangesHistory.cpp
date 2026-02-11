@@ -43,7 +43,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
         {
             {"deduplicate_insert", "backward_compatible_choice", "backward_compatible_choice", "New setting to control deduplication for INSERT queries."},
             {"parallel_replicas_filter_pushdown", false, false, "New setting"},
-
+            {"optimize_dry_run_check_part", true, true, "New setting"},
         });
         addSettingsChanges(settings_changes_history, "26.1",
         {
