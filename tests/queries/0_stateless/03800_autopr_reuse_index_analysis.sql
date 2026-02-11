@@ -30,26 +30,21 @@ SELECT sum(length(URL)) FROM test.hits WHERE CounterID IN (SELECT a % 100000 FRO
 
 SELECT sum(length(URL)) FROM test.hits WHERE CounterID IN (SELECT a % 100000 FROM t) OR UserID IN (SELECT a % 1000000 FROM t) FORMAT Null;
 
-SELECT sum(length(URL)) FROM test.hits WHERE UserID IN (SELECT a % 10000000 FROM t) FORMAT Null;
+SELECT sum(length(URL)) FROM test.hits WHERE WatchID IN (SELECT a % 10000000 FROM t) FORMAT Null;
 
 SELECT sum(length(URL))
 FROM test.hits
 WHERE WatchID IN (SELECT a % 1000000 FROM t)
 FORMAT Null;
 
---set send_logs_level='trace', send_logs_source_regexp='';
 SELECT sum(length(URL)) FROM test.hits WHERE CounterID IN (SELECT a % 100000 FROM t) FORMAT Null SETTINGS log_comment='query_3';
-set send_logs_level='none', send_logs_source_regexp='';
 
---set send_logs_level='trace', send_logs_source_regexp='';
 SELECT sum(length(URL)) FROM test.hits WHERE CounterID IN (SELECT a % 100000 FROM t) OR UserID IN (SELECT a % 1000000 FROM t) FORMAT Null SETTINGS log_comment='query_4';
-set send_logs_level='none', send_logs_source_regexp='';
 
-SELECT sum(length(URL)) FROM test.hits WHERE UserID IN (SELECT a % 1000000 FROM t) FORMAT Null SETTINGS log_comment='query_5';
+SELECT sum(length(URL)) FROM test.hits WHERE WatchID IN (SELECT a % 1000000 FROM t) FORMAT Null SETTINGS log_comment='query_5';
 
--- set send_logs_level='trace', send_logs_source_regexp='';
-SELECT sum(length(URL)) FROM test.hits WHERE WatchID IN (SELECT a % 1000000 FROM t) FORMAT Null SETTINGS log_comment='query_6';
-set send_logs_level='none', send_logs_source_regexp='';
+-- For Global IN-s now we can execute subquery twice with automatic parallel replicas :(
+SELECT sum(length(URL)) FROM test.hits WHERE WatchID GLOBAL IN (SELECT a % 1000000 FROM t) FORMAT Null SETTINGS log_comment='query_6';
 
 SET enable_parallel_replicas=0, automatic_parallel_replicas_mode=0;
 
