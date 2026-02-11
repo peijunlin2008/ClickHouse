@@ -1,5 +1,6 @@
 #include <Interpreters/InterpreterFactory.h>
 #include <Interpreters/InterpreterDropNamedCollectionQuery.h>
+#include <Interpreters/DatabaseCatalog.h>
 #include <Parsers/ASTDropNamedCollectionQuery.h>
 #include <Access/ContextAccess.h>
 #include <Core/Settings.h>
@@ -42,16 +43,27 @@ BlockIO InterpreterDropNamedCollectionQuery::execute()
         auto dependents = NamedCollectionFactory::instance().getDependents(query.collection_name);
         if (!dependents.empty())
         {
+            /// Filter out tables that no longer exist (e.g. from failed CREATE TABLE).
+            /// Dependencies are registered during table configuration parsing, before the table
+            /// is fully created. If CREATE TABLE fails after that point, a stale dependency remains.
             std::vector<String> dependent_names;
             dependent_names.reserve(dependents.size());
             for (const auto & dep : dependents)
-                dependent_names.push_back(dep.getFullTableName());
+            {
+                if (DatabaseCatalog::instance().isTableExist(dep, current_context))
+                    dependent_names.push_back(dep.getFullTableName());
+                else
+                    NamedCollectionFactory::instance().removeDependencies(dep);
+            }
 
-            throw Exception(
-                ErrorCodes::NAMED_COLLECTION_IS_USED,
-                "Named collection `{}` is used by tables: {}",
-                query.collection_name,
-                fmt::join(dependent_names, ", "));
+            if (!dependent_names.empty())
+            {
+                throw Exception(
+                    ErrorCodes::NAMED_COLLECTION_IS_USED,
+                    "Named collection `{}` is used by tables: {}",
+                    query.collection_name,
+                    fmt::join(dependent_names, ", "));
+            }
         }
     }
 
