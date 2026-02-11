@@ -15,6 +15,7 @@
 
 #include "config.h"
 #include <Common/TargetSpecific.h>
+#include <base/wide_integer_impl.h>
 
 #if USE_EMBEDDED_COMPILER
 #    include <llvm/IR/IRBuilder.h>
@@ -24,6 +25,40 @@
 namespace DB
 {
 struct Settings;
+
+/// Maps wide integer types to native builtin integer types for better performance in accumulation
+template <typename T>
+struct AccumulateResultType
+{
+    using type = T;
+};
+
+template <>
+struct AccumulateResultType<wide::integer<128, signed>>
+{
+    using type = __int128;
+};
+
+template <>
+struct AccumulateResultType<wide::integer<128, unsigned>>
+{
+    using type = unsigned __int128;
+};
+
+#if defined(__x86_64__)
+/// Use Clang's builtin _BitInt(256) for Int256 accumulation on x86_64
+template <>
+struct AccumulateResultType<wide::integer<256, signed>>
+{
+    using type = wide::BitInt256;
+};
+
+template <>
+struct AccumulateResultType<wide::integer<256, unsigned>>
+{
+    using type = wide::BitUInt256;
+};
+#endif
 
 /// Uses addOverflow method (if available) to avoid UB for sumWithOverflow()
 ///
@@ -50,12 +85,23 @@ struct AggregateFunctionSumAddOverflowImpl<Decimal<DecimalNativeType>>
 template <typename T>
 struct AggregateFunctionSumData
 {
-    using Impl = AggregateFunctionSumAddOverflowImpl<T>;
-    T sum{};
+    using AccumulateResult = typename AccumulateResultType<T>::type;
+    using Impl = AggregateFunctionSumAddOverflowImpl<AccumulateResult>;
+    AccumulateResult sum{};
+
+    static constexpr AccumulateResult ALWAYS_INLINE toAccumulateResult(const T & value)
+    {
+#if defined(__x86_64__)
+        if constexpr (std::is_same_v<T, wide::integer<256, signed>> || std::is_same_v<T, wide::integer<256, unsigned>>)
+            return wide::toBitInt256(value);
+        else
+#endif
+            return static_cast<AccumulateResult>(value);
+    }
 
     void NO_SANITIZE_UNDEFINED ALWAYS_INLINE add(T value)
     {
-        Impl::add(sum, value);
+        Impl::add(sum, toAccumulateResult(value));
     }
 
     /// Vectorized version
@@ -76,14 +122,14 @@ struct AggregateFunctionSumData
 
             /// Something around the number of SSE registers * the number of elements fit in register.
             constexpr size_t unroll_count = 128 / sizeof(T);
-            T partial_sums[unroll_count]{};
+            AccumulateResult partial_sums[unroll_count]{};
 
             const auto * unrolled_end = ptr + (count / unroll_count * unroll_count);
 
             while (ptr < unrolled_end)
             {
                 for (size_t i = 0; i < unroll_count; ++i)
-                    Impl::add(partial_sums[i], T(ptr[i]));
+                    Impl::add(partial_sums[i], toAccumulateResult(static_cast<T>(ptr[i])));
                 ptr += unroll_count;
             }
 
@@ -92,10 +138,10 @@ struct AggregateFunctionSumData
         }
 
         /// clang cannot vectorize the loop if accumulator is class member instead of local variable.
-        T local_sum{};
+        AccumulateResult local_sum{};
         while (ptr < end_ptr)
         {
-            Impl::add(local_sum, T(*ptr));
+            Impl::add(local_sum, toAccumulateResult(static_cast<T>(*ptr)));
             ++ptr;
         }
         Impl::add(sum, local_sum);
@@ -138,11 +184,11 @@ struct AggregateFunctionSumData
         {
             /// For integers we can vectorize the operation if we replace the null check using a multiplication (by 0 for null, 1 for not null)
             /// https://quick-bench.com/q/MLTnfTvwC2qZFVeWHfOBR3U7a8I
-            T local_sum{};
+            AccumulateResult local_sum{};
             while (ptr < end_ptr)
             {
-                T multiplier = !*condition_map == add_if_zero;
-                Impl::add(local_sum, *ptr * multiplier);
+                AccumulateResult multiplier = !*condition_map == add_if_zero;
+                Impl::add(local_sum, toAccumulateResult(static_cast<T>(*ptr)) * multiplier);
                 ++ptr;
                 ++condition_map;
             }
@@ -152,15 +198,15 @@ struct AggregateFunctionSumData
         else if constexpr (is_over_big_int<T>)
         {
             alignas(64) const uint64_t masks[2] = {0, ~0ULL};
-            T local_sum{};
+            AccumulateResult local_sum{};
             for (size_t i = 0; i < count; ++i)
             {
                 uint8_t flag = (condition_map[i] != add_if_zero);
 
-                T mask{};
-                std::memset(&mask, static_cast<int>(masks[flag]), sizeof(T));
+                AccumulateResult mask{};
+                std::memset(&mask, static_cast<int>(masks[flag]), sizeof(AccumulateResult));
 
-                Impl::add(local_sum, ptr[i] & mask);
+                Impl::add(local_sum, toAccumulateResult(static_cast<T>(ptr[i])) & mask);
             }
             Impl::add(sum, local_sum);
             return;
@@ -172,7 +218,7 @@ struct AggregateFunctionSumData
             using EquivalentInteger = typename std::conditional_t<sizeof(Value) == 4, UInt32, UInt64>;
 
             constexpr size_t unroll_count = 128 / sizeof(T);
-            T partial_sums[unroll_count]{};
+            AccumulateResult partial_sums[unroll_count]{};
 
             const auto * unrolled_end = ptr + (count / unroll_count * unroll_count);
 
@@ -185,7 +231,7 @@ struct AggregateFunctionSumData
                     value &= (!condition_map[i] != add_if_zero) - 1;
                     Value d;
                     memcpy(&d, &value, sizeof(Value));
-                    Impl::add(partial_sums[i], d);
+                    Impl::add(partial_sums[i], toAccumulateResult(static_cast<T>(d)));
                 }
                 ptr += unroll_count;
                 condition_map += unroll_count;
@@ -195,11 +241,11 @@ struct AggregateFunctionSumData
                 Impl::add(sum, partial_sums[i]);
         }
 
-        T local_sum{};
+        AccumulateResult local_sum{};
         while (ptr < end_ptr)
         {
             if (!*condition_map == add_if_zero)
-                Impl::add(local_sum, T(*ptr));
+                Impl::add(local_sum, toAccumulateResult(static_cast<T>(*ptr)));
             ++ptr;
             ++condition_map;
         }
@@ -257,7 +303,15 @@ struct AggregateFunctionSumData
 
     T get() const
     {
-        return sum;
+#if defined(__x86_64__)
+        if constexpr (std::is_same_v<AccumulateResult, wide::BitInt256> || std::is_same_v<AccumulateResult, wide::BitUInt256>)
+            return wide::fromBitInt256(sum);
+        else
+#endif
+        if constexpr (std::is_same_v<AccumulateResult, __int128>|| std::is_same_v<AccumulateResult, unsigned __int128>)
+            return *reinterpret_cast<const T*>(&sum);
+        else
+            return static_cast<T>(sum);
     }
 
 };
