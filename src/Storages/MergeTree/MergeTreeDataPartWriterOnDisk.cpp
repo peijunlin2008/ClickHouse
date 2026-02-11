@@ -345,8 +345,52 @@ void MergeTreeDataPartWriterOnDisk::finishSkipIndicesSerialization(bool sync)
             stream->sync();
     }
 
-    for (size_t i = 0; i < skip_indices.size(); ++i)
-        LOG_DEBUG(log, "Spent {} ms calculating index {} for the part {}", execution_stats.skip_indices_build_us[i] / 1000, skip_indices[i]->index.name, data_part_name);
+    if (!skip_indices.empty() && log->is(Poco::Message::PRIO_DEBUG))
+    {
+        UInt64 total_us = 0;
+        std::string indices_str;
+
+        /// Create pairs of (index, time_us) for sorting
+        std::vector<std::pair<size_t, UInt64>> index_times;
+        index_times.reserve(skip_indices.size());
+
+        for (size_t i = 0; i < skip_indices.size(); ++i)
+        {
+            index_times.emplace_back(i, execution_stats.skip_indices_build_us[i]);
+            total_us += execution_stats.skip_indices_build_us[i];
+        }
+
+        /// If there are many indices, show only the slowest ones
+        constexpr size_t max_indices_to_show = 10;
+        if (skip_indices.size() > max_indices_to_show)
+        {
+            std::partial_sort(
+                index_times.begin(),
+                index_times.begin() + max_indices_to_show,
+                index_times.end(),
+                [](const auto & a, const auto & b) { return a.second > b.second; });
+            index_times.resize(max_indices_to_show);
+        }
+
+        for (size_t i = 0; i < index_times.size(); ++i)
+        {
+            if (i > 0)
+                indices_str += ", ";
+            auto [idx, time_us] = index_times[i];
+            indices_str += fmt::format("{}: {} ms", skip_indices[idx]->index.name, time_us / 1000);
+        }
+
+        if (skip_indices.size() > max_indices_to_show)
+            indices_str += fmt::format(" (showing {} slowest out of {})", max_indices_to_show, skip_indices.size());
+
+        LOG_DEBUG(
+            log,
+            "Spent {} ms calculating {} skip indices for the part {}: [{}]",
+            total_us / 1000,
+            skip_indices.size(),
+            data_part_name,
+            indices_str);
+    }
 
     skip_indices_streams.clear();
     skip_indices_streams_holders.clear();
