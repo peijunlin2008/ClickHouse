@@ -43,7 +43,7 @@ class MergeTreeDataPartWriterOnDisk : public IMergeTreeDataPartWriter
 {
 public:
     using WrittenOffsetSubstreams = std::set<std::string>;
-    using StreamPtr = std::unique_ptr<MergeTreeWriterStream<false>>;
+    using StreamPtr = std::unique_ptr<MergeTreeWriterStream>;
 
     MergeTreeDataPartWriterOnDisk(
         const String & data_part_name_,
