@@ -42,4 +42,43 @@ std::unique_ptr<WriteBufferFromFileBase> serializeStatisticsPacked(
     return out_packed;
 }
 
+WrittenFiles serializeStatisticsWide(
+    IDataPartStorage & data_part_storage,
+    MergeTreeDataPartChecksums & out_checksums,
+    const ColumnsStatistics & statistics,
+    const CompressionCodecPtr & compression_codec,
+    const WriteSettings & write_settings)
+{
+    WrittenFiles written_files;
+
+    for (const auto & [column_name, stat] : statistics)
+    {
+        String filename = column_name + STATS_FILE_SUFFIX;
+
+        /// Buffer chain: plain_file <- plain_hashing <- compressor <- compressed_hashing
+        auto plain_file = data_part_storage.writeFile(filename, 4096, write_settings);
+        HashingWriteBuffer plain_hashing(*plain_file);
+        CompressedWriteBuffer compressor(plain_hashing, compression_codec, 1024 * 1024);
+        HashingWriteBuffer compressed_hashing(compressor);
+
+        stat->serialize(compressed_hashing);
+
+        compressed_hashing.finalize();
+        compressor.finalize();
+        plain_hashing.finalize();
+
+        auto & checksum = out_checksums.files[filename];
+        checksum.is_compressed = true;
+        checksum.file_size = plain_hashing.count();
+        checksum.file_hash = plain_hashing.getHash();
+        checksum.uncompressed_size = compressed_hashing.count();
+        checksum.uncompressed_hash = compressed_hashing.getHash();
+
+        plain_file->preFinalize();
+        written_files.push_back(std::move(plain_file));
+    }
+
+    return written_files;
+}
+
 }

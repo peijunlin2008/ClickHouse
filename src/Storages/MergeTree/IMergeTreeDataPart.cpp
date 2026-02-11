@@ -955,12 +955,40 @@ ColumnsStatistics IMergeTreeDataPart::loadStatisticsPacked(const PackedFilesRead
     return result;
 }
 
+ColumnsStatistics IMergeTreeDataPart::loadStatisticsWide(const NameSet & required_columns) const
+{
+    ColumnsStatistics result;
+    auto read_settings = storage.getContext()->getReadSettings();
+
+    for (const auto & [filename, checksum] : checksums.files)
+    {
+        if (!filename.ends_with(STATS_FILE_SUFFIX))
+            continue;
+
+        String column_name = fs::path(filename).stem().string();
+        if (!columns_description->has(column_name))
+            continue;
+
+        if (!required_columns.empty() && !required_columns.contains(column_name))
+            continue;
+
+        auto file_buf = getDataPartStorage().readFile(filename, read_settings, checksum.file_size);
+
+        CompressedReadBuffer compressed_buf(*file_buf);
+        const auto & column_desc = columns_description->get(column_name);
+        auto column_stat = ColumnStatistics::deserialize(compressed_buf, column_desc.type);
+        result.emplace(column_name, std::move(column_stat));
+    }
+
+    return result;
+}
+
 ColumnsStatistics IMergeTreeDataPart::loadStatistics() const
 {
     if (auto * reader = getStatisticsPackedReader())
         return loadStatisticsPacked(*reader, {});
 
-    return {};
+    return loadStatisticsWide({});
 }
 
 ColumnsStatistics IMergeTreeDataPart::loadStatistics(const Names & required_columns) const
@@ -970,7 +998,7 @@ ColumnsStatistics IMergeTreeDataPart::loadStatistics(const Names & required_colu
     if (auto * reader = getStatisticsPackedReader())
         return loadStatisticsPacked(*reader, required_columns_set);
 
-    return {};
+    return loadStatisticsWide(required_columns_set);
 }
 
 Estimates IMergeTreeDataPart::getEstimates() const

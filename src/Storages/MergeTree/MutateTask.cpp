@@ -1202,8 +1202,17 @@ void finalizeMutatedPart(
 
     if (!statistics.empty())
     {
-        auto out = serializeStatisticsPacked(new_data_part->getDataPartStorage(), new_data_part->checksums, statistics, codec, context->getWriteSettings());
-        written_files.push_back(std::move(out));
+        if (isFullPartStorage(new_data_part->getDataPartStorage()))
+        {
+            auto out = serializeStatisticsPacked(new_data_part->getDataPartStorage(), new_data_part->checksums, statistics, codec, context->getWriteSettings());
+            written_files.push_back(std::move(out));
+        }
+        /// Write statistics as separate compressed files in packed parts to avoid double buffering.
+        else
+        {
+            auto files = serializeStatisticsWide(new_data_part->getDataPartStorage(), new_data_part->checksums, statistics, codec, context->getWriteSettings());
+            std::move(files.begin(), files.end(), std::back_inserter(written_files));
+        }
     }
 
     {
