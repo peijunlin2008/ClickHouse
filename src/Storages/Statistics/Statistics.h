@@ -10,8 +10,8 @@
 namespace DB
 {
 
-constexpr auto LEGACY_STATS_FILE_PREFIX = "statistics_";
-constexpr auto STATS_FILE_SUFFIX = ".stats";
+constexpr std::string_view STATS_FILE_PREFIX = "statistics_";
+constexpr std::string_view STATS_FILE_SUFFIX = ".stats";
 
 class Field;
 class Block;

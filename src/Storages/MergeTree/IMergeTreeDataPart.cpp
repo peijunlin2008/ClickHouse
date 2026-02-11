@@ -926,6 +926,18 @@ PackedFilesReader * IMergeTreeDataPart::getStatisticsPackedReader() const
     return statistics_reader.get();
 }
 
+static const ColumnDescription * getColumnForStatisticsFile(const String & filename, const ColumnsDescription & all_columns, const NameSet & required_columns)
+{
+    chassert(filename.ends_with(STATS_FILE_SUFFIX));
+    String column_name = fs::path(filename).stem().string();
+    column_name = column_name.substr(STATS_FILE_PREFIX.size());
+
+    if (!required_columns.empty() && !required_columns.contains(column_name))
+        return nullptr;
+
+    return all_columns.tryGet(column_name);
+}
+
 ColumnsStatistics IMergeTreeDataPart::loadStatisticsPacked(const PackedFilesReader & reader, const NameSet & required_columns) const
 {
     ColumnsStatistics result;
@@ -933,23 +945,19 @@ ColumnsStatistics IMergeTreeDataPart::loadStatisticsPacked(const PackedFilesRead
 
     for (const auto & filename : reader.getFileNames())
     {
-        if (!filename.ends_with(".stats"))
+        if (!filename.ends_with(STATS_FILE_SUFFIX))
             throw Exception(ErrorCodes::CORRUPTED_DATA, "File {} is not a statistics file", filename);
 
-        String column_name = fs::path(filename).stem().string();
-        if (!columns_description->has(column_name))
-            continue;
-
-        if (!required_columns.empty() && !required_columns.contains(column_name))
+        const auto * column_desc = getColumnForStatisticsFile(filename, *columns_description, required_columns);
+        if (!column_desc)
             continue;
 
         size_t file_size = reader.getFileSize(filename);
         auto file_buf = reader.readFile(filename, read_settings, file_size);
 
         CompressedReadBuffer compressed_buf(*file_buf);
-        const auto & column_desc = columns_description->get(column_name);
-        auto column_stat = ColumnStatistics::deserialize(compressed_buf, column_desc.type);
-        result.emplace(column_name, std::move(column_stat));
+        auto column_stat = ColumnStatistics::deserialize(compressed_buf, column_desc->type);
+        result.emplace(column_desc->name, std::move(column_stat));
     }
 
     return result;
@@ -965,19 +973,14 @@ ColumnsStatistics IMergeTreeDataPart::loadStatisticsWide(const NameSet & require
         if (!filename.ends_with(STATS_FILE_SUFFIX))
             continue;
 
-        String column_name = fs::path(filename).stem().string();
-        if (!columns_description->has(column_name))
-            continue;
-
-        if (!required_columns.empty() && !required_columns.contains(column_name))
+        const auto * column_desc = getColumnForStatisticsFile(filename, *columns_description, required_columns);
+        if (!column_desc)
             continue;
 
         auto file_buf = getDataPartStorage().readFile(filename, read_settings, checksum.file_size);
-
         CompressedReadBuffer compressed_buf(*file_buf);
-        const auto & column_desc = columns_description->get(column_name);
-        auto column_stat = ColumnStatistics::deserialize(compressed_buf, column_desc.type);
-        result.emplace(column_name, std::move(column_stat));
+        auto column_stat = ColumnStatistics::deserialize(compressed_buf, column_desc->type);
+        result.emplace(column_desc->name, std::move(column_stat));
     }
 
     return result;

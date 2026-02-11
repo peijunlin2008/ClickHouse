@@ -8,6 +8,11 @@
 namespace DB
 {
 
+static String getStatisticsFilename(const String & column_name)
+{
+    return String(STATS_FILE_PREFIX) + column_name + String(STATS_FILE_SUFFIX);
+}
+
 std::unique_ptr<WriteBufferFromFileBase> serializeStatisticsPacked(
     IDataPartStorage & data_part_storage,
     MergeTreeDataPartChecksums & out_checksums,
@@ -19,7 +24,7 @@ std::unique_ptr<WriteBufferFromFileBase> serializeStatisticsPacked(
 
     for (const auto & [column_name, stat] : statistics)
     {
-        String filename = column_name + STATS_FILE_SUFFIX;
+        String filename = getStatisticsFilename(column_name);
         auto out = packed_writer.writeFile(filename, write_settings);
 
         CompressedWriteBuffer compressor(*out, compression_codec, 1024 * 1024);
@@ -53,7 +58,7 @@ WrittenFiles serializeStatisticsWide(
 
     for (const auto & [column_name, stat] : statistics)
     {
-        String filename = column_name + STATS_FILE_SUFFIX;
+        String filename = getStatisticsFilename(column_name);
 
         /// Buffer chain: plain_file <- plain_hashing <- compressor <- compressed_hashing
         auto plain_file = data_part_storage.writeFile(filename, 4096, write_settings);

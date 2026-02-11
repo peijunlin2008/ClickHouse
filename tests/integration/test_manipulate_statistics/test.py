@@ -25,6 +25,15 @@ node3 = cluster.add_instance(
     with_zookeeper=True,
 )
 
+node_old = cluster.add_instance(
+    "node_old",
+    image="clickhouse/clickhouse-server",
+    tag="25.12",
+    with_installed_binary=True,
+    stay_alive=True,
+    user_configs=["config/config.xml"],
+)
+
 
 @pytest.fixture(scope="module")
 def started_cluster():
@@ -38,7 +47,7 @@ def started_cluster():
 
 
 def check_stats_in_part(
-    node, table, part_name, column_name, exists_in_part, exists_file_on_disk
+    node, table, part_name, column_name, exists_in_part, exists_packed_file_on_disk
 ):
     output = node.query(
         f"SELECT notEmpty(statistics) FROM system.parts_columns WHERE table = '{table}' AND name = '{part_name}' AND column = '{column_name}'"
@@ -70,7 +79,7 @@ def check_stats_in_part(
     logging.debug(
         f"Checking stats file in {part_path} for column {column_name}, got {output}"
     )
-    if exists_file_on_disk:
+    if exists_packed_file_on_disk:
         assert len(output) != 0
     else:
         assert len(output) == 0
@@ -244,3 +253,79 @@ def test_setting_materialize_statistics_on_merge(started_cluster):
     check_stats_in_part(node3, "test_stats", "all_1_2_1", "a", False, False)
     check_stats_in_part(node3, "test_stats", "all_1_2_1", "b", False, False)
     node3.query("DROP TABLE IF EXISTS test_stats SYNC")
+
+
+def test_statistics_upgrade_from_old_version(started_cluster):
+    node = node_old
+
+    node.query(
+        """
+        CREATE TABLE test_stat_upgrade(
+            a Int64,
+            b Int64,
+            c Int64
+        )
+        ENGINE = MergeTree() ORDER BY a
+        SETTINGS
+            min_bytes_for_wide_part = 0,
+            min_bytes_for_full_part_storage = 0,
+            auto_statistics_types = 'tdigest,minmax,countmin,uniq';
+    """
+    )
+
+    node.query("INSERT INTO test_stat_upgrade VALUES (1,2,3), (4,5,6)")
+
+    def get_part_path(node):
+        part_path = node.query(
+            "SELECT path FROM system.parts WHERE table = 'test_stat_upgrade' AND active = 1"
+        ).strip()
+
+        assert len(part_path) != 0
+        return part_path
+
+    def get_old_stats_files(node):
+        part_path = get_part_path(node)
+
+        old_stats_files = node.exec_in_container(
+            [
+                "bash",
+                "-c",
+                "find {} -type f -name 'statistics_*.stats'".format(part_path),
+            ],
+            privileged=True,
+        ).strip()
+
+        return old_stats_files
+
+    def verify_old_stats_files(node, part_name):
+        old_stats_files = get_old_stats_files(node)
+
+        assert "statistics_a.stats" in old_stats_files
+        assert "statistics_b.stats" in old_stats_files
+        assert "statistics_c.stats" in old_stats_files
+
+        check_stats_in_part(node, "test_stat_upgrade", part_name, "a", True, False)
+        check_stats_in_part(node, "test_stat_upgrade", part_name, "b", True, False)
+        check_stats_in_part(node, "test_stat_upgrade", part_name, "c", True, False)
+
+    # Verify on old version.
+    verify_old_stats_files(node, "all_1_1_0")
+    # Restart with a new version.
+    node.restart_with_latest_version()
+    # Verify on new version.
+    verify_old_stats_files(node, "all_1_1_0")
+    # Materialize on a new version.
+    node.query("ALTER TABLE test_stat_upgrade MATERIALIZE STATISTICS a, b, c SETTINGS mutations_sync = 2")
+
+    check_stats_in_part(node, "test_stat_upgrade", "all_1_1_0_2", "a", True, True)
+    check_stats_in_part(node, "test_stat_upgrade", "all_1_1_0_2", "b", True, True)
+    check_stats_in_part(node, "test_stat_upgrade", "all_1_1_0_2", "c", True, True)
+
+    old_stats_files = get_old_stats_files(node)
+
+    # Verify old per-column statistics files are removed on a new version.
+    assert (
+        len(old_stats_files) == 0
+    ), "Old per-column statistics files should be removed, found: {}".format(
+        old_stats_files
+    )

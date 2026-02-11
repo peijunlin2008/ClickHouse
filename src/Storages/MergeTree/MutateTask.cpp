@@ -1084,6 +1084,9 @@ static void processStatisticsChanges(
     auto storage_settings = source_part.storage.getSettings();
     String statistics_file_name(ColumnsStatistics::FILENAME);
 
+    bool modified_statistics = false;
+    bool is_full_part_storage = isFullPartStorage(source_part.getDataPartStorage());
+
     auto process_rename = [&](const String & from_name, const String & to_name)
     {
         auto it = all_statistics.find(from_name);
@@ -1094,7 +1097,10 @@ static void processStatisticsChanges(
             all_statistics.emplace(to_name, it->second);
 
         all_statistics.erase(it);
-        files_to_skip.emplace(statistics_file_name);
+        modified_statistics = true;
+
+        if (is_full_part_storage)
+            files_to_skip.emplace(statistics_file_name);
     };
 
     for (const auto & command : commands_for_renames)
@@ -1126,25 +1132,34 @@ static void processStatisticsChanges(
 
     if (!stats_to_recalc.empty())
     {
+        modified_statistics = true;
         /// Create empty statistics for columns that are being recalculated.
         for (const auto & [stat_name, stat] : stats_to_recalc)
             all_statistics[stat_name] = stat->cloneEmpty();
 
-        files_to_skip.emplace(ColumnsStatistics::FILENAME);
+        if (is_full_part_storage)
+            files_to_skip.emplace(ColumnsStatistics::FILENAME);
     }
 
-    const auto & source_checksums = source_part.checksums;
-    if (all_statistics.empty() && source_checksums.files.contains(statistics_file_name))
-        files_to_rename.emplace_back(statistics_file_name, "");
-
-    if (files_to_skip.contains(statistics_file_name))
+    /// Remove old statistics files.
+    if (isFullPartStorage(source_part.getDataPartStorage()))
     {
-        /// If statistics are changed, always write them in a new format.
-        /// Remove old statistics files.
-        for (const auto & [filename, _] : source_checksums.files)
+        const auto & source_checksums = source_part.checksums;
+
+        if (all_statistics.empty() && source_checksums.files.contains(statistics_file_name))
         {
-            if (filename.starts_with(LEGACY_STATS_FILE_PREFIX) && filename.ends_with(STATS_FILE_SUFFIX))
-                files_to_rename.emplace_back(filename, "");
+            files_to_rename.emplace_back(statistics_file_name, "");
+        }
+
+        if (modified_statistics)
+        {
+            /// If statistics are changed, always write them in a new format.
+            /// Remove old statistics files.
+            for (const auto & [filename, _] : source_checksums.files)
+            {
+                if (filename.starts_with(STATS_FILE_PREFIX) && filename.ends_with(STATS_FILE_SUFFIX))
+                    files_to_rename.emplace_back(filename, "");
+            }
         }
     }
 }
