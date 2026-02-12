@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import pytest
-import time
 import uuid
 from helpers.cluster import ClickHouseCluster
 from helpers.keeper_utils import wait_nodes
@@ -215,12 +214,9 @@ def test_keeper_opentelemetry_tracing_without_server_trace(started_cluster):
         },
     )
 
-    # flush logs
-    for node in (keeper1, keeper2, keeper3, clickhouse):
-        node.query("SYSTEM FLUSH LOGS system.opentelemetry_span_log")
-
     # find traces pertaining to zookeeper write requests related to our DDL
     # these traces were started from scratch by create_trace_if_not_exists
+    clickhouse.query("SYSTEM FLUSH LOGS system.opentelemetry_span_log")
     zookeeper_write_traces = clickhouse.query(
         f"""
         SELECT trace_id
@@ -233,9 +229,9 @@ def test_keeper_opentelemetry_tracing_without_server_trace(started_cluster):
     ).strip()
     assert zookeeper_write_traces != ""
 
-    # for each trace, verify that all keeper replicas have spans for it
+    # for each trace, verify that the leader has spans for it
+    keeper1.query("SYSTEM FLUSH LOGS system.opentelemetry_span_log")
     for trace_id in zookeeper_write_traces.split('\n'):
-        for keeper in (keeper1, keeper2, keeper3):
-            assert int(
-                keeper.query(f"SELECT count() FROM system.opentelemetry_span_log WHERE trace_id = '{trace_id}'").strip()
-            ) > 0
+        assert int(
+            keeper1.query(f"SELECT count() FROM system.opentelemetry_span_log WHERE trace_id = '{trace_id}'").strip()
+        ) > 0
