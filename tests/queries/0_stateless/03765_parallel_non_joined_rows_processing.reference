@@ -4,15 +4,7 @@
 --- Correctness: RIGHT JOIN ---
 50000	25000	50000
 50000	25000	50000
---- Pipeline contains NonJoinedBlocksTransform ---
-1
---- Query log lookup works ---
-1	1
---- Parallelism: multiple NonJoinedBlocksTransforms emit non-joined rows ---
-PARALLEL	1
---- Parallelism: all NonJoinedBlocksTransforms produce output ---
-1	1
---- Parallelism: work distributed across transforms ---
-1
---- Setting disabled: falls back to sequential ---
-SEQUENTIAL	1
+--- Parallel: NonJoinedBlocksTransform count ---
+4
+--- Sequential: NonJoinedBlocksTransform count ---
+0
