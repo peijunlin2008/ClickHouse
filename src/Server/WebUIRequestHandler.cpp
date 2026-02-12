@@ -47,9 +47,8 @@ static void handle(HTTPServerRequest & request, HTTPServerResponse & response, s
                    std::unordered_map<String, String> http_response_headers_override = {})
 {
     applyHTTPResponseHeaders(response, http_response_headers_override);
-    if (response.getContentType().empty()) {
+    if (response.getContentType().empty())
         response.setContentType("text/html; charset=UTF-8");
-    }
     if (request.getVersion() == HTTPServerRequest::HTTP_1_1)
         response.setChunkedTransferEncoding(true);
 
@@ -138,15 +137,14 @@ std::string ClickStackUIRequestHandler::getResourcePath(const std::string & uri)
         return "index.html";
 
     std::string path_str(path);
-    if (path_str.find('.') != std::string::npos) {
+    if (path_str.find('.') != std::string::npos)
         return path_str;
-    }
 
     // assuming a path with no "." is an html page
     return path_str + ".html";
 }
 
-void ClickStackUIRequestHandler::handleRequest( HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event &)
+void ClickStackUIRequestHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event &)
 {
     // Get the resource path from URI
     std::string resource_path = getResourcePath(request.getURI());
