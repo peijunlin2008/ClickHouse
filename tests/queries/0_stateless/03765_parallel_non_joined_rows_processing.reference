@@ -4,9 +4,9 @@
 --- Correctness: RIGHT JOIN ---
 50000	25000	50000
 50000	25000	50000
---- Parallelism: multiple JoiningTransforms emit non-joined rows ---
+--- Parallelism: multiple NonJoinedBlocksTransforms emit non-joined rows ---
 PARALLEL	1
---- Parallelism: all JoiningTransforms produce output ---
+--- Parallelism: all NonJoinedBlocksTransforms produce output ---
 1	1
 --- Parallelism: work distributed across transforms ---
 1

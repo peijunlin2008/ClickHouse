@@ -44,12 +44,11 @@ ON t1.key = t2.key;
 "
 
 
-# When parallel non-joined processing is active:
-#   - multiple JoiningTransforms produce non-joined output rows
-#   - specifically, transforms with input_rows=0 but output_rows>0 are solely emitting non-joined right-side rows
-#   - there must be MORE THAN 1 such transform
+# When parallel non-joined processing is active, non-joined rows are emitted by
+# separate NonJoinedBlocksTransform sources (not by JoiningTransform).
+# There must be more than 1 such source producing output rows.
 
-echo "--- Parallelism: multiple JoiningTransforms emit non-joined rows ---"
+echo "--- Parallelism: multiple NonJoinedBlocksTransforms emit non-joined rows ---"
 
 query_id="03800_parallel_nonjoin_${CLICKHOUSE_DATABASE}_$RANDOM"
 
@@ -70,21 +69,21 @@ FORMAT Null;
 $CLICKHOUSE_CLIENT --multiquery -q "
 SYSTEM FLUSH LOGS processors_profile_log;
 
--- Count JoiningTransforms that produced output with no input (= non-joined only).
+-- Count NonJoinedBlocksTransforms that produced output rows.
 -- With true parallelism this must be > 1.
 SELECT
     if(transforms_producing_nonjoin_output > 1, 'PARALLEL', 'SEQUENTIAL') AS mode,
     transforms_producing_nonjoin_output > 1 AS is_parallel
 FROM (
-    SELECT countIf(input_rows = 0 AND output_rows > 0) AS transforms_producing_nonjoin_output
+    SELECT countIf(output_rows > 0) AS transforms_producing_nonjoin_output
     FROM system.processors_profile_log
     WHERE event_date >= yesterday()
         AND query_id = '$query_id'
-        AND name = 'JoiningTransform'
+        AND name = 'NonJoinedBlocksTransform'
 );
 "
 
-echo "--- Parallelism: all JoiningTransforms produce output ---"
+echo "--- Parallelism: all NonJoinedBlocksTransforms produce output ---"
 
 $CLICKHOUSE_CLIENT --multiquery -q "
 SELECT
@@ -97,7 +96,7 @@ FROM (
     FROM system.processors_profile_log
     WHERE event_date >= yesterday()
         AND query_id = '$query_id'
-        AND name = 'JoiningTransform'
+        AND name = 'NonJoinedBlocksTransform'
 );
 "
 
@@ -112,9 +111,11 @@ FROM (
     FROM system.processors_profile_log
     WHERE event_date >= yesterday()
         AND query_id = '$query_id'
-        AND name = 'JoiningTransform'
+        AND name = 'NonJoinedBlocksTransform'
 );
 "
+
+# When the setting is disabled, only one JoiningTransform should emit non-joined rows (sequential mode).
 
 echo "--- Setting disabled: falls back to sequential ---"
 
