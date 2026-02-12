@@ -342,7 +342,7 @@ String SplitByStringTokenExtractor::getDescription() const
     return result + "])";
 }
 
-bool ArrayTokenExtractor::nextInString(const char * /*data*/, size_t length, size_t & pos, size_t & token_start, size_t & token_length) const
+bool ArrayTokenizer::nextInString(const char * /*data*/, size_t length, size_t & pos, size_t & token_start, size_t & token_length) const
 {
     if (pos == 0)
     {
@@ -354,9 +354,9 @@ bool ArrayTokenExtractor::nextInString(const char * /*data*/, size_t length, siz
     return false;
 }
 
-bool ArrayTokenExtractor::nextInStringLike(const char * /*data*/, size_t /*length*/, size_t & /*pos*/, String & /*token*/) const
+bool ArrayTokenizer::nextInStringLike(const char * /*data*/, size_t /*length*/, size_t & /*pos*/, String & /*token*/) const
 {
-    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "ArrayTokenExtractor::nextInStringLike is not implemented");
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "ArrayTokenizer::nextInStringLike is not implemented");
 }
 
 SparseGramsTokenExtractor::SparseGramsTokenExtractor(size_t min_length, size_t max_length, std::optional<size_t> min_cutoff_length_)

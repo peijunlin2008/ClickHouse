@@ -228,9 +228,9 @@ private:
 };
 
 /// Parser doing "no operation". Returns the entire input as a single token.
-struct ArrayTokenExtractor final : public ITokenExtractorHelper<ArrayTokenExtractor>
+struct ArrayTokenizer final : public ITokenExtractorHelper<ArrayTokenizer>
 {
-    ArrayTokenExtractor() : ITokenExtractorHelper(Type::Array) {}
+    ArrayTokenizer() : ITokenExtractorHelper(Type::Array) {}
 
     static const char * getName() { return "array"; }
     static const char * getExternalName() { return getName(); }

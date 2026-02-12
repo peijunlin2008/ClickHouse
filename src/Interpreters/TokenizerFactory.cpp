@@ -198,11 +198,11 @@ static void registerTokenizers(TokenizerFactory & factory)
 
     auto array_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {
-        assertParamsCount(args.size(), 0, ArrayTokenExtractor::getExternalName());
-        return std::make_unique<ArrayTokenExtractor>();
+        assertParamsCount(args.size(), 0, ArrayTokenizer::getExternalName());
+        return std::make_unique<ArrayTokenizer>();
     };
 
-    factory.registerTokenizer(ArrayTokenExtractor::getName(), ITokenExtractor::Type::Array, array_creator);
+    factory.registerTokenizer(ArrayTokenizer::getName(), ITokenExtractor::Type::Array, array_creator);
 
     auto sparse_grams_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {

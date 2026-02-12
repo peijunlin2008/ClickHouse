@@ -173,9 +173,9 @@ TextIndexDirectReadMode MergeTreeIndexConditionText::getDirectReadMode(const Str
         /// These functions compare the searched token as a whole and therefore
         /// exact direct read is only possible with array token extractor, that doesn't
         /// split documents into tokens. Otherwise we can only use direct read as a hint.
-        bool is_array_extractor = typeid_cast<const ArrayTokenExtractor *>(tokenizer);
+        bool is_array_tokenizer = typeid_cast<const ArrayTokenizer *>(tokenizer);
         bool has_preprocessor = preprocessor && preprocessor->hasActions();
-        return is_array_extractor && !has_preprocessor ? TextIndexDirectReadMode::Exact : getHintOrNoneMode();
+        return is_array_tokenizer && !has_preprocessor ? TextIndexDirectReadMode::Exact : getHintOrNoneMode();
     }
 
 
