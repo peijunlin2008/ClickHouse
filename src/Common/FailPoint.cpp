@@ -295,6 +295,32 @@ void FailPointInjection::waitForResume(const String & fail_point_name)
     });
 }
 
+std::vector<FailPointInjection::FailPointInfo> FailPointInjection::getFailPoints()
+{
+    std::vector<FailPointInfo> result;
+    std::lock_guard lock(mu);
+
+#define SUB_M(NAME, TP)                                                     \
+    result.push_back(                                                       \
+        FailPointInfo{                                                      \
+            .name = FailPoints::NAME,                                       \
+            .type = FailPointType::TP,                                      \
+            .enabled = fail_point_wait_channels.contains(FailPoints::NAME), \
+        });
+#define ADD_ONCE(NAME) SUB_M(NAME, Once)
+#define ADD_REGULAR(NAME) SUB_M(NAME, Regular)
+#define ADD_PAUSEABLE_ONCE(NAME) SUB_M(NAME, PauseableOnce)
+#define ADD_PAUSEABLE(NAME) SUB_M(NAME, Pauseable)
+    APPLY_FOR_FAILPOINTS(ADD_ONCE, ADD_REGULAR, ADD_PAUSEABLE_ONCE, ADD_PAUSEABLE)
+#undef SUB_M
+#undef ADD_ONCE
+#undef ADD_REGULAR
+#undef ADD_PAUSEABLE_ONCE
+#undef ADD_PAUSEABLE
+
+    return result;
+}
+
 #else // USE_LIBFIU
 
 void FailPointInjection::pauseFailPoint(const String &)
@@ -340,32 +366,13 @@ void FailPointInjection::enableFromGlobalConfig(const Poco::Util::AbstractConfig
         throw Exception(ErrorCodes::SUPPORT_IS_DISABLED, "FIU is not enabled");
 }
 
-#endif // USE_LIBFIU
-
 std::vector<FailPointInjection::FailPointInfo> FailPointInjection::getFailPoints()
 {
     std::vector<FailPointInfo> result;
-    std::lock_guard lock(mu);
-
-#define SUB_M(NAME, TP)                                                     \
-    result.push_back(                                                       \
-        FailPointInfo{                                                      \
-            .name = FailPoints::NAME,                                       \
-            .type = FailPointType::TP,                                      \
-            .enabled = fail_point_wait_channels.contains(FailPoints::NAME), \
-        });
-#define ADD_ONCE(NAME) SUB_M(NAME, Once)
-#define ADD_REGULAR(NAME) SUB_M(NAME, Regular)
-#define ADD_PAUSEABLE_ONCE(NAME) SUB_M(NAME, PauseableOnce)
-#define ADD_PAUSEABLE(NAME) SUB_M(NAME, Pauseable)
-    APPLY_FOR_FAILPOINTS(ADD_ONCE, ADD_REGULAR, ADD_PAUSEABLE_ONCE, ADD_PAUSEABLE)
-#undef SUB_M
-#undef ADD_ONCE
-#undef ADD_REGULAR
-#undef ADD_PAUSEABLE_ONCE
-#undef ADD_PAUSEABLE
 
     return result;
 }
+
+#endif // USE_LIBFIU
 
 }
