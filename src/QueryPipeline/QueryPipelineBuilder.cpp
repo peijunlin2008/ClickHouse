@@ -505,9 +505,6 @@ std::unique_ptr<QueryPipelineBuilder> QueryPipelineBuilder::joinPipelinesRightLe
     size_t num_streams_including_totals = num_streams + (left->hasTotals() ? 1 : 0);
     right->resize(num_streams_including_totals);
 
-    /// This counter is needed for every Joining except totals, to decide which Joining will generate non joined rows.
-    auto joining_finish_counter = std::make_shared<FinishCounter>(num_streams);
-
     auto lit = left->pipe.output_ports.begin();
     auto rit = right->pipe.output_ports.begin();
 
