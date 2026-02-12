@@ -525,8 +525,7 @@ size_t TableSnapshot::getVersion() const
 
 size_t TableSnapshot::getVersionUnlocked() const
 {
-    initOrUpdateSnapshot();
-    return kernel_snapshot_state->snapshot_version;
+    return getKernelSnapshotState()->snapshot_version;
 }
 
 TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStats() const
@@ -543,13 +542,13 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStats() const
 
 TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
 {
-    initOrUpdateSnapshot();
+    auto state = getKernelSnapshotState();
 
     KernelScan fallback_scan;
     fallback_scan = KernelUtils::unwrapResult(
         ffi::scan(
-            kernel_snapshot_state->snapshot.get(),
-            kernel_snapshot_state->engine.get(),
+            state->snapshot.get(),
+            state->engine.get(),
             /* predicate */nullptr,
             /* schema */nullptr),
         "scan");
@@ -557,7 +556,7 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
     KernelScanMetadataIterator fallback_scan_data_iterator;
     fallback_scan_data_iterator = KernelUtils::unwrapResult(
         ffi::scan_metadata_iter_init(
-            kernel_snapshot_state->engine.get(), fallback_scan.get()),
+            state->engine.get(), fallback_scan.get()),
         "scan_metadata_iter_init");
 
     struct StatsVisitor
@@ -612,13 +611,13 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
 
     LOG_TEST(
         log, "Snapshot at version {} data files: {}, total rows: {}, total bytes: {}",
-        kernel_snapshot_state->snapshot_version,
+        state->snapshot_version,
         visitor.total_data_files,
         visitor.total_rows ? DB::toString(*visitor.total_rows) : "Unknown",
         visitor.total_bytes);
 
     return SnapshotStats{
-        .version = kernel_snapshot_state->snapshot_version,
+        .version = state->snapshot_version,
         .total_bytes = visitor.total_bytes,
         .total_rows = visitor.total_rows
     };
@@ -671,6 +670,12 @@ void TableSnapshot::initOrUpdateSnapshot(bool recreate) const
         kernel_snapshot_state->snapshot_version);
 }
 
+std::shared_ptr<TableSnapshot::KernelSnapshotState> TableSnapshot::getKernelSnapshotState() const
+{
+    initOrUpdateSnapshot();
+    return kernel_snapshot_state;
+}
+
 TableSnapshot::KernelSnapshotState::KernelSnapshotState(const IKernelHelper & helper_, std::optional<size_t> snapshot_version_)
 {
     auto * engine_builder = helper_.createBuilder();
@@ -721,7 +726,7 @@ DB::ObjectIterator TableSnapshot::iterate(
     std::lock_guard lock(mutex);
     initOrUpdateSchemaIfChanged();
     return std::make_shared<TableSnapshot::Iterator>(
-        kernel_snapshot_state,
+        getKernelSnapshotState(),
         helper,
         schema->read_schema,
         schema->table_schema,
@@ -742,14 +747,14 @@ void TableSnapshot::initOrUpdateSchemaIfChanged() const
 {
     if (!schema.has_value() || schema->version != getVersionUnlocked())
     {
-        initOrUpdateSnapshot();
-        auto [table_schema, physical_names_map] = getTableSchemaFromSnapshot(kernel_snapshot_state->snapshot.get());
+        auto state = getKernelSnapshotState();
+        auto [table_schema, physical_names_map] = getTableSchemaFromSnapshot(state->snapshot.get());
 
         if (table_schema.empty())
             throw DB::Exception(DB::ErrorCodes::BAD_ARGUMENTS, "Table schema cannot be empty");
 
-        auto read_schema = getReadSchemaFromSnapshot(kernel_snapshot_state->scan.get());
-        auto partition_columns = getPartitionColumnsFromSnapshot(kernel_snapshot_state->snapshot.get());
+        auto read_schema = getReadSchemaFromSnapshot(state->scan.get());
+        auto partition_columns = getPartitionColumnsFromSnapshot(state->snapshot.get());
 
         LOG_TRACE(
             log, "Table logical schema: {}, read schema: {}, "
@@ -760,7 +765,7 @@ void TableSnapshot::initOrUpdateSchemaIfChanged() const
             physical_names_map.size());
 
         schema.emplace(SchemaInfo{
-            .version = kernel_snapshot_state->snapshot_version,
+            .version = state->snapshot_version,
             .table_schema = std::move(table_schema),
             .read_schema = std::move(read_schema),
             .physical_names_map = std::move(physical_names_map),

@@ -126,6 +126,8 @@ private:
 
     SnapshotStats getSnapshotStats() const TSA_REQUIRES(mutex);
     SnapshotStats getSnapshotStatsImpl() const TSA_REQUIRES(mutex);
+
+    std::shared_ptr<KernelSnapshotState> getKernelSnapshotState() const TSA_REQUIRES(mutex);
 };
 
 using TableSnapshotPtr = std::shared_ptr<TableSnapshot>;
