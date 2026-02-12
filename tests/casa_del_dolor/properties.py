@@ -1013,8 +1013,9 @@ class LogTablePropertiesGroup(PropertiesGroup):
         log_table_properties = {
             "buffer_size_rows_flush_threshold": threshold_generator(0.2, 0.2, 0, 10000),
             "flush_on_crash": true_false_lambda,
-            "max_size_rows": threshold_generator(0.2, 0.2, 1, 10000),
-            "reserved_size_rows": threshold_generator(0.2, 0.2, 1, 10000),
+            # Setting these may crash the server
+            #"max_size_rows": threshold_generator(0.2, 0.2, 1, 10000),
+            #"reserved_size_rows": threshold_generator(0.2, 0.2, 1, 10000),
         }
         # Can't use this without the engine parameter?
         # number_policies = 0
