@@ -1,29 +1,44 @@
--- Test for issue #96670: min(timestamp) returns 1970-01-01 via _minmax_count_projection after TTL merge
--- When TTL removes all rows from a partition during merge, the minmax index should not be corrupted with epoch values
+
 
 DROP TABLE IF EXISTS test_ttl_minmax_epoch;
+
 CREATE TABLE test_ttl_minmax_epoch
 (
-    id UInt64,
-    timestamp DateTime64(6, 'UTC')
+    timestamp DateTime,
+    id UUID,
+    payload String
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (timestamp, id)
-TTL timestamp + INTERVAL 1 DAY
-SETTINGS index_granularity = 8192;
+TTL timestamp + INTERVAL 1 MINUTE;
 
-INSERT INTO test_ttl_minmax_epoch VALUES
-    (1, now64(6, 'UTC') - INTERVAL 30 DAY),
-    (2, now64(6, 'UTC') - INTERVAL 30 DAY),
-    (3, now64(6, 'UTC') + INTERVAL 30 DAY),
-    (4, now64(6, 'UTC') + INTERVAL 30 DAY);
+-- Partition 1: rows from ~1-60 seconds ago, some will expire during merge
+INSERT INTO test_ttl_minmax_epoch
+SELECT
+    now('UTC') - toIntervalSecond(1 + rand() % 60) AS timestamp,
+    generateUUIDv4() AS id,
+    randomPrintableASCII(200) AS payload
+FROM numbers(500000);
+
+-- Partition 2: tomorrow (safe from TTL, control group)
+INSERT INTO test_ttl_minmax_epoch
+SELECT
+    now('UTC') + toIntervalDay(1) - toIntervalSecond(rand() % 60) AS timestamp,
+    generateUUIDv4() AS id,
+    randomPrintableASCII(200) AS payload
+FROM numbers(500000);
+
+SELECT count() FROM test_ttl_minmax_epoch WHERE timestamp < '1970-01-02';
 
 OPTIMIZE TABLE test_ttl_minmax_epoch FINAL;
 
-SELECT count() FROM test_ttl_minmax_epoch;
-SELECT count() FROM test_ttl_minmax_epoch WHERE timestamp < '1970-01-02';
-SELECT (SELECT min(timestamp) FROM test_ttl_minmax_epoch) = (SELECT min(timestamp) FROM test_ttl_minmax_epoch SETTINGS optimize_use_implicit_projections = 0);
-SELECT min(timestamp) > '2020-01-01' FROM test_ttl_minmax_epoch;
+SELECT (SELECT min(timestamp) FROM test_ttl_minmax_epoch) =
+       (SELECT min(timestamp) FROM test_ttl_minmax_epoch SETTINGS optimize_use_implicit_projections = 0) AS minmax_matches;
+
+SELECT countIf(min_time < '1971-01-01') AS parts_with_epoch_mintime
+FROM system.parts
+WHERE table = 'test_ttl_minmax_epoch' AND database = currentDatabase() AND active;
+
 
 DROP TABLE test_ttl_minmax_epoch;
