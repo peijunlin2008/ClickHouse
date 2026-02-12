@@ -2,21 +2,52 @@
 # ClickStackUIRequestHandler. C++ cannot natively embed directories with unknown
 # file names, so we must use CMake.
 #
-# This script scans the programs/server/clickstack/ directory and generates
-# C++ code with #embed directives for all files
+# This script scans the contrib/clickstack/out/ directory, gzips all files,
+# and generates C++ code with #embed directives for all files
 
 cmake_minimum_required(VERSION 3.28)
 
 # Determine paths automatically
 # CMAKE_CURRENT_BINARY_DIR is where cmake -P is executed from (build/src)
-# Set clickstack directory
-set(CLICKSTACK_DIR "${CMAKE_CURRENT_LIST_DIR}/../programs/server/clickstack")
-get_filename_component(CLICKSTACK_DIR "${CLICKSTACK_DIR}" ABSOLUTE)
+# Set clickstack source directory (uncompressed files)
+set(CLICKSTACK_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../contrib/clickstack/out")
+get_filename_component(CLICKSTACK_SOURCE_DIR "${CLICKSTACK_SOURCE_DIR}" ABSOLUTE)
 
 # Check if directory exists
-if(NOT EXISTS "${CLICKSTACK_DIR}")
-    message(FATAL_ERROR "ClickStack directory not found at ${CLICKSTACK_DIR}")
+if(NOT EXISTS "${CLICKSTACK_SOURCE_DIR}")
+    message(FATAL_ERROR "ClickStack source directory not found at ${CLICKSTACK_SOURCE_DIR}")
 endif()
+
+# Set clickstack directory for gzipped files in build directory
+set(CLICKSTACK_DIR "${CMAKE_CURRENT_BINARY_DIR}/clickstack_compressed")
+file(MAKE_DIRECTORY "${CLICKSTACK_DIR}")
+
+# Gzip all files from source directory to gzipped directory
+file(GLOB_RECURSE source_files RELATIVE "${CLICKSTACK_SOURCE_DIR}" "${CLICKSTACK_SOURCE_DIR}/*")
+
+foreach(file ${source_files})
+    if(NOT IS_DIRECTORY "${CLICKSTACK_SOURCE_DIR}/${file}")
+        # Create parent directory structure
+        get_filename_component(file_dir "${file}" DIRECTORY)
+        if(file_dir)
+            file(MAKE_DIRECTORY "${CLICKSTACK_DIR}/${file_dir}")
+        endif()
+
+        # Gzip the file
+        set(source_path "${CLICKSTACK_SOURCE_DIR}/${file}")
+        set(dest_path "${CLICKSTACK_DIR}/${file}.gz")
+
+        execute_process(
+            COMMAND gzip -c "${source_path}"
+            OUTPUT_FILE "${dest_path}"
+            RESULT_VARIABLE gzip_result
+        )
+
+        if(NOT gzip_result EQUAL 0)
+            message(FATAL_ERROR "Failed to gzip ${file}")
+        endif()
+    endif()
+endforeach()
 
 # Generated file goes in build/src/Server/
 set(GENERATED_FILE "${CMAKE_CURRENT_BINARY_DIR}/Server/ClickStackResources.generated.h")

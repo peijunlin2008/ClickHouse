@@ -317,7 +317,7 @@ endif()
 set(CLICKSTACK_RESOURCES_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/Server/ClickStackResources.generated.h")
 file(GLOB_RECURSE CLICKSTACK_FILES
     CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/programs/server/clickstack/*"
+    "${CMAKE_SOURCE_DIR}/contrib/clickstack/out/*"
 )
 add_custom_command(
     OUTPUT "${CLICKSTACK_RESOURCES_GENERATED}"
