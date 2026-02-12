@@ -32,6 +32,10 @@ public:
 
     static TableChangesVersionRange getVersionRange(int64_t start_version, int64_t end_version);
 
+    std::optional<size_t> getTotalRows() const;
+
+    std::optional<size_t> getTotalBytes() const;
+
 private:
     using KernelExternEngine = KernelPointerWrapper<ffi::SharedExternEngine, ffi::free_engine>;
     using KernelTableChanges = KernelPointerWrapper<ffi::ExclusiveTableChanges, ffi::free_table_changes>;

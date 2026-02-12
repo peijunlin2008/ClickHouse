@@ -31,9 +31,9 @@ public:
     static constexpr auto LATEST_SNAPSHOT_VERSION = -1;
 
     explicit TableSnapshot(
+        std::optional<size_t> version_,
         KernelHelperPtr helper_,
         DB::ObjectStoragePtr object_storage_,
-        DB::ContextPtr context_,
         LoggerPtr log_);
 
     /// Get snapshot version.
@@ -79,13 +79,14 @@ private:
     const KernelHelperPtr helper;
     const DB::ObjectStoragePtr object_storage;
     const LoggerPtr log;
+    /// std::nullopt means latest version must be used
+    const std::optional<size_t> snapshot_version_to_read;
 
     struct QuerySettings
     {
         bool enable_expression_visitor_logging;
         bool throw_on_engine_visitor_error;
         bool enable_engine_predicate;
-        std::optional<size_t> snapshot_version_to_read;
     };
     mutable QuerySettings query_settings;
 
@@ -124,17 +125,22 @@ private:
         /// Total number of rows in table
         std::optional<size_t> total_rows;
     };
-    mutable std::optional<SnapshotStats> snapshot_stats TSA_GUARDED_BY(snapshot_stats_mutex);
-    mutable std::mutex snapshot_stats_mutex;
+    mutable std::optional<SnapshotStats> snapshot_stats;
 
-    void initSnapshot(std::optional<size_t> version = std::nullopt, bool recreate = false) const;
-    void initSchema() const;
+    mutable std::mutex mutex;
 
-    SnapshotStats getSnapshotStats(size_t version) const;
-    SnapshotStats getSnapshotStatsImpl(size_t version) const;
+    size_t getVersionUnlocked() const TSA_REQUIRES(mutex);
 
-    void updateSettings(const DB::ContextPtr & context) const;
+    void initSnapshot(bool recreate = false) const TSA_REQUIRES(mutex);
+    void initSchema() const TSA_REQUIRES(mutex);
+
+    SnapshotStats getSnapshotStats() const TSA_REQUIRES(mutex);
+    SnapshotStats getSnapshotStatsImpl() const TSA_REQUIRES(mutex);
+
+    void updateSettings(const DB::ContextPtr & context) const TSA_REQUIRES(mutex);
 };
+
+using TableSnapshotPtr = std::shared_ptr<TableSnapshot>;
 
 }
 

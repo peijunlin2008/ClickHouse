@@ -504,29 +504,35 @@ private:
 };
 
 TableSnapshot::TableSnapshot(
+    std::optional<size_t> version_,
     KernelHelperPtr helper_,
     DB::ObjectStoragePtr object_storage_,
-    DB::ContextPtr context_,
     LoggerPtr log_)
     : helper(helper_)
     , object_storage(object_storage_)
     , log(log_)
+    , snapshot_version_to_read(version_)
 {
-    updateSettings(context_);
+    chassert(object_storage);
 }
 
 size_t TableSnapshot::getVersion() const
+{
+    std::lock_guard lock(mutex);
+    return getVersionUnlocked();
+}
+
+size_t TableSnapshot::getVersionUnlocked() const
 {
     initSnapshot();
     return kernel_snapshot_state->snapshot_version;
 }
 
-TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStats(size_t version) const
+TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStats() const
 {
-    std::lock_guard lock(snapshot_stats_mutex);
-    if (!snapshot_stats.has_value() || snapshot_stats->version != version)
+    if (!snapshot_stats.has_value() || snapshot_stats->version != getVersionUnlocked())
     {
-        snapshot_stats = getSnapshotStatsImpl(version);
+        snapshot_stats = getSnapshotStatsImpl();
         LOG_TEST(
             log, "Updated statistics for snapshot version {}",
             snapshot_stats->version);
@@ -534,9 +540,9 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStats(size_t version) con
     return snapshot_stats.value();
 }
 
-TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl(size_t version) const
+TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
 {
-    initSnapshot(version);
+    initSnapshot();
 
     KernelScan fallback_scan;
     fallback_scan = KernelUtils::unwrapResult(
@@ -619,14 +625,16 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl(size_t version)
 
 std::optional<size_t> TableSnapshot::getTotalRows(DB::ContextPtr context) const
 {
+    std::lock_guard lock(mutex);
     updateSettings(context);
-    return getSnapshotStats(query_settings.snapshot_version_to_read.value_or(getVersion())).total_rows;
+    return getSnapshotStats().total_rows;
 }
 
 std::optional<size_t> TableSnapshot::getTotalBytes(DB::ContextPtr context) const
 {
+    std::lock_guard lock(mutex);
     updateSettings(context);
-    return getSnapshotStats(query_settings.snapshot_version_to_read.value_or(getVersion())).total_bytes;
+    return getSnapshotStats().total_bytes;
 }
 
 void TableSnapshot::updateSettings(const DB::ContextPtr & context) const
@@ -636,21 +644,26 @@ void TableSnapshot::updateSettings(const DB::ContextPtr & context) const
     query_settings.throw_on_engine_visitor_error = settings[DB::Setting::delta_lake_throw_on_engine_predicate_error];
     query_settings.enable_engine_predicate = settings[DB::Setting::delta_lake_enable_engine_predicate];
 
-    if (settings[DB::Setting::delta_lake_snapshot_version].value == LATEST_SNAPSHOT_VERSION)
-    {
-        query_settings.snapshot_version_to_read = std::nullopt;
-    }
+    const auto query_snapshot_version = settings[DB::Setting::delta_lake_snapshot_version].value;
+    if (query_snapshot_version == LATEST_SNAPSHOT_VERSION)
+        chassert(!snapshot_version_to_read.has_value());
     else
-    {
-        if (settings[DB::Setting::delta_lake_snapshot_version].value < 0)
-            throw DB::Exception(DB::ErrorCodes::BAD_ARGUMENTS, "Snapshot version cannot be a negative value");
-
-        query_settings.snapshot_version_to_read = settings[DB::Setting::delta_lake_snapshot_version];
-    }
+        chassert(snapshot_version_to_read.has_value()
+                 && static_cast<int64_t>(snapshot_version_to_read.value()) == query_snapshot_version);
 }
 
 void TableSnapshot::updateSnapshotVersion(const DB::ContextPtr & context)
 {
+    if (snapshot_version_to_read.has_value())
+    {
+        /// If version is set, we cannot update it.
+        throw DB::Exception(
+            DB::ErrorCodes::LOGICAL_ERROR,
+            "Table snapshot has a set snapshot version {}",
+            snapshot_version_to_read.value());
+    }
+
+    std::lock_guard lock(mutex);
     updateSettings(context);
     if (!kernel_snapshot_state)
     {
@@ -658,17 +671,17 @@ void TableSnapshot::updateSnapshotVersion(const DB::ContextPtr & context)
         /// so next attempt to create it would return the latest snapshot.
         return;
     }
-    initSnapshot(query_settings.snapshot_version_to_read, /* recreate */true);
+    initSnapshot(/* recreate */true);
 }
 
-void TableSnapshot::initSnapshot(std::optional<size_t> version, bool recreate) const
+void TableSnapshot::initSnapshot(bool recreate) const
 {
     if (!recreate && kernel_snapshot_state)
         return;
 
     LOG_TEST(log, "Initializing snapshot");
 
-    kernel_snapshot_state = std::make_shared<KernelSnapshotState>(*helper, version);
+    kernel_snapshot_state = std::make_shared<KernelSnapshotState>(*helper, snapshot_version_to_read);
 
     LOG_TRACE(
         log, "Initialized snapshot. Snapshot version: {}",
@@ -707,29 +720,30 @@ DB::ObjectIterator TableSnapshot::iterate(
     DB::IDataLakeMetadata::FileProgressCallback callback,
     size_t list_batch_size)
 {
-    initSnapshot();
     auto update_stats_func = [self = shared_from_this(), this](SnapshotStats && stats)
     {
-        std::unique_lock lock(snapshot_stats_mutex, std::defer_lock);
+        std::unique_lock lock(mutex, std::defer_lock);
         /// Suppress warning because tsa annotations do not work properly
         /// with std::unique_lock, which is taken here
         if (lock.try_lock()
-            && (!TSA_SUPPRESS_WARNING_FOR_READ(snapshot_stats).has_value()
-                || TSA_SUPPRESS_WARNING_FOR_READ(snapshot_stats)->version < stats.version))
+            && (!snapshot_stats.has_value()
+                || snapshot_stats->version < stats.version))
         {
-            TSA_SUPPRESS_WARNING_FOR_WRITE(snapshot_stats).emplace(std::move(stats));
+            snapshot_stats.emplace(std::move(stats));
             LOG_TEST(
                 log, "Updated statistics from data files iterator for snapshot version {}",
-                TSA_SUPPRESS_WARNING_FOR_READ(snapshot_stats->version));
+                snapshot_stats->version);
         }
     };
+    std::lock_guard lock(mutex);
+    initSchema();
     return std::make_shared<TableSnapshot::Iterator>(
         kernel_snapshot_state,
         helper,
-        getReadSchema(),
-        getTableSchema(),
-        getPhysicalNamesMap(),
-        getPartitionColumns(),
+        schema->read_schema,
+        schema->table_schema,
+        schema->physical_names_map,
+        schema->partition_columns,
         object_storage,
         filter_dag,
         callback,
@@ -743,7 +757,7 @@ DB::ObjectIterator TableSnapshot::iterate(
 
 void TableSnapshot::initSchema() const
 {
-    if (!schema.has_value() || schema->version != getVersion())
+    if (!schema.has_value() || schema->version != getVersionUnlocked())
     {
         initSnapshot();
         auto [table_schema, physical_names_map] = getTableSchemaFromSnapshot(kernel_snapshot_state->snapshot.get());
@@ -774,24 +788,28 @@ void TableSnapshot::initSchema() const
 
 const DB::NamesAndTypesList & TableSnapshot::getTableSchema() const
 {
+    std::lock_guard lock(mutex);
     initSchema();
     return schema->table_schema;
 }
 
 const DB::NamesAndTypesList & TableSnapshot::getReadSchema() const
 {
+    std::lock_guard lock(mutex);
     initSchema();
     return schema->read_schema;
 }
 
 const DB::Names & TableSnapshot::getPartitionColumns() const
 {
+    std::lock_guard lock(mutex);
     initSchema();
     return schema->partition_columns;
 }
 
 const DB::NameToNameMap & TableSnapshot::getPhysicalNamesMap() const
 {
+    std::lock_guard lock(mutex);
     initSchema();
     return schema->physical_names_map;
 }

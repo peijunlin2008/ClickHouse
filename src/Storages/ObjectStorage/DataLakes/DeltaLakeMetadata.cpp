@@ -642,7 +642,7 @@ DataLakeMetadataPtr DeltaLakeMetadata::create(
 #if USE_DELTA_KERNEL_RS
     if (isDeltaKernelEnabled(local_context, configuration.lock()->getType()))
     {
-        return std::make_unique<DeltaLakeMetadataDeltaKernel>(object_storage, configuration, local_context);
+        return DeltaLakeMetadataDeltaKernel::create(object_storage, configuration);
     }
 #endif
     return std::make_unique<DeltaLakeMetadata>(object_storage, configuration, local_context);
