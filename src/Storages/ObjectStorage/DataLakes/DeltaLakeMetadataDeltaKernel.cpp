@@ -160,7 +160,7 @@ std::optional<size_t> DeltaLakeMetadataDeltaKernel::totalRows(ContextPtr context
     auto snapshot_version = getSnapshotVersion(settings);
     try
     {
-        return getTableSnapshot(snapshot_version)->getTotalRows(context);
+        return getTableSnapshot(snapshot_version)->getTotalRows();
     }
     catch (...)
     {
@@ -183,7 +183,7 @@ std::optional<size_t> DeltaLakeMetadataDeltaKernel::totalBytes(ContextPtr contex
     auto snapshot_version = getSnapshotVersion(settings);
     try
     {
-        return getTableSnapshot(snapshot_version)->getTotalBytes(context);
+        return getTableSnapshot(snapshot_version)->getTotalBytes();
     }
     catch (...)
     {
@@ -197,7 +197,7 @@ void DeltaLakeMetadataDeltaKernel::update(const ContextPtr & context)
 {
     const auto snapshot_version = getSnapshotVersion(context->getSettingsRef());
     if (snapshot_version == DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION)
-        getTableSnapshot()->updateSnapshotVersion(context);
+        getTableSnapshot()->updateSnapshotVersion();
 }
 
 DeltaLake::TableChangesPtr DeltaLakeMetadataDeltaKernel::getTableChanges(
@@ -218,7 +218,7 @@ ObjectIterator DeltaLakeMetadataDeltaKernel::iterate(
 {
     logMetadataFiles(context);
     const auto snapshot_version = getSnapshotVersion(context->getSettingsRef());
-    return getTableSnapshot(snapshot_version)->iterate(filter_dag, callback, list_batch_size);
+    return getTableSnapshot(snapshot_version)->iterate(filter_dag, callback, list_batch_size, context);
 }
 
 NamesAndTypesList DeltaLakeMetadataDeltaKernel::getTableSchema(ContextPtr local_context) const

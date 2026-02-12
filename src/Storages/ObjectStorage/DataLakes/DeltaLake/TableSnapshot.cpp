@@ -623,36 +623,19 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
     };
 }
 
-std::optional<size_t> TableSnapshot::getTotalRows(DB::ContextPtr context) const
+std::optional<size_t> TableSnapshot::getTotalRows() const
 {
     std::lock_guard lock(mutex);
-    updateSettings(context);
     return getSnapshotStats().total_rows;
 }
 
-std::optional<size_t> TableSnapshot::getTotalBytes(DB::ContextPtr context) const
+std::optional<size_t> TableSnapshot::getTotalBytes() const
 {
     std::lock_guard lock(mutex);
-    updateSettings(context);
     return getSnapshotStats().total_bytes;
 }
 
-void TableSnapshot::updateSettings(const DB::ContextPtr & context) const
-{
-    const auto & settings = context->getSettingsRef();
-    query_settings.enable_expression_visitor_logging = settings[DB::Setting::delta_lake_enable_expression_visitor_logging];
-    query_settings.throw_on_engine_visitor_error = settings[DB::Setting::delta_lake_throw_on_engine_predicate_error];
-    query_settings.enable_engine_predicate = settings[DB::Setting::delta_lake_enable_engine_predicate];
-
-    const auto query_snapshot_version = settings[DB::Setting::delta_lake_snapshot_version].value;
-    if (query_snapshot_version == LATEST_SNAPSHOT_VERSION)
-        chassert(!snapshot_version_to_read.has_value());
-    else
-        chassert(snapshot_version_to_read.has_value()
-                 && static_cast<int64_t>(snapshot_version_to_read.value()) == query_snapshot_version);
-}
-
-void TableSnapshot::updateSnapshotVersion(const DB::ContextPtr & context)
+void TableSnapshot::updateSnapshotVersion()
 {
     if (snapshot_version_to_read.has_value())
     {
@@ -664,7 +647,6 @@ void TableSnapshot::updateSnapshotVersion(const DB::ContextPtr & context)
     }
 
     std::lock_guard lock(mutex);
-    updateSettings(context);
     if (!kernel_snapshot_state)
     {
         /// Snapshot is not yet created,
@@ -718,7 +700,8 @@ TableSnapshot::KernelSnapshotState::KernelSnapshotState(const IKernelHelper & he
 DB::ObjectIterator TableSnapshot::iterate(
     const DB::ActionsDAG * filter_dag,
     DB::IDataLakeMetadata::FileProgressCallback callback,
-    size_t list_batch_size)
+    size_t list_batch_size,
+    DB::ContextPtr context)
 {
     auto update_stats_func = [self = shared_from_this(), this](SnapshotStats && stats)
     {
@@ -735,6 +718,7 @@ DB::ObjectIterator TableSnapshot::iterate(
                 snapshot_stats->version);
         }
     };
+    const auto & settings = context->getSettingsRef();
     std::lock_guard lock(mutex);
     initSchema();
     return std::make_shared<TableSnapshot::Iterator>(
@@ -748,9 +732,9 @@ DB::ObjectIterator TableSnapshot::iterate(
         filter_dag,
         callback,
         list_batch_size,
-        query_settings.enable_expression_visitor_logging,
-        query_settings.throw_on_engine_visitor_error,
-        query_settings.enable_engine_predicate,
+        settings[DB::Setting::delta_lake_enable_expression_visitor_logging],
+        settings[DB::Setting::delta_lake_throw_on_engine_predicate_error],
+        settings[DB::Setting::delta_lake_enable_engine_predicate],
         std::move(update_stats_func),
         log);
 }
