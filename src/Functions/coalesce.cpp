@@ -63,11 +63,11 @@ public:
         /// monotonic in general. We treat it as monotonic only when the analyzed range is guaranteed to not contain
         /// NULLs. NULLs always represented as POSITIVE_INFINITY and they will always be at the end of ordering.
         /// So, we do not need to check left.isNull().
-        bool is_nullable_or_lc_nullable = type.isNullable() || type.isLowCardinalityNullable();
-        if (is_nullable_or_lc_nullable && right.isNull())
+        bool can_contain_null = canContainNull(type);
+        if (can_contain_null && right.isNull())
             return {};
 
-        return { .is_monotonic = true, .is_positive = true, .is_always_monotonic = !is_nullable_or_lc_nullable };
+        return { .is_monotonic = true, .is_positive = true, .is_always_monotonic = !can_contain_null };
     }
 
     DataTypePtr getReturnTypeImpl(const DataTypes & arguments) const override
@@ -102,7 +102,7 @@ public:
         if (new_args.size() == 1)
             return new_args.front();
 
-        auto res = getLeastSupertype(new_args);
+        auto res = getLeastSupertypeOrVariant(new_args);
 
         /// if last argument is not nullable, result should be also not nullable
         if (!canContainNull(*new_args.back()) && res->isNullable())
