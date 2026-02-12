@@ -24,6 +24,7 @@
 #include <Storages/System/StorageSystemDetachedTables.h>
 #include <Storages/System/StorageSystemDictionaries.h>
 #include <Storages/System/StorageSystemEvents.h>
+#include <Storages/System/StorageSystemFailPoints.h>
 #include <Storages/System/StorageSystemFormats.h>
 #include <Storages/System/StorageSystemFunctions.h>
 #include <Storages/System/StorageSystemUserDefinedFunctions.h>
@@ -273,6 +274,9 @@ void attachSystemTablesServer(ContextPtr context, IDatabase & system_database, b
     }
     attach<StorageSystemCodecs>(context, system_database, "codecs", "Contains information about system codecs.");
     attach<StorageSystemCompletions>(context, system_database, "completions", "Contains a list of completion tokens.");
+#ifndef NDEBUG
+    attach<StorageSystemFailPoints>(context, system_database, "fail_points", "Contains a list of all available failpoints with their type and enabled status. Only available in debug builds.");
+#endif
 }
 
 void attachSystemTablesAsync(ContextPtr context, IDatabase & system_database, AsynchronousMetrics & async_metrics)

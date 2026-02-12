@@ -46,6 +46,20 @@ struct FailPointChannel;
 class FailPointInjection
 {
 public:
+    enum class FailPointType : uint8_t
+    {
+        Once = 0,
+        Regular = 1,
+        PauseableOnce = 2,
+        Pauseable = 3,
+    };
+
+    struct FailPointInfo
+    {
+        String name;
+        FailPointType type;
+        bool enabled;
+    };
 
     static void pauseFailPoint(const String & fail_point_name);
 
@@ -127,6 +141,9 @@ public:
       * - Will timeout if notify was already called before wait starts
       */
     static void waitForResume(const String & fail_point_name);
+
+    /// Returns a list of all registered failpoints with their current status.
+    static std::vector<FailPointInfo> getFailPoints();
 
 private:
     static std::mutex mu;
