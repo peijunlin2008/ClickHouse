@@ -34,8 +34,10 @@ SELECT ifNull(CAST(NULL AS Nullable(Int32)), 123);
 SELECT coalesce(NULL, NULL, 42);
 SELECT coalesce(NULL, 'hello', 42);
 
--- ifNull producing Variant from Nullable and incompatible alternative
-SELECT toTypeName(ifNull(CAST(1 AS Nullable(Int8)), 'hello'));
+-- With use_variant_as_common_type: ifNull and coalesce produce Variant from incompatible non-Variant types
+SELECT toTypeName(ifNull(CAST(1 AS Nullable(Int8)), 'hello')) SETTINGS use_variant_as_common_type = 1;
+SELECT toTypeName(coalesce(CAST(NULL AS Nullable(Int8)), 'hello')) SETTINGS use_variant_as_common_type = 1;
 
--- coalesce producing Variant from incompatible types
-SELECT toTypeName(coalesce(CAST(NULL AS Nullable(Int8)), 'hello'));
+-- Without use_variant_as_common_type and no Variant input: incompatible types should throw
+SELECT ifNull(CAST(1 AS Nullable(Int8)), 'hello') SETTINGS use_variant_as_common_type = 0; -- { serverError NO_COMMON_TYPE }
+SELECT coalesce(CAST(NULL AS Nullable(Int8)), 'hello') SETTINGS use_variant_as_common_type = 0; -- { serverError NO_COMMON_TYPE }

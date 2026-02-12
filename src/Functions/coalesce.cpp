@@ -1,6 +1,8 @@
 #include <Columns/ColumnLowCardinality.h>
 #include <Columns/ColumnNullable.h>
 #include <Core/ColumnNumbers.h>
+#include <Core/Settings.h>
+#include <Interpreters/Context.h>
 #include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesNumber.h>
@@ -12,6 +14,11 @@
 
 namespace DB
 {
+
+namespace Setting
+{
+    extern const SettingsBool use_variant_as_common_type;
+}
 
 namespace
 {
@@ -26,14 +33,15 @@ public:
 
     static FunctionPtr create(ContextPtr context)
     {
-        return std::make_shared<FunctionCoalesce>(context);
+        return std::make_shared<FunctionCoalesce>(context, context->getSettingsRef()[Setting::use_variant_as_common_type]);
     }
 
-    explicit FunctionCoalesce(ContextPtr context)
+    explicit FunctionCoalesce(ContextPtr context, bool use_variant_as_common_type_)
         : is_not_null(FunctionFactory::instance().get("isNotNull", context))
         , assume_not_null(FunctionFactory::instance().get("assumeNotNull", context))
         , if_function(FunctionFactory::instance().get("if", context))
         , multi_if_function(FunctionFactory::instance().get("multiIf", context))
+        , use_variant_as_common_type(use_variant_as_common_type_)
     {
     }
 
@@ -102,7 +110,8 @@ public:
         if (new_args.size() == 1)
             return new_args.front();
 
-        auto res = getLeastSupertypeOrVariant(new_args);
+        bool has_variant = std::any_of(new_args.begin(), new_args.end(), [](const auto & t) { return isVariant(t); });
+        auto res = (use_variant_as_common_type || has_variant) ? getLeastSupertypeOrVariant(new_args) : getLeastSupertype(new_args);
 
         /// if last argument is not nullable, result should be also not nullable
         if (!canContainNull(*new_args.back()) && res->isNullable())
@@ -188,6 +197,7 @@ private:
     FunctionOverloadResolverPtr assume_not_null;
     FunctionOverloadResolverPtr if_function;
     FunctionOverloadResolverPtr multi_if_function;
+    bool use_variant_as_common_type = false;
 };
 
 }
