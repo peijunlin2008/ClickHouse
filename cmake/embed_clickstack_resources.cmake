@@ -2,6 +2,10 @@
 # ClickStackUIRequestHandler. C++ cannot natively embed directories with unknown
 # file names, so we must use CMake.
 #
+# To change the version of clickstack, simply
+#   1. `cd contrib/clickstack`
+#   2. `git checkout <version> # ex: 2.17.0`
+#
 # This script scans the contrib/clickstack/out/ directory, gzips all files,
 # and generates C++ code with #embed directives for all files
 
