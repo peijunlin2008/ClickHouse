@@ -13,7 +13,7 @@ import SystemTableCloud from '@site/docs/_snippets/_system_table_cloud.md';
 <SystemTableCloud/>
 
 Shows all available tokenizers.
-These can be used in functions [hasToken](../../sql-reference/functions/string-search-functions.md#hasTokens), [hasAllTokens](../../sql-reference/functions/string-search-functions.md#hasAllTokens), [hasAnyTokens](../../sql-reference/functions/string-search-functions.md#hasAnyTokens), and the [text index](../../engines/table-engines/mergetree-family/textindexes.md).
+These can be used in functions [tokens](../../sql-reference/functions/splitting-merging-functions.md#tokens), [hasAllTokens](../../sql-reference/functions/string-search-functions.md#hasAllTokens), [hasAnyTokens](../../sql-reference/functions/string-search-functions.md#hasAnyTokens), and the [text index](../../engines/table-engines/mergetree-family/textindexes.md).
 
 Columns:
 

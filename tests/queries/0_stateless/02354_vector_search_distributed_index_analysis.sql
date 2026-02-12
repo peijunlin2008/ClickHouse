@@ -76,3 +76,5 @@ where initial_query_id = (select query_id
         and is_initial_query
         and has(Settings, 'distributed_index_analysis')
         and endsWith(log_comment, '-' || currentDatabase()));
+
+drop table tab;
