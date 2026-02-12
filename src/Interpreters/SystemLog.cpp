@@ -837,6 +837,11 @@ ASTPtr SystemLog<LogElement>::getCreateTableQuery()
         if (ordinary_columns.has("event_time_microseconds"))
             add_index("event_time_microseconds_index event_time_microseconds TYPE minmax GRANULARITY 1");
 
+        if (ordinary_columns.has("query_id"))
+            add_index("query_id_index query_id TYPE bloom_filter(0.001) GRANULARITY 1");
+        if (ordinary_columns.has("initial_query_id"))
+            add_index("initial_query_id_index initial_query_id TYPE bloom_filter(0.001) GRANULARITY 1");
+
         if (!indices->children.empty())
             new_columns_list->set(new_columns_list->indices, indices);
     }
