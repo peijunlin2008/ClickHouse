@@ -805,7 +805,7 @@ ASTPtr SystemLog<LogElement>::getCreateTableQuery()
 
     new_columns_list->set(new_columns_list->columns, InterpreterCreateQuery::formatColumns(ordinary_columns));
 
-    /// Add secondary indexes (minmax on time columns) and projection indexes (on query ID columns).
+    /// Add secondary indexes (minmax on time columns).
     {
         auto indices = make_intrusive<ASTExpressionList>();
 
@@ -824,24 +824,6 @@ ASTPtr SystemLog<LogElement>::getCreateTableQuery()
 
         if (!indices->children.empty())
             new_columns_list->set(new_columns_list->indices, indices);
-
-        auto projections = make_intrusive<ASTExpressionList>();
-
-        auto add_projection = [&](const char * definition)
-        {
-            ParserProjectionDeclaration parser;
-            ASTPtr ast = parseQuery(parser, definition, definition + strlen(definition),
-                "projection declaration for " + LogElement::name(), 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS);
-            projections->children.push_back(ast);
-        };
-
-        if (ordinary_columns.has("query_id"))
-            add_projection("query_id_projection INDEX query_id TYPE basic");
-        if (ordinary_columns.has("initial_query_id"))
-            add_projection("initial_query_id_projection INDEX initial_query_id TYPE basic");
-
-        if (!projections->children.empty())
-            new_columns_list->set(new_columns_list->projections, projections);
     }
 
     create->set(create->columns_list, new_columns_list);
