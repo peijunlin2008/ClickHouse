@@ -2024,7 +2024,7 @@ void ExternalIntegrations::createPeerTable(
     RandomGenerator & rg, const PeerTableDatabase pt, SQLTable & t, const CreateTable * ct, std::vector<ColumnPathChain> & entries)
 {
     requires_external_call_check++;
-    next_calls_succeeded.emplace_back(getPeerPtr(pt)->performCreatePeerTable(rg, true, t, ct, entries));
+    next_calls_succeeded.emplace_back(getPeerPtr(pt)->performCreatePeerTable(rg, pt == PeerTableDatabase::ClickHouse, t, ct, entries));
 }
 
 bool ExternalIntegrations::truncatePeerTableOnRemote(const SQLTable & t)
