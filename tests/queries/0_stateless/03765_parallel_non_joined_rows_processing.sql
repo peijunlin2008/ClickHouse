@@ -38,8 +38,19 @@ SET join_algorithm = 'parallel_hash';
 SET log_processors_profiles = 1;
 SET max_threads = 8;
 
-SET log_comment = '03800_parallel_nonjoin';
 SET parallel_non_joined_rows_processing = 1;
+
+SELECT '--- Pipeline contains NonJoinedBlocksTransform ---';
+SELECT count() > 0
+FROM (
+    EXPLAIN PIPELINE
+    SELECT count()
+    FROM (SELECT toString(number) AS key FROM numbers(200000)) AS t1
+    FULL JOIN (SELECT toString(number + 100000) AS key FROM numbers(200000)) AS t2
+    ON t1.key = t2.key
+) WHERE explain LIKE '%NonJoinedBlocksTransform%';
+
+SET log_comment = '03800_parallel_nonjoin';
 SELECT count()
 FROM (SELECT toString(number) AS key FROM numbers(200000)) AS t1
 FULL JOIN (SELECT toString(number + 100000) AS key FROM numbers(200000)) AS t2
@@ -55,6 +66,15 @@ ON t1.key = t2.key
 FORMAT Null;
 
 SYSTEM FLUSH LOGS query_log, processors_profile_log;
+
+SELECT '--- Query log lookup works ---';
+SELECT
+    (SELECT count() FROM system.query_log
+     WHERE current_database = currentDatabase()
+        AND log_comment = '03800_parallel_nonjoin' AND type = 'QueryFinish' AND event_date >= yesterday()) > 0 AS parallel_found,
+    (SELECT count() FROM system.query_log
+     WHERE current_database = currentDatabase()
+        AND log_comment = '03800_sequential_nonjoin' AND type = 'QueryFinish' AND event_date >= yesterday()) > 0 AS sequential_found;
 
 SELECT '--- Parallelism: multiple NonJoinedBlocksTransforms emit non-joined rows ---';
 
