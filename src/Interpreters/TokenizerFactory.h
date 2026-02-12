@@ -35,6 +35,11 @@ public:
         const FieldVector & args,
         const std::set<ITokenizer::Type> & allowed = {}) const;
 
+    /// Returns the name and type of all registered tokenizers. Used for pretty printing.
+    /// There is no concept of aliases (like in the SQL function factory), therefore one tokenizer
+    /// type can be registered under multiple names.
+    std::unordered_map<String, ITokenizer::Type> getAllTokenizers() const;
+
     void registerTokenizer(const String & name, ITokenizer::Type type, Creator creator);
 
 private:

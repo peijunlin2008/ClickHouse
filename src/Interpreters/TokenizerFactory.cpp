@@ -48,6 +48,14 @@ void assertParamsCount(size_t params_count, size_t max_count, std::string_view t
 
 }
 
+std::unordered_map<String, ITokenizer::Type> TokenizerFactory::getAllTokenizers() const
+{
+    std::unordered_map<String, ITokenizer::Type> result;
+    for (const auto & tokenizer : tokenizers)
+        result[tokenizer.first] = tokenizer.second.type;
+    return result;
+}
+
 static void registerTokenizers(TokenizerFactory & factory);
 
 static constexpr UInt64 MIN_NGRAM_SIZE = 1;
