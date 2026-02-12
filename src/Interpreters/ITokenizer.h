@@ -244,9 +244,9 @@ struct ArrayTokenizer final : public ITokenExtractorHelper<ArrayTokenizer>
 
 /// Parser extracting sparse grams (the same as function sparseGrams).
 /// See sparseGrams.h for more details.
-struct SparseGramsTokenExtractor final : public ITokenExtractorHelper<SparseGramsTokenExtractor>
+struct SparseGramsTokenizer final : public ITokenExtractorHelper<SparseGramsTokenizer>
 {
-    explicit SparseGramsTokenExtractor(size_t min_length = 3, size_t max_length = 100, std::optional<size_t> min_cutoff_length_ = std::nullopt);
+    explicit SparseGramsTokenizer(size_t min_length = 3, size_t max_length = 100, std::optional<size_t> min_cutoff_length_ = std::nullopt);
 
     static const char * getBloomFilterIndexName() { return "sparse_grams"; }
     static const char * getName() { return "sparseGrams"; }
@@ -332,8 +332,8 @@ void forEachTokenCase(const ITokenExtractor & extractor, const char * __restrict
         }
         case ITokenExtractor::Type::SparseGrams:
         {
-            const auto & sparse_grams_extractor = assert_cast<const SparseGramsTokenExtractor &>(extractor);
-            forEachTokenImpl<is_padded>(sparse_grams_extractor, data, length, callback);
+            const auto & sparse_grams_tokenizer = assert_cast<const SparseGramsTokenizer &>(extractor);
+            forEachTokenImpl<is_padded>(sparse_grams_tokenizer, data, length, callback);
             return;
         }
     }

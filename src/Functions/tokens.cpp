@@ -96,8 +96,8 @@ public:
             /// The sparse gram token extractor stores an internal state which modified during the execution.
             /// This leads to an error while executing this function multi-threaded because that state is not protected.
             /// To avoid this case, a clone of the sparse gram token extractor will be used.
-            auto sparse_gram_extractor = tokenizer->clone();
-            executeWithTokenizer(*sparse_gram_extractor, std::move(col_input), *col_offsets, input_rows_count, *col_result);
+            auto sparse_grams_tokenizer = tokenizer->clone();
+            executeWithTokenizer(*sparse_grams_tokenizer, std::move(col_input), *col_offsets, input_rows_count, *col_result);
         }
         else
         {
@@ -219,7 +219,7 @@ public:
             {
                 const auto tokenizer = arguments[arg_tokenizer].column->getDataAt(0);
 
-                if (tokenizer == SparseGramsTokenExtractor::getExternalName())
+                if (tokenizer == SparseGramsTokenizer::getExternalName())
                 {
                     optional_args.emplace_back("min_length", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isUInt8), isColumnConst, "const UInt8");
                     optional_args.emplace_back("max_length", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isUInt8), isColumnConst, "const UInt8");

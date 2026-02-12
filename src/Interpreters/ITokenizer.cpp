@@ -359,7 +359,7 @@ bool ArrayTokenizer::nextInStringLike(const char * /*data*/, size_t /*length*/, 
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "ArrayTokenizer::nextInStringLike is not implemented");
 }
 
-SparseGramsTokenExtractor::SparseGramsTokenExtractor(size_t min_length, size_t max_length, std::optional<size_t> min_cutoff_length_)
+SparseGramsTokenizer::SparseGramsTokenizer(size_t min_length, size_t max_length, std::optional<size_t> min_cutoff_length_)
     : ITokenExtractorHelper(Type::SparseGrams)
     , min_gram_length(min_length)
     , max_gram_length(max_length)
@@ -368,7 +368,7 @@ SparseGramsTokenExtractor::SparseGramsTokenExtractor(size_t min_length, size_t m
 {
 }
 
-bool SparseGramsTokenExtractor::nextInString(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const
+bool SparseGramsTokenizer::nextInString(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const
 {
     if (std::tie(data, length) != std::tie(previous_data, previous_len))
     {
@@ -392,7 +392,7 @@ bool SparseGramsTokenExtractor::nextInString(const char * data, size_t length, s
     return true;
 }
 
-bool SparseGramsTokenExtractor::nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const
+bool SparseGramsTokenizer::nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const
 {
     if (std::tie(data, length) != std::tie(previous_data, previous_len))
     {
@@ -442,7 +442,7 @@ bool SparseGramsTokenExtractor::nextInStringLike(const char * data, size_t lengt
     }
 }
 
-std::vector<String> SparseGramsTokenExtractor::compactTokens(const std::vector<String> & tokens) const
+std::vector<String> SparseGramsTokenizer::compactTokens(const std::vector<String> & tokens) const
 {
     std::unordered_set<String> result;
     auto sorted_tokens = tokens;
@@ -474,7 +474,7 @@ std::vector<String> SparseGramsTokenExtractor::compactTokens(const std::vector<S
     return std::vector<String>(result.begin(), result.end());
 }
 
-String SparseGramsTokenExtractor::getDescription() const
+String SparseGramsTokenizer::getDescription() const
 {
     String result = fmt::format("{}({}, {}", getName(), min_gram_length, max_gram_length);
     if (min_cutoff_length.has_value())

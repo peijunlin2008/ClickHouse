@@ -206,7 +206,7 @@ static void registerTokenizers(TokenizerFactory & factory)
 
     auto sparse_grams_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {
-        const auto * tokenizer_name = SparseGramsTokenExtractor::getExternalName();
+        const auto * tokenizer_name = SparseGramsTokenizer::getExternalName();
         assertParamsCount(args.size(), 3, tokenizer_name);
 
         UInt64 min_length = DEFAULT_SPARSE_GRAMS_MIN_LENGTH;
@@ -252,11 +252,11 @@ static void registerTokenizers(TokenizerFactory & factory)
                 "Unexpected parameter of tokenizer '{}': minimal cutoff length {} cannot be larger than maximal length {}",
                 tokenizer_name, min_cutoff_length.value(), max_length);
 
-        return std::make_unique<SparseGramsTokenExtractor>(min_length, max_length, min_cutoff_length);
+        return std::make_unique<SparseGramsTokenizer>(min_length, max_length, min_cutoff_length);
     };
 
-    factory.registerTokenizer(SparseGramsTokenExtractor::getName(), ITokenExtractor::Type::SparseGrams, sparse_grams_creator);
-    factory.registerTokenizer(SparseGramsTokenExtractor::getBloomFilterIndexName(), ITokenExtractor::Type::SparseGrams, sparse_grams_creator);
+    factory.registerTokenizer(SparseGramsTokenizer::getName(), ITokenExtractor::Type::SparseGrams, sparse_grams_creator);
+    factory.registerTokenizer(SparseGramsTokenizer::getBloomFilterIndexName(), ITokenExtractor::Type::SparseGrams, sparse_grams_creator);
 }
 
 }

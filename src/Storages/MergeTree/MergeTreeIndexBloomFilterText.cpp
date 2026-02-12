@@ -791,7 +791,7 @@ MergeTreeIndexPtr bloomFilterIndexTextCreator(const IndexDescription & index)
         num_tokenizer_params = 1;
     else if (index.type == SplitByNonAlphaTokenExtractor::getName())
         num_tokenizer_params = 0;
-    else if (index.type == SparseGramsTokenExtractor::getBloomFilterIndexName())
+    else if (index.type == SparseGramsTokenizer::getBloomFilterIndexName())
     {
         if (args.size() == 5)
             num_tokenizer_params = 2;
@@ -855,7 +855,7 @@ void bloomFilterIndexTextValidator(const IndexDescription & index, bool /*attach
 
         first_bf_param_idx = 0;
     }
-    else if (index.type == SparseGramsTokenExtractor::getBloomFilterIndexName())
+    else if (index.type == SparseGramsTokenizer::getBloomFilterIndexName())
     {
         if (args.size() != 5 && args.size() != 6)
             throw Exception(ErrorCodes::BAD_ARGUMENTS, "`sparseGrams` index must have exactly 5 or 6 arguments");
