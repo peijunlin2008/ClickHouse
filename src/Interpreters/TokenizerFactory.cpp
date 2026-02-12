@@ -154,7 +154,7 @@ static void registerTokenizers(TokenizerFactory & factory)
         if (ngram_size < MIN_NGRAM_SIZE)
             throw Exception(
                 ErrorCodes::BAD_ARGUMENTS,
-                "Incorrect param of tokenizer '{}': ngram length must be at least {}, but got {}",
+                "Incorrect parameter of tokenizer '{}': ngram length must be at least {}, but got {}",
                 NgramsTokenizer::getExternalName(),
                 MIN_NGRAM_SIZE,
                 ngram_size);
@@ -188,7 +188,7 @@ static void registerTokenizers(TokenizerFactory & factory)
         if (values.empty())
             throw Exception(
                 ErrorCodes::BAD_ARGUMENTS,
-                "Incorrect params of tokenizer '{}': separators cannot be empty",
+                "Incorrect parameter of tokenizer '{}': separators cannot be empty",
                 SplitByStringTokenizer::getExternalName());
 
         return std::make_unique<SplitByStringTokenizer>(values);
