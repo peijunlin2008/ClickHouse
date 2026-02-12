@@ -9,9 +9,10 @@
 #include <Common/logger_useful.h>
 #include <Common/typeid_cast.h>
 #include <Core/ColumnWithTypeAndName.h>
+#include <DataTypes/DataTypeArray.h>
+#include <DataTypes/DataTypeLowCardinality.h>
 #include <DataTypes/Serializations/SerializationNumber.h>
 #include <DataTypes/Serializations/SerializationString.h>
-#include <DataTypes/DataTypeLowCardinality.h>
 #include <Interpreters/ITokenizer.h>
 #include <Interpreters/TokenizerFactory.h>
 #include <Parsers/ASTFunction.h>

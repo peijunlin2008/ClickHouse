@@ -1,6 +1,7 @@
 #include <Columns/ColumnArray.h>
 #include <Columns/ColumnFixedString.h>
 #include <Columns/ColumnString.h>
+#include <Common/Exception.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeString.h>
 #include <Functions/FunctionFactory.h>
@@ -9,7 +10,7 @@
 #include <Interpreters/Context_fwd.h>
 #include <Interpreters/ITokenizer.h>
 #include <Interpreters/TokenizerFactory.h>
-#include <Common/Exception.h>
+#include <ranges>
 
 namespace DB
 {

@@ -1,11 +1,10 @@
 #include <Interpreters/TokenizerFactory.h>
-#include <Interpreters/ITokenizer.h>
 
+#include <Common/Exception.h>
+#include <Interpreters/ITokenizer.h>
 #include <Parsers/ASTFunction.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTLiteral.h>
-
-#include <Common/Exception.h>
 #include <Parsers/ExpressionListParsers.h>
 #include <Parsers/parseQuery.h>
 #include <Storages/IndicesDescription.h>

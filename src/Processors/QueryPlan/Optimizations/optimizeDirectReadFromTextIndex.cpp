@@ -1,3 +1,8 @@
+#include <Common/FieldVisitorToString.h>
+#include <Common/logger_useful.h>
+#include <Common/quoteString.h>
+#include <DataTypes/DataTypeArray.h>
+#include <Functions/FunctionFactory.h>
 #include <Functions/FunctionsMiscellaneous.h>
 #include <Functions/IFunction.h>
 #include <Interpreters/ActionsDAG.h>
@@ -12,10 +17,6 @@
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Processors/QueryPlan/ReadFromMergeTree.h>
 #include <Storages/MergeTree/MergeTreeIndexConditionText.h>
-#include <Common/quoteString.h>
-#include <Common/FieldVisitorToString.h>
-#include <Common/logger_useful.h>
-#include <Functions/FunctionFactory.h>
 #include <Storages/MergeTree/MergeTreeIndexTextPreprocessor.h>
 #include <Storages/MergeTree/RangesInDataPart.h>
 #include <base/defines.h>

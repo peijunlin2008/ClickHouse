@@ -1,11 +1,10 @@
 #pragma once
 
+#include <Common/assert_cast.h>
+#include <Functions/sparseGramsImpl.h>
+#include <Interpreters/BloomFilter.h>
 #include <base/FnTraits.h>
 #include <base/types.h>
-#include <Interpreters/BloomFilter.h>
-#include <Common/assert_cast.h>
-
-#include <Functions/sparseGrams.h>
 #include <fmt/format.h>
 
 namespace DB
@@ -243,7 +242,7 @@ struct ArrayTokenizer final : public ITokenizerHelper<ArrayTokenizer>
 };
 
 /// Parser extracting sparse grams (the same as function sparseGrams).
-/// See sparseGrams.h for more details.
+/// See sparseGramsImpl.h for more details.
 struct SparseGramsTokenizer final : public ITokenizerHelper<SparseGramsTokenizer>
 {
     explicit SparseGramsTokenizer(size_t min_length = 3, size_t max_length = 100, std::optional<size_t> min_cutoff_length_ = std::nullopt);
