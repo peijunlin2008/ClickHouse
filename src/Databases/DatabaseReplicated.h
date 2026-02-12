@@ -80,6 +80,8 @@ public:
     void dropTable(ContextPtr, const String & table_name, bool sync) override;
     void renameTable(ContextPtr context, const String & table_name, IDatabase & to_database,
                      const String & to_table_name, bool exchange, bool dictionary) override;
+    StoragePtr detachTable(ContextPtr context, const String & table_name) override;
+    void attachTable(ContextPtr context, const String & table_name, const StoragePtr & table, const String & relative_table_path) override;
     void detachTablePermanently(ContextPtr context, const String & table_name) override;
     void removeDetachedPermanentlyFlag(ContextPtr context, const String & table_name, const String & table_metadata_path, bool attach) override;
 
@@ -240,6 +242,11 @@ private:
     /// We calculate this sum from local metadata files and compare it will value in ZooKeeper.
     /// It allows to detect if metadata is broken and recover replica.
     UInt64 tables_metadata_digest TSA_GUARDED_BY(metadata_mutex);
+
+    /// Flag to indicate that tables_metadata_digest has been initialized.
+    /// During startup, tables are attached before the digest is computed,
+    /// so we should not update the digest in attachTable/detachTable until it is initialized.
+    std::atomic<bool> digest_initialized{false};
 
     mutable ClusterPtr cluster;
     mutable ClusterPtr cluster_all_groups;

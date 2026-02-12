@@ -927,6 +927,8 @@ LoadTaskPtr DatabaseReplicated::startupDatabaseAsync(AsyncLoader & async_loader,
                 tables_metadata_digest = digest;
             }
 
+            digest_initialized = true;
+
             if (is_probably_dropped)
             {
                 LOG_TRACE(log, "Cannot startup database {} because it is probably dropped.", getDatabaseName());
@@ -1020,6 +1022,7 @@ void DatabaseReplicated::restoreTablesMetadataInKeeper()
     {
         std::lock_guard lock{metadata_mutex};
         tables_metadata_digest = tables_digest;
+        digest_initialized = true;
         if (!checkDigestValid(local_context))
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Digest does not match");
     }
@@ -2282,6 +2285,35 @@ bool DatabaseReplicated::canExecuteReplicatedMetadataAlter() const
     /// We should not update metadata until the database is initialized.
     std::lock_guard lock{ddl_worker_mutex};
     return ddl_worker_initialized && ddl_worker->isCurrentlyActive();
+}
+
+StoragePtr DatabaseReplicated::detachTable(ContextPtr local_context, const String & table_name)
+{
+    /// SYSTEM RESTART REPLICA calls detachTable and then attachTable without updating the digest.
+    /// We need to keep tables_metadata_digest consistent with the tables map to prevent
+    /// "Digest does not match" errors in concurrent DDL operations.
+    std::lock_guard lock{metadata_mutex};
+    UInt64 new_digest = tables_metadata_digest;
+    if (digest_initialized)
+        new_digest -= getMetadataHash(table_name);
+
+    auto table = DatabaseAtomic::detachTable(local_context, table_name);
+
+    if (digest_initialized)
+        tables_metadata_digest = new_digest;
+
+    return table;
+}
+
+void DatabaseReplicated::attachTable(ContextPtr local_context, const String & table_name, const StoragePtr & table, const String & relative_table_path)
+{
+    /// Counterpart of the detachTable override: re-add the table's hash to the digest
+    /// when the table is re-attached (e.g., after SYSTEM RESTART REPLICA).
+    std::lock_guard lock{metadata_mutex};
+    DatabaseAtomic::attachTable(local_context, table_name, table, relative_table_path);
+
+    if (digest_initialized)
+        tables_metadata_digest += getMetadataHash(table_name);
 }
 
 void DatabaseReplicated::detachTablePermanently(ContextPtr local_context, const String & table_name)
