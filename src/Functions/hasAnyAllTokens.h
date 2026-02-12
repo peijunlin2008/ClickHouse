@@ -2,7 +2,7 @@
 
 #include <Functions/IFunction.h>
 #include <Interpreters/Context_fwd.h>
-#include <Interpreters/ITokenExtractor.h>
+#include <Interpreters/ITokenizer.h>
 #include <absl/container/flat_hash_map.h>
 
 namespace DB

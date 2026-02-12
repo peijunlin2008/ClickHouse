@@ -1,4 +1,4 @@
-#include <Interpreters/ITokenExtractor.h>
+#include <Interpreters/ITokenizer.h>
 #include <Storages/MergeTree/MergeTreeIndexBloomFilterText.h>
 
 #include <Common/PODArray.h>

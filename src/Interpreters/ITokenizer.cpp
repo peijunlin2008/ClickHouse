@@ -1,4 +1,4 @@
-#include <Interpreters/ITokenExtractor.h>
+#include <Interpreters/ITokenizer.h>
 
 #include <Common/quoteString.h>
 #include <Common/StringUtils.h>

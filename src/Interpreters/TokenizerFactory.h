@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Interpreters/ITokenExtractor.h>
+#include <Interpreters/ITokenizer.h>
 #include <Core/Field.h>
 #include <Parsers/IAST_fwd.h>
 
