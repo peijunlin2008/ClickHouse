@@ -210,7 +210,7 @@ public:
             {
                 const std::string tokenizer{arguments[arg_tokenizer].column->getDataAt(0)};
 
-                if (tokenizer == NgramsTokenExtractor::getExternalName())
+                if (tokenizer == NgramsTokenizer::getExternalName())
                     optional_args.emplace_back("ngrams", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isUInt8), isColumnConst, "const UInt8");
                 else if (tokenizer == SplitByStringTokenizer::getExternalName())
                     optional_args.emplace_back("separators", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isArray), isColumnConst, "const Array");

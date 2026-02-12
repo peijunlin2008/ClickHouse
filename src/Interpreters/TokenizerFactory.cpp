@@ -148,22 +148,22 @@ static void registerTokenizers(TokenizerFactory & factory)
 {
     auto ngrams_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {
-        assertParamsCount(args.size(), 1, NgramsTokenExtractor::getExternalName());
+        assertParamsCount(args.size(), 1, NgramsTokenizer::getExternalName());
         auto ngram_size = args.empty() ? DEFAULT_NGRAM_SIZE : castAs<UInt64>(args[0], "ngram_size");
 
         if (ngram_size < MIN_NGRAM_SIZE)
             throw Exception(
                 ErrorCodes::BAD_ARGUMENTS,
                 "Incorrect param of tokenizer '{}': ngram length must be at least {}, but got {}",
-                NgramsTokenExtractor::getExternalName(),
+                NgramsTokenizer::getExternalName(),
                 MIN_NGRAM_SIZE,
                 ngram_size);
 
-        return std::make_unique<NgramsTokenExtractor>(ngram_size);
+        return std::make_unique<NgramsTokenizer>(ngram_size);
     };
 
-    factory.registerTokenizer(NgramsTokenExtractor::getName(), ITokenExtractor::Type::Ngrams, ngrams_creator);
-    factory.registerTokenizer(NgramsTokenExtractor::getExternalName(), ITokenExtractor::Type::Ngrams, ngrams_creator);
+    factory.registerTokenizer(NgramsTokenizer::getName(), ITokenExtractor::Type::Ngrams, ngrams_creator);
+    factory.registerTokenizer(NgramsTokenizer::getExternalName(), ITokenExtractor::Type::Ngrams, ngrams_creator);
 
     auto split_by_non_alpha_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {

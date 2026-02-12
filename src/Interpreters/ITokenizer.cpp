@@ -19,7 +19,7 @@ namespace ErrorCodes
     extern const int NOT_IMPLEMENTED;
 }
 
-bool NgramsTokenExtractor::nextInString(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const
+bool NgramsTokenizer::nextInString(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const
 {
     token_start = pos;
     token_length = 0;
@@ -35,7 +35,7 @@ bool NgramsTokenExtractor::nextInString(const char * data, size_t length, size_t
     return code_points == n;
 }
 
-bool NgramsTokenExtractor::nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const
+bool NgramsTokenizer::nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const
 {
     token.clear();
 

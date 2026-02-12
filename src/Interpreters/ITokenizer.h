@@ -173,9 +173,9 @@ private:
 };
 
 /// Parser extracting all ngrams from string.
-struct NgramsTokenExtractor final : public ITokenExtractorHelper<NgramsTokenExtractor>
+struct NgramsTokenizer final : public ITokenExtractorHelper<NgramsTokenizer>
 {
-    explicit NgramsTokenExtractor(size_t n_) : ITokenExtractorHelper(Type::Ngrams), n(n_) {}
+    explicit NgramsTokenizer(size_t n_) : ITokenExtractorHelper(Type::Ngrams), n(n_) {}
 
     static const char * getName() { return "ngrambf_v1"; }
     static const char * getExternalName() { return "ngrams"; }
@@ -311,7 +311,7 @@ void forEachTokenCase(const ITokenExtractor & extractor, const char * __restrict
         }
         case ITokenExtractor::Type::Ngrams:
         {
-            const auto & ngrams_tokenizer = assert_cast<const NgramsTokenExtractor &>(extractor);
+            const auto & ngrams_tokenizer = assert_cast<const NgramsTokenizer &>(extractor);
 
             if (length < ngrams_tokenizer.getN())
                 return;
