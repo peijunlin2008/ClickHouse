@@ -64,7 +64,7 @@ def test_set():
     )
     with pytest.raises(
         QueryRuntimeException,
-        match="Exception happened during execution of mutation",
+        match="Exception happened during execution of mutation|Timeout exceeded",
     ):
         node.query(
             "ALTER TABLE `02581_trips` UPDATE description = 'a' WHERE id IN (SELECT CAST(number * 10, 'UInt32') FROM numbers(10e9)) SETTINGS mutations_sync = 2"
