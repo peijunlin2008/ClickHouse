@@ -988,6 +988,11 @@ MetadataFileWithInfo getLatestOrExplicitMetadataFileAndVersion(
 {
     if (data_lake_settings[DataLakeStorageSetting::iceberg_metadata_file_path].changed)
     {
+        LOG_DEBUG(
+            log,
+            "Getting the explicit metadata file for Iceberg table with path {}, explicit path: {}",
+            table_path,
+            data_lake_settings[DataLakeStorageSetting::iceberg_metadata_file_path].value);
         auto explicit_metadata_path = data_lake_settings[DataLakeStorageSetting::iceberg_metadata_file_path].value;
         try
         {
