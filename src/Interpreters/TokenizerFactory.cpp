@@ -176,9 +176,9 @@ static void registerTokenizers(TokenizerFactory & factory)
 
     auto split_by_string_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {
-        assertParamsCount(args.size(), 1, SplitByStringTokenExtractor::getExternalName());
+        assertParamsCount(args.size(), 1, SplitByStringTokenizer::getExternalName());
         if (args.empty())
-            return std::make_unique<SplitByStringTokenExtractor>(std::vector<String>{" "});
+            return std::make_unique<SplitByStringTokenizer>(std::vector<String>{" "});
 
         auto array = castAs<Array>(args[0], "separators");
         std::vector<String> values;
@@ -189,12 +189,12 @@ static void registerTokenizers(TokenizerFactory & factory)
             throw Exception(
                 ErrorCodes::BAD_ARGUMENTS,
                 "Incorrect params of tokenizer '{}': separators cannot be empty",
-                SplitByStringTokenExtractor::getExternalName());
+                SplitByStringTokenizer::getExternalName());
 
-        return std::make_unique<SplitByStringTokenExtractor>(values);
+        return std::make_unique<SplitByStringTokenizer>(values);
     };
 
-    factory.registerTokenizer(SplitByStringTokenExtractor::getName(), ITokenExtractor::Type::SplitByString, split_by_string_creator);
+    factory.registerTokenizer(SplitByStringTokenizer::getName(), ITokenExtractor::Type::SplitByString, split_by_string_creator);
 
     auto array_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {

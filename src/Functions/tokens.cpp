@@ -212,7 +212,7 @@ public:
 
                 if (tokenizer == NgramsTokenExtractor::getExternalName())
                     optional_args.emplace_back("ngrams", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isUInt8), isColumnConst, "const UInt8");
-                else if (tokenizer == SplitByStringTokenExtractor::getExternalName())
+                else if (tokenizer == SplitByStringTokenizer::getExternalName())
                     optional_args.emplace_back("separators", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isArray), isColumnConst, "const Array");
             }
             else if (arguments.size() == 4 || arguments.size() == 5)

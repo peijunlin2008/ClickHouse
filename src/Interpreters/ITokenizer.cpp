@@ -296,7 +296,7 @@ bool startsWithSeparator(const char * data, size_t length, size_t pos, const std
 
 }
 
-bool SplitByStringTokenExtractor::nextInString(const char * data, size_t length, size_t & pos, size_t & token_start, size_t & token_length) const
+bool SplitByStringTokenizer::nextInString(const char * data, size_t length, size_t & pos, size_t & token_start, size_t & token_length) const
 {
     size_t i = pos;
     std::string matched_separators;
@@ -323,12 +323,12 @@ bool SplitByStringTokenExtractor::nextInString(const char * data, size_t length,
     return true;
 }
 
-bool SplitByStringTokenExtractor::nextInStringLike(const char * /*data*/, size_t /*length*/, size_t & /*pos*/, String & /*token*/) const
+bool SplitByStringTokenizer::nextInStringLike(const char * /*data*/, size_t /*length*/, size_t & /*pos*/, String & /*token*/) const
 {
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "StringTokenExtractor::nextInStringLike is not implemented");
 }
 
-String SplitByStringTokenExtractor::getDescription() const
+String SplitByStringTokenizer::getDescription() const
 {
     String result = fmt::format("{}([", getName());
     for (size_t i = 0; i < separators.size(); ++i)
