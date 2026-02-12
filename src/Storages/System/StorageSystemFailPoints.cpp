@@ -31,7 +31,7 @@ ColumnsDescription StorageSystemFailPoints::getColumnsDescription()
 }
 
 void StorageSystemFailPoints::fillData(
-    MutableColumns & res_columns, ContextPtr /* context */, const ActionsDAG::Node * /* predicate */, std::vector<UInt8> /* column_mask */) const
+    MutableColumns & res_columns, ContextPtr /* context */, const ActionsDAG::Node * /* predicate */, std::vector<UInt8> /* columns_mask */) const
 {
 #ifndef NDEBUG
     /// Get all available failpoints from the FailPointInjection registry.
