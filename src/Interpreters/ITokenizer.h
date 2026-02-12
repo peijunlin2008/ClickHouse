@@ -103,7 +103,7 @@ private:
     Type type;
 };
 
-using TokenExtractorPtr = const ITokenExtractor *;
+using TokenizerPtr = const ITokenExtractor *;
 
 template <typename Derived>
 class ITokenExtractorHelper : public ITokenExtractor

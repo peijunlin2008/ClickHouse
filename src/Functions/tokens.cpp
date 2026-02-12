@@ -74,8 +74,8 @@ class ExecutableFunctionTokens : public IExecutableFunction
 public:
     static constexpr auto name = "tokens";
 
-    explicit ExecutableFunctionTokens(std::shared_ptr<const ITokenExtractor> token_extractor_)
-        : token_extractor(std::move(token_extractor_))
+    explicit ExecutableFunctionTokens(std::shared_ptr<const ITokenExtractor> tokenizer_)
+        : tokenizer(std::move(tokenizer_))
     {
     }
 
@@ -91,17 +91,17 @@ public:
         if (input_rows_count == 0)
             return ColumnArray::create(std::move(col_result), std::move(col_offsets));
 
-        if (token_extractor->getType() == ITokenExtractor::Type::SparseGrams)
+        if (tokenizer->getType() == ITokenExtractor::Type::SparseGrams)
         {
             /// The sparse gram token extractor stores an internal state which modified during the execution.
             /// This leads to an error while executing this function multi-threaded because that state is not protected.
             /// To avoid this case, a clone of the sparse gram token extractor will be used.
-            auto sparse_gram_extractor = token_extractor->clone();
+            auto sparse_gram_extractor = tokenizer->clone();
             executeWithTokenizer(*sparse_gram_extractor, std::move(col_input), *col_offsets, input_rows_count, *col_result);
         }
         else
         {
-            executeWithTokenizer(*token_extractor, std::move(col_input), *col_offsets, input_rows_count, *col_result);
+            executeWithTokenizer(*tokenizer, std::move(col_input), *col_offsets, input_rows_count, *col_result);
         }
 
         return ColumnArray::create(std::move(col_result), std::move(col_offsets));
@@ -148,7 +148,7 @@ private:
         }
     }
 
-    std::shared_ptr<const ITokenExtractor> token_extractor;
+    std::shared_ptr<const ITokenExtractor> tokenizer;
 };
 
 class FunctionBaseTokens : public IFunctionBase
@@ -156,8 +156,8 @@ class FunctionBaseTokens : public IFunctionBase
 public:
     static constexpr auto name = "tokens";
 
-    FunctionBaseTokens(std::shared_ptr<const ITokenExtractor> token_extractor_, DataTypes argument_types_, DataTypePtr result_type_)
-        : token_extractor(std::move(token_extractor_))
+    FunctionBaseTokens(std::shared_ptr<const ITokenExtractor> tokenizer_, DataTypes argument_types_, DataTypePtr result_type_)
+        : tokenizer(std::move(tokenizer_))
         , argument_types(std::move(argument_types_))
         , result_type(std::move(result_type_))
     {
@@ -170,11 +170,11 @@ public:
 
     ExecutableFunctionPtr prepare(const ColumnsWithTypeAndName &) const override
     {
-        return std::make_unique<ExecutableFunctionTokens>(token_extractor);
+        return std::make_unique<ExecutableFunctionTokens>(tokenizer);
     }
 
 private:
-    std::shared_ptr<const ITokenExtractor> token_extractor;
+    std::shared_ptr<const ITokenExtractor> tokenizer;
     DataTypes argument_types;
     DataTypePtr result_type;
 };
@@ -235,9 +235,9 @@ public:
 
     FunctionBasePtr buildImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & return_type) const override
     {
-        auto token_extractor = createTokenizer(arguments, getName());
+        auto tokenizer = createTokenizer(arguments, getName());
         DataTypes argument_types{std::from_range_t{}, arguments | std::views::transform([](auto & elem) { return elem.type; })};
-        return std::make_shared<FunctionBaseTokens>(std::move(token_extractor), std::move(argument_types), return_type);
+        return std::make_shared<FunctionBaseTokens>(std::move(tokenizer), std::move(argument_types), return_type);
     }
 };
 

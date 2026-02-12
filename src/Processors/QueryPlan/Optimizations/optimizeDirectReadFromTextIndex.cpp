@@ -454,7 +454,7 @@ private:
         const auto & condition = selected_conditions.front();
         const auto & condition_text = typeid_cast<MergeTreeIndexConditionText &>(*condition.info->index->condition);
         auto preprocessor = condition_text.getPreprocessor();
-        const auto * tokenizer = condition_text.getTokenExtractor();
+        const auto * tokenizer = condition_text.getTokenizer();
         auto function_name = replacement.node->function_base->getName();
 
         if (needApplyPreprocessor(function_name) && preprocessor && preprocessor->hasActions())
