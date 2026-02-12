@@ -84,7 +84,7 @@ public:
     }
 };
 
-REGISTER_FUNCTION(SparseGrams)
+REGISTER_FUNCTION(SparseGramsHashes)
 {
     FunctionDocumentation::Arguments arguments_sparse = {
         {"s", "An input string.", {"String"}},
