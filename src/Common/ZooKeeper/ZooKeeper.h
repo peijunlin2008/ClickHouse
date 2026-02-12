@@ -647,9 +647,9 @@ private:
     {
         /// Avoiding using random number generation and std::bernoulli_distribution because it's too slow.
         /// Instead, we're effectively doing:
-        /// request_number++ % 1024 < probability * 1024
+        /// hash(session_id, request_number++) % 1024 < probability * 1024
         /// which is much more optimal.
-        return static_cast<int32_t>(getConnectionXid() & 1023) < static_cast<int32_t>(opentelemetry_start_keeper_trace_probability * 1024.0f);
+        return static_cast<int32_t>((impl->getSessionID() ^ getConnectionXid()) & 1023) < static_cast<int32_t>(opentelemetry_start_keeper_trace_probability * 1024.0f);
     }
 
     using RequestFactory = std::function<Coordination::RequestPtr(const std::string &)>;
