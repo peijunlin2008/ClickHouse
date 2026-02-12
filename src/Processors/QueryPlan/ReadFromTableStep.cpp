@@ -72,7 +72,7 @@ void ReadFromTableStep::serialize(Serialization & ctx) const
         writeIntBinary(use_parallel_replicas, ctx.out);
 }
 
-std::unique_ptr<IQueryPlanStep> ReadFromTableStep::deserialize(Deserialization & ctx)
+QueryPlanStepPtr ReadFromTableStep::deserialize(Deserialization & ctx)
 {
     String table_name;
     readStringBinary(table_name, ctx.in);
