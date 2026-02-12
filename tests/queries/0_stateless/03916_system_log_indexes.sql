@@ -1,7 +1,8 @@
 -- Tags: no-fasttest
 -- Verify that system log tables have secondary indexes and projection indexes.
 
-SYSTEM FLUSH LOGS;
+SYSTEM FLUSH LOGS query_log;
+SYSTEM FLUSH LOGS metric_log;
 
 SELECT database, table, name, type, granularity
 FROM system.data_skipping_indices
