@@ -51,6 +51,8 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"use_page_cache_for_object_storage", false, false, "New setting to use userspace page cache for object storage table functions"},
             {"use_statistics_cache", false, true, "Enable statistics cache"},
             {"ignore_format_null_for_explain", false, true, "FORMAT Null is now ignored for EXPLAIN queries by default"},
+            {"allow_experimental_insert_into_iceberg", false, true, "Insert into iceberg was moved to Beta"},
+            {"allow_insert_into_iceberg", false, true, "Insert into iceberg was moved to Beta. Added an alias for setting 'allow_experimental_insert_into_iceberg'."},
         });
         addSettingsChanges(settings_changes_history, "26.1",
         {
@@ -321,7 +323,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"enable_scopes_for_with_statement", true, true, "New setting for backward compatibility with the old analyzer."},
             {"output_format_parquet_enum_as_byte_array", false, false, "Write enum using parquet physical type: BYTE_ARRAY and logical type: ENUM"},
             {"distributed_plan_force_shuffle_aggregation", 0, 0, "New experimental setting"},
-            {"allow_experimental_insert_into_iceberg", false, false, "New setting."},
+            {"allow_insert_into_iceberg", false, false, "New setting."},
             /// RELEASE CLOSED
         });
         addSettingsChanges(settings_changes_history, "25.6",
