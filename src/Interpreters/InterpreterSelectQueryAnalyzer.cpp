@@ -158,6 +158,8 @@ QueryPlanPtr buildQueryPlanForAutomaticParallelReplicas(
     optimization_settings.query_plan_optimize_primary_key = false;
     // Depends on PK optimizations that we don't perform here
     optimization_settings.optimize_projection = false;
+    optimization_settings.force_use_projection = false;
+    optimization_settings.force_projection_name.clear();
     plan.optimize(optimization_settings);
     return std::make_unique<QueryPlan>(std::move(plan));
 }
