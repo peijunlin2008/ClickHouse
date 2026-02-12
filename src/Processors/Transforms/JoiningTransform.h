@@ -26,9 +26,6 @@ public:
 
     bool isLast() { return finished.fetch_add(1) + 1 >= total; }
 
-    /// if all streams have finished (non-blocking, no side effects)
-    bool isFinished() const { return finished.load(std::memory_order_acquire) >= total; }
-
 private:
     const size_t total;
     std::atomic_size_t finished{0};
