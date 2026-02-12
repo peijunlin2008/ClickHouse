@@ -5,11 +5,6 @@
 namespace DB
 {
 
-namespace ErrorCodes
-{
-extern const int ILLEGAL_TYPE_OF_ARGUMENT;
-}
-
 /** Functions that finds all substrings win minimal length n
   * such their border (n-1)-grams' hashes are more than hashes of every (n-1)-grams' in substring.
   * As a hash function use zlib crc32, which is crc32-ieee with 0xffffffff as initial value
