@@ -1186,7 +1186,7 @@ void MergeTreeIndexAggregatorText::update(const Block & block, size_t * pos, siz
 MergeTreeIndexText::MergeTreeIndexText(
     const IndexDescription & index_,
     MergeTreeIndexTextParams params_,
-    std::unique_ptr<ITokenExtractor> tokenizer_,
+    std::unique_ptr<ITokenizer> tokenizer_,
     std::unique_ptr<IPostingListCodec> posting_list_codec_)
     : IMergeTreeIndex(index_)
     , params(std::move(params_))

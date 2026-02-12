@@ -15,8 +15,8 @@ using TextIndexHeaderCachePtr = std::shared_ptr<TextIndexHeaderCache>;
 class TextIndexPostingsCache;
 using TextIndexPostingsCachePtr = std::shared_ptr<TextIndexPostingsCache>;
 
-struct ITokenExtractor;
-using TokenizerPtr = const ITokenExtractor *;
+struct ITokenizer;
+using TokenizerPtr = const ITokenizer *;
 
 enum class TextSearchMode : uint8_t
 {

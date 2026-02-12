@@ -776,11 +776,11 @@ MergeTreeIndexConditionPtr MergeTreeIndexBloomFilterText::createIndexCondition(
 
 MergeTreeIndexPtr bloomFilterIndexTextCreator(const IndexDescription & index)
 {
-    static std::set<ITokenExtractor::Type> allowed_tokenizers =
+    static std::set<ITokenizer::Type> allowed_tokenizers =
     {
-        ITokenExtractor::Type::Ngrams,
-        ITokenExtractor::Type::SplitByNonAlpha,
-        ITokenExtractor::Type::SparseGrams
+        ITokenizer::Type::Ngrams,
+        ITokenizer::Type::SplitByNonAlpha,
+        ITokenizer::Type::SparseGrams
     };
 
     FieldVector args = getFieldsFromIndexArgumentsAST(index.arguments);

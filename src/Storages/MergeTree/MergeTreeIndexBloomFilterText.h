@@ -157,7 +157,7 @@ public:
     MergeTreeIndexBloomFilterText(
         const IndexDescription & index_,
         const BloomFilterParameters & params_,
-        std::unique_ptr<ITokenExtractor> && tokenizer_)
+        std::unique_ptr<ITokenizer> && tokenizer_)
         : IMergeTreeIndex(index_)
         , params(params_)
         , tokenizer(std::move(tokenizer_)) {}
@@ -172,7 +172,7 @@ public:
 
     BloomFilterParameters params;
     /// Function for selecting next token.
-    std::unique_ptr<ITokenExtractor> tokenizer;
+    std::unique_ptr<ITokenizer> tokenizer;
 };
 
 }

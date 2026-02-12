@@ -25,7 +25,7 @@ namespace
 constexpr size_t arg_value = 0;
 constexpr size_t arg_tokenizer = 1;
 
-std::unique_ptr<ITokenExtractor> createTokenizer(const ColumnsWithTypeAndName & arguments, std::string_view function_name)
+std::unique_ptr<ITokenizer> createTokenizer(const ColumnsWithTypeAndName & arguments, std::string_view function_name)
 {
     const auto tokenizer_str = arguments.size() < 2 || !arguments[arg_tokenizer].column
         ? SplitByNonAlphaTokenizer::getExternalName()
@@ -74,7 +74,7 @@ class ExecutableFunctionTokens : public IExecutableFunction
 public:
     static constexpr auto name = "tokens";
 
-    explicit ExecutableFunctionTokens(std::shared_ptr<const ITokenExtractor> tokenizer_)
+    explicit ExecutableFunctionTokens(std::shared_ptr<const ITokenizer> tokenizer_)
         : tokenizer(std::move(tokenizer_))
     {
     }
@@ -91,11 +91,11 @@ public:
         if (input_rows_count == 0)
             return ColumnArray::create(std::move(col_result), std::move(col_offsets));
 
-        if (tokenizer->getType() == ITokenExtractor::Type::SparseGrams)
+        if (tokenizer->getType() == ITokenizer::Type::SparseGrams)
         {
-            /// The sparse gram token extractor stores an internal state which modified during the execution.
+            /// The sparse gram tokenizer stores an internal state which modified during the execution.
             /// This leads to an error while executing this function multi-threaded because that state is not protected.
-            /// To avoid this case, a clone of the sparse gram token extractor will be used.
+            /// To avoid this case, a clone of the sparse gram tokenizer will be used.
             auto sparse_grams_tokenizer = tokenizer->clone();
             executeWithTokenizer(*sparse_grams_tokenizer, std::move(col_input), *col_offsets, input_rows_count, *col_result);
         }
@@ -109,21 +109,21 @@ public:
 
 private:
     void executeWithTokenizer(
-        const ITokenExtractor & extractor,
+        const ITokenizer & tokenizer_,
         ColumnPtr col_input,
         ColumnArray::ColumnOffsets & col_offsets,
         size_t input_rows_count,
         ColumnString & col_result) const
     {
         if (const auto * column_string = checkAndGetColumn<ColumnString>(col_input.get()))
-            executeImpl(extractor, *column_string, col_offsets, input_rows_count, col_result);
+            executeImpl(tokenizer_, *column_string, col_offsets, input_rows_count, col_result);
         else if (const auto * column_fixed_string = checkAndGetColumn<ColumnFixedString>(col_input.get()))
-            executeImpl(extractor, *column_fixed_string, col_offsets, input_rows_count, col_result);
+            executeImpl(tokenizer_, *column_fixed_string, col_offsets, input_rows_count, col_result);
     }
 
     template <typename StringColumnType>
     void executeImpl(
-        const ITokenExtractor & extractor,
+        const ITokenizer & tokenizer_,
         const StringColumnType & column_input,
         ColumnArray::ColumnOffsets & column_offsets_input,
         size_t input_rows_count,
@@ -137,7 +137,7 @@ private:
         {
             std::string_view input = column_input.getDataAt(i);
 
-            forEachTokenPadded(extractor, input.data(), input.size(), [&](const char * token_start, size_t token_len)
+            forEachTokenPadded(tokenizer_, input.data(), input.size(), [&](const char * token_start, size_t token_len)
             {
                 column_result.insertData(token_start, token_len);
                 ++tokens_count;
@@ -148,7 +148,7 @@ private:
         }
     }
 
-    std::shared_ptr<const ITokenExtractor> tokenizer;
+    std::shared_ptr<const ITokenizer> tokenizer;
 };
 
 class FunctionBaseTokens : public IFunctionBase
@@ -156,7 +156,7 @@ class FunctionBaseTokens : public IFunctionBase
 public:
     static constexpr auto name = "tokens";
 
-    FunctionBaseTokens(std::shared_ptr<const ITokenExtractor> tokenizer_, DataTypes argument_types_, DataTypePtr result_type_)
+    FunctionBaseTokens(std::shared_ptr<const ITokenizer> tokenizer_, DataTypes argument_types_, DataTypePtr result_type_)
         : tokenizer(std::move(tokenizer_))
         , argument_types(std::move(argument_types_))
         , result_type(std::move(result_type_))
@@ -174,7 +174,7 @@ public:
     }
 
 private:
-    std::shared_ptr<const ITokenExtractor> tokenizer;
+    std::shared_ptr<const ITokenizer> tokenizer;
     DataTypes argument_types;
     DataTypePtr result_type;
 };

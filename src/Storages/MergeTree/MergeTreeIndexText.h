@@ -335,8 +335,8 @@ struct MergeTreeIndexGranuleTextWritable : public IMergeTreeIndexGranule
     LoggerPtr logger;
 };
 
-struct ITokenExtractor;
-using TokenizerPtr = const ITokenExtractor *;
+struct ITokenizer;
+using TokenizerPtr = const ITokenizer *;
 
 struct MergeTreeIndexTextGranuleBuilder
 {
@@ -403,7 +403,7 @@ public:
     MergeTreeIndexText(
         const IndexDescription & index_,
         MergeTreeIndexTextParams params_,
-        std::unique_ptr<ITokenExtractor> tokenizer_,
+        std::unique_ptr<ITokenizer> tokenizer_,
         std::unique_ptr<IPostingListCodec> posting_list_codec_);
 
     ~MergeTreeIndexText() override = default;
@@ -421,7 +421,7 @@ public:
     PostingListCodecPtr getPostingListCodec() const { return posting_list_codec.get(); }
 
     MergeTreeIndexTextParams params;
-    std::unique_ptr<ITokenExtractor> tokenizer;
+    std::unique_ptr<ITokenizer> tokenizer;
     std::unique_ptr<IPostingListCodec> posting_list_codec;
     MergeTreeIndexTextPreprocessorPtr preprocessor;
 };

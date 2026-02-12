@@ -36,7 +36,7 @@ public:
     static constexpr auto name = HasTokensTraits::name;
 
     explicit ExecutableFunctionHasAnyAllTokens(
-        std::shared_ptr<const ITokenExtractor> tokenizer_, const TokensWithPosition & search_tokens_)
+        std::shared_ptr<const ITokenizer> tokenizer_, const TokensWithPosition & search_tokens_)
         : tokenizer(std::move(tokenizer_))
         , search_tokens(std::move(search_tokens_))
     {
@@ -47,7 +47,7 @@ public:
     ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override;
 
 private:
-    std::shared_ptr<const ITokenExtractor> tokenizer;
+    std::shared_ptr<const ITokenizer> tokenizer;
     const TokensWithPosition & search_tokens;
 };
 
@@ -58,7 +58,7 @@ public:
     static constexpr auto name = HasTokensTraits::name;
 
     FunctionBaseHasAnyAllTokens(
-        std::shared_ptr<const ITokenExtractor> tokenizer_,
+        std::shared_ptr<const ITokenizer> tokenizer_,
         TokensWithPosition search_tokens_,
         DataTypes argument_types_,
         DataTypePtr result_type_)
@@ -77,7 +77,7 @@ public:
     ExecutableFunctionPtr prepare(const ColumnsWithTypeAndName &) const override;
 
 private:
-    std::shared_ptr<const ITokenExtractor> tokenizer;
+    std::shared_ptr<const ITokenizer> tokenizer;
     TokensWithPosition search_tokens;
     DataTypes argument_types;
     DataTypePtr result_type;

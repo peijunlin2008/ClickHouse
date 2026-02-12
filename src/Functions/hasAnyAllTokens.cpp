@@ -32,7 +32,7 @@ constexpr size_t arg_input = 0;
 constexpr size_t arg_needles = 1;
 constexpr size_t arg_tokenizer = 2;
 
-TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & arguments, const ITokenExtractor & tokenizer, std::string_view function_name)
+TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & arguments, const ITokenizer & tokenizer, std::string_view function_name)
 {
     if (arguments.size() < 2)
         return {};
@@ -241,7 +241,7 @@ void searchOnArray(
     const StringColumnType auto & input_string,
     PaddedPODArray<UInt8> & col_result,
     size_t input_rows_count,
-    const ITokenExtractor * tokenizer,
+    const ITokenizer * tokenizer,
     MatcherType auto matcher)
 {
     ArrayOffset current_offset = 0;
@@ -270,7 +270,7 @@ void searchOnString(
     const StringColumnType auto & col_input,
     PaddedPODArray<UInt8> & col_result,
     size_t input_rows_count,
-    const ITokenExtractor * tokenizer,
+    const ITokenizer * tokenizer,
     MatcherType auto matcher)
 {
     for (size_t i = 0; i < input_rows_count; ++i)
@@ -288,7 +288,7 @@ void executeString(
     const StringColumnType auto & col_input,
     PaddedPODArray<UInt8> & col_result,
     size_t input_rows_count,
-    const ITokenExtractor * tokenizer,
+    const ITokenizer * tokenizer,
     const TokensWithPosition & tokens)
 {
     if (tokens.empty())
@@ -313,7 +313,7 @@ void executeArray(
     const ColumnArray * array,
     const StringColumnType auto & input_string,
     PaddedPODArray<UInt8> & col_result,
-    const ITokenExtractor * tokenizer,
+    const ITokenizer * tokenizer,
     const TokensWithPosition & tokens)
 {
     const auto & offsets = array->getOffsets();
@@ -341,7 +341,7 @@ void executeStringOrArray(
     ColumnPtr col_input,
     PaddedPODArray<UInt8> & col_result,
     size_t input_rows_count,
-    const ITokenExtractor * tokenizer,
+    const ITokenizer * tokenizer,
     const TokensWithPosition & tokens)
 {
     if (const auto * col_input_string = checkAndGetColumn<ColumnString>(col_input.get()))
@@ -376,7 +376,7 @@ ColumnPtr ExecutableFunctionHasAnyAllTokens<HasTokensTraits>::executeImpl(
 
     ColumnPtr col_input = arguments[arg_input].column;
 
-    if (tokenizer->getType() == ITokenExtractor::Type::SparseGrams)
+    if (tokenizer->getType() == ITokenizer::Type::SparseGrams)
     {
         /// The sparse gram token extractor stores an internal state which modified during the execution.
         /// This leads to an error while executing this function multi-threaded because that state is not protected.
