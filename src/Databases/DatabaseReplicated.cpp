@@ -2339,7 +2339,31 @@ void DatabaseReplicated::detachTablePermanently(ContextPtr local_context, const 
     if (txn && !is_recovering)
         txn->addOp(zkutil::makeSetRequest(replica_path + "/digest", toString(new_digest), -1));
 
-    DatabaseAtomic::detachTablePermanently(local_context, table_name);
+    /// Cannot call DatabaseAtomic::detachTablePermanently here because it inherits
+    /// DatabaseOnDisk::detachTablePermanently which calls virtual this->detachTable(),
+    /// and our detachTable override locks metadata_mutex — causing a deadlock.
+    /// Instead, call DatabaseAtomic::detachTable directly and inline the permanently-detached flag logic.
+    DatabaseAtomic::detachTable(local_context, table_name);
+
+    String detached_permanently_flag = getObjectMetadataPath(table_name) + detached_suffix;
+    try
+    {
+        auto db_disk = getDisk();
+        db_disk->createFile(detached_permanently_flag);
+
+        std::lock_guard tlock(mutex);
+        const auto it = snapshot_detached_tables.find(table_name);
+        if (it == snapshot_detached_tables.end())
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Snapshot doesn't contain info about detached table `{}`", table_name);
+        it->second.is_permanently = true;
+    }
+    catch (Exception & e)
+    {
+        e.addMessage("while trying to set permanently detached flag. Table {}.{} may be reattached during server restart.",
+            backQuote(getDatabaseName()), backQuote(table_name));
+        throw;
+    }
+
     tables_metadata_digest = new_digest;
     assertDigestInTransactionOrInline(local_context, txn);
 }
