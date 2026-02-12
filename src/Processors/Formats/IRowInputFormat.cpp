@@ -32,7 +32,6 @@ namespace ErrorCodes
     extern const int UNKNOWN_ELEMENT_OF_ENUM;
     extern const int CANNOT_PARSE_ESCAPE_SEQUENCE;
     extern const int UNEXPECTED_DATA_AFTER_PARSED_VALUE;
-    extern const int BAD_ARGUMENTS;
     extern const int SOCKET_TIMEOUT;
     extern const int NETWORK_ERROR;
     extern const int CANNOT_READ_FROM_SOCKET;
@@ -75,10 +74,7 @@ IRowInputFormat::IRowInputFormat(SharedHeader header, ReadBuffer & in_, Params p
     , serializations(getPort().getHeader().getSerializations())
     , params(params_)
     , block_missing_values(getPort().getHeader().columns())
-{
-        if (params_.max_block_wait_ms > 0 && !params_.connection_handling)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Setting 'input_format_max_block_wait_ms' requires 'input_format_connection_handling' to be enabled");
-}
+{}
 
 void IRowInputFormat::logError()
 {

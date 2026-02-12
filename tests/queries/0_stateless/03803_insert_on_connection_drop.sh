@@ -32,14 +32,14 @@ done
 
 PIPELINE_PID=$!
 
-sleep 8
+sleep 15
 
 kill -9 $PIPELINE_PID 2>/dev/null
 
 wait $PIPELINE_PID 2>/dev/null
 
 
-sleep 1
+sleep 5
 
 $CLICKHOUSE_CLIENT -q "SYSTEM FLUSH LOGS query_log, part_log;"
 

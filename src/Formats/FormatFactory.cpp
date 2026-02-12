@@ -450,6 +450,9 @@ InputFormatPtr FormatFactory::getInputImpl(
             settings,
             /*num_streams_=*/1);
 
+    if (format_settings.max_block_wait_ms > 0 && !format_settings.connection_handling)
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Setting 'input_format_max_block_wait_ms' requires 'input_format_connection_handling' to be enabled");
+
     RowInputFormatParams row_input_format_params;
     row_input_format_params.max_block_size_rows = max_block_size;
     row_input_format_params.max_block_size_bytes = max_block_size_bytes.value_or(format_settings.max_block_size_bytes);
