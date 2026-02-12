@@ -61,7 +61,14 @@ public:
             return arguments[1];
 
         if (!arguments[0]->isNullable())
+        {
+            /// Variant type is not Nullable but can contain NULLs.
+            /// We need to include the alternative argument type in the result
+            /// so that the returned column type matches the declared type.
+            if (isVariant(arguments[0]))
+                return getLeastSupertypeOrVariant(DataTypes{arguments[0], arguments[1]});
             return arguments[0];
+        }
 
         return getLeastSupertype(DataTypes{removeNullable(arguments[0]), arguments[1]});
     }
