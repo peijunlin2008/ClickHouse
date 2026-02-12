@@ -62,6 +62,7 @@ namespace DB::ErrorCodes
 extern const int FILE_DOESNT_EXIST;
 extern const int BAD_ARGUMENTS;
 extern const int ICEBERG_SPECIFICATION_VIOLATION;
+extern const int PATH_ACCESS_DENIED;
 }
 
 namespace DB::DataLakeStorageSetting
@@ -110,7 +111,10 @@ static CompressionMethod getCompressionMethodFromMetadataFile(const String & pat
 
 static bool isTemporaryMetadataFile(const String & file_name)
 {
-    String substring = String(file_name.begin(), file_name.begin() + file_name.find_first_of('.'));
+    auto string_position = file_name.find_first_of('.');
+    if (string_position == String::npos)
+        return true;
+    String substring = String(file_name.begin(), file_name.begin() + string_position);
     return Poco::UUID{}.tryParse(substring);
 }
 
@@ -988,51 +992,27 @@ MetadataFileWithInfo getLatestOrExplicitMetadataFileAndVersion(
 {
     if (data_lake_settings[DataLakeStorageSetting::iceberg_metadata_file_path].changed)
     {
-        LOG_DEBUG(
-            log,
-            "Getting the explicit metadata file for Iceberg table with path {}, explicit path: {}",
-            table_path,
-            data_lake_settings[DataLakeStorageSetting::iceberg_metadata_file_path].value);
         auto explicit_metadata_path = data_lake_settings[DataLakeStorageSetting::iceberg_metadata_file_path].value;
-        try
+        std::filesystem::path p(explicit_metadata_path);
+        auto it = p.begin();
+        if (it != p.end())
         {
-            LOG_TEST(log, "Explicit metadata file path is specified {}, will read from this metadata file", explicit_metadata_path);
-            std::filesystem::path p(explicit_metadata_path);
-            auto it = p.begin();
-            if (it != p.end())
-            {
-                if (*it == "." || *it == "..")
-                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Relative paths are not allowed");
-            }
-            if (p.is_absolute())
-            {
-                if (!explicit_metadata_path.starts_with(table_path))
-                    throw Exception(
-                        ErrorCodes::BAD_ARGUMENTS,
-                        "Explicit metadata file path {} should be in the table path directory : {}",
-                        explicit_metadata_path,
-                        table_path);
-            }
-            else
-            {
-                explicit_metadata_path = std::filesystem::path(table_path) / p;
-                if (!explicit_metadata_path.starts_with(table_path))
-                    throw Exception(
-                        ErrorCodes::LOGICAL_ERROR,
-                        "Explicit metadata file path {} should be in the table path directory : {}",
-                        explicit_metadata_path,
-                        table_path);
-            }
-            return getMetadataFileAndVersion(explicit_metadata_path);
+            if (*it == "." || *it == "..")
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Relative paths are not allowed");
         }
-        catch (const fs::filesystem_error & ex)
+        auto base_string_table_path = table_path;
+        if (!base_string_table_path.empty() && base_string_table_path.back() != std::filesystem::path::preferred_separator)
         {
+            base_string_table_path += std::filesystem::path::preferred_separator;
+        }
+        String resolved_path = std::filesystem::weakly_canonical(std::filesystem::path{table_path} / explicit_metadata_path).string();
+        if (!resolved_path.starts_with(table_path))
             throw Exception(
-                ErrorCodes::BAD_ARGUMENTS,
-                "Invalid path {} specified for iceberg_metadata_file_path: '{}'",
-                explicit_metadata_path,
-                ex.what());
-        }
+                ErrorCodes::PATH_ACCESS_DENIED,
+                "Explicit metadata file path `{}` should be in the table path directory : `{}`",
+                resolved_path,
+                table_path);
+        return getMetadataFileAndVersion(resolved_path);
     }
     else if (data_lake_settings[DataLakeStorageSetting::iceberg_metadata_table_uuid].changed)
     {
