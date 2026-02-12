@@ -167,12 +167,12 @@ static void registerTokenizers(TokenizerFactory & factory)
 
     auto split_by_non_alpha_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {
-        assertParamsCount(args.size(), 0, SplitByNonAlphaTokenExtractor::getExternalName());
-        return std::make_unique<SplitByNonAlphaTokenExtractor>();
+        assertParamsCount(args.size(), 0, SplitByNonAlphaTokenizer::getExternalName());
+        return std::make_unique<SplitByNonAlphaTokenizer>();
     };
 
-    factory.registerTokenizer(SplitByNonAlphaTokenExtractor::getName(), ITokenExtractor::Type::SplitByNonAlpha, split_by_non_alpha_creator);
-    factory.registerTokenizer(SplitByNonAlphaTokenExtractor::getExternalName(), ITokenExtractor::Type::SplitByNonAlpha, split_by_non_alpha_creator);
+    factory.registerTokenizer(SplitByNonAlphaTokenizer::getName(), ITokenExtractor::Type::SplitByNonAlpha, split_by_non_alpha_creator);
+    factory.registerTokenizer(SplitByNonAlphaTokenizer::getExternalName(), ITokenExtractor::Type::SplitByNonAlpha, split_by_non_alpha_creator);
 
     auto split_by_string_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {

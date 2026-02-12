@@ -789,7 +789,7 @@ MergeTreeIndexPtr bloomFilterIndexTextCreator(const IndexDescription & index)
     /// Depending on tokenizer type, first n params are for tokenizer, then n, n+1, n+2 are for bloom filter
     if (index.type == NgramsTokenizer::getName())
         num_tokenizer_params = 1;
-    else if (index.type == SplitByNonAlphaTokenExtractor::getName())
+    else if (index.type == SplitByNonAlphaTokenizer::getName())
         num_tokenizer_params = 0;
     else if (index.type == SparseGramsTokenizer::getBloomFilterIndexName())
     {
@@ -848,7 +848,7 @@ void bloomFilterIndexTextValidator(const IndexDescription & index, bool /*attach
 
         first_bf_param_idx = 1;
     }
-    else if (index.type == SplitByNonAlphaTokenExtractor::getName())
+    else if (index.type == SplitByNonAlphaTokenizer::getName())
     {
         if (args.size() != 3)
             throw Exception(ErrorCodes::BAD_ARGUMENTS, "`tokenbf` index must have exactly 3 arguments");

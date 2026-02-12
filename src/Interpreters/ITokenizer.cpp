@@ -85,7 +85,7 @@ bool NgramsTokenizer::nextInStringLike(const char * data, size_t length, size_t 
     return false;
 }
 
-bool SplitByNonAlphaTokenExtractor::nextInString(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const
+bool SplitByNonAlphaTokenizer::nextInString(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const
 {
     token_start = pos;
     token_length = 0;
@@ -110,7 +110,7 @@ bool SplitByNonAlphaTokenExtractor::nextInString(const char * data, size_t lengt
     return token_length > 0;
 }
 
-bool SplitByNonAlphaTokenExtractor::nextInStringPadded(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const
+bool SplitByNonAlphaTokenizer::nextInStringPadded(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const
 {
     token_start = pos;
     token_length = 0;
@@ -201,7 +201,7 @@ bool SplitByNonAlphaTokenExtractor::nextInStringPadded(const char * data, size_t
     return token_length > 0;
 }
 
-bool SplitByNonAlphaTokenExtractor::nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const
+bool SplitByNonAlphaTokenizer::nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const
 {
     token.clear();
     bool bad_token = false; // % or _ before token
@@ -245,7 +245,7 @@ bool SplitByNonAlphaTokenExtractor::nextInStringLike(const char * data, size_t l
     return !bad_token && !token.empty();
 }
 
-void SplitByNonAlphaTokenExtractor::substringToBloomFilter(const char * data, size_t length, BloomFilter & bloom_filter, bool is_prefix, bool is_suffix) const
+void SplitByNonAlphaTokenizer::substringToBloomFilter(const char * data, size_t length, BloomFilter & bloom_filter, bool is_prefix, bool is_suffix) const
 {
     size_t cur = 0;
     size_t token_start = 0;
@@ -260,7 +260,7 @@ void SplitByNonAlphaTokenExtractor::substringToBloomFilter(const char * data, si
     }
 }
 
-void SplitByNonAlphaTokenExtractor::substringToTokens(const char * data, size_t length, std::vector<String> & tokens, bool is_prefix, bool is_suffix) const
+void SplitByNonAlphaTokenizer::substringToTokens(const char * data, size_t length, std::vector<String> & tokens, bool is_prefix, bool is_suffix) const
 {
     size_t cur = 0;
     size_t token_start = 0;

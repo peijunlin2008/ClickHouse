@@ -192,9 +192,9 @@ private:
 };
 
 /// Parser extracting tokens which consist of alphanumeric ASCII characters or Unicode characters (not necessarily alphanumeric)
-struct SplitByNonAlphaTokenExtractor final : public ITokenExtractorHelper<SplitByNonAlphaTokenExtractor>
+struct SplitByNonAlphaTokenizer final : public ITokenExtractorHelper<SplitByNonAlphaTokenizer>
 {
-    SplitByNonAlphaTokenExtractor() : ITokenExtractorHelper(Type::SplitByNonAlpha) {}
+    SplitByNonAlphaTokenizer() : ITokenExtractorHelper(Type::SplitByNonAlpha) {}
 
     static const char * getName() { return "tokenbf_v1"; }
     static const char * getExternalName() { return "splitByNonAlpha"; }
@@ -305,8 +305,8 @@ void forEachTokenCase(const ITokenExtractor & extractor, const char * __restrict
     {
         case ITokenExtractor::Type::SplitByNonAlpha:
         {
-            const auto & split_by_non_alpha_extractor = assert_cast<const SplitByNonAlphaTokenExtractor &>(extractor);
-            forEachTokenImpl<is_padded>(split_by_non_alpha_extractor, data, length, callback);
+            const auto & split_by_non_alpha_tokenizer = assert_cast<const SplitByNonAlphaTokenizer &>(extractor);
+            forEachTokenImpl<is_padded>(split_by_non_alpha_tokenizer, data, length, callback);
             return;
         }
         case ITokenExtractor::Type::Ngrams:

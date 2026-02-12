@@ -141,7 +141,7 @@ template <class HasTokensTraits>
 FunctionBasePtr FunctionHasAnyAllTokensOverloadResolver<HasTokensTraits>::buildImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & return_type) const
 {
     const auto tokenizer_name = arguments.size() < 3 || !arguments[arg_tokenizer].column
-        ? SplitByNonAlphaTokenExtractor::getExternalName()
+        ? SplitByNonAlphaTokenizer::getExternalName()
         : arguments[arg_tokenizer].column->getDataAt(0);
 
     auto tokenizer = TokenizerFactory::instance().get(tokenizer_name);

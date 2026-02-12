@@ -28,7 +28,7 @@ constexpr size_t arg_tokenizer = 1;
 std::unique_ptr<ITokenExtractor> createTokenizer(const ColumnsWithTypeAndName & arguments, std::string_view function_name)
 {
     const auto tokenizer_str = arguments.size() < 2 || !arguments[arg_tokenizer].column
-        ? SplitByNonAlphaTokenExtractor::getExternalName()
+        ? SplitByNonAlphaTokenizer::getExternalName()
         : arguments[arg_tokenizer].column->getDataAt(0);
 
     if (arguments.size() <= 2)
