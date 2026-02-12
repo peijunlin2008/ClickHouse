@@ -33,18 +33,6 @@ struct AccumulateResultType
     using type = T;
 };
 
-template <>
-struct AccumulateResultType<wide::integer<128, signed>>
-{
-    using type = __int128;
-};
-
-template <>
-struct AccumulateResultType<wide::integer<128, unsigned>>
-{
-    using type = unsigned __int128;
-};
-
 #if defined(__x86_64__)
 /// Use Clang's builtin _BitInt(256) for Int256 accumulation on x86_64
 template <>
