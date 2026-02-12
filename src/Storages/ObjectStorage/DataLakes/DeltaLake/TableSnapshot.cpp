@@ -103,7 +103,7 @@ private:
             : object(std::move(object_))
             , dv_info_handle(dv_info_)
             , transform_handle(transform_.tag == ffi::OptionalValue<ffi::SharedExpression *>::Tag::Some
-                ? std::optional<KernelExpression>(KernelExpression(transform_.some._0))
+                ? std::optional<KernelExpression>{transform_.some._0}
                 : std::nullopt)
         {}
     };
@@ -318,15 +318,10 @@ public:
                 schedule_next_batch_cv.notify_one();
 
                 object = std::move(scan_item.object);
-
-                if (object->data_lake_metadata.has_value())
-                {
-                    parseHandles(scan_item, object);
-                }
+                parseHandles(scan_item, object);
             }
 
             chassert(object);
-
             if (pruner.has_value() && pruner->canBePruned(*object))
             {
                 ProfileEvents::increment(ProfileEvents::DeltaLakePartitionPrunedFiles);
@@ -370,13 +365,13 @@ public:
             }
         }
 
-        if (scan_item.dv_info_handle.get() && ffi::dv_info_has_vector(scan_item.dv_info_handle.get()))
+        if (auto * dv_info_ptr = scan_item.dv_info_handle.get(); dv_info_ptr && ffi::dv_info_has_vector(dv_info_ptr))
         {
             /// `row_indexes_from_dv` returns a vector of row indexes
             /// that should be *removed* from the result set
             ffi::KernelRowIndexArray row_indexes = KernelUtils::unwrapResult(
                 ffi::row_indexes_from_dv(
-                    scan_item.dv_info_handle.get(),
+                    dv_info_ptr,
                     kernel_snapshot_state->engine.get(),
                     KernelUtils::toDeltaString(getTableLocation())),
                 "row_indexes_from_dv");
