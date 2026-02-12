@@ -805,7 +805,22 @@ ASTPtr SystemLog<LogElement>::getCreateTableQuery()
 
     new_columns_list->set(new_columns_list->columns, InterpreterCreateQuery::formatColumns(ordinary_columns));
 
-    /// Add secondary indexes (minmax on time columns).
+    ParserStorageWithComment storage_parser;
+
+    ASTPtr storage_with_comment_ast = parseQuery(
+        storage_parser, storage_def.data(), storage_def.data() + storage_def.size(),
+        "Storage to create table for " + LogElement::name(), 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS);
+
+    StorageWithComment & storage_with_comment = storage_with_comment_ast->as<StorageWithComment &>();
+
+    create->set(create->storage, storage_with_comment.storage);
+    create->set(create->comment, storage_with_comment.comment);
+
+    const auto & engine = create->storage->engine->as<ASTFunction &>();
+
+    /// Add secondary indexes (minmax on time columns) for MergeTree engines only,
+    /// since other engines (e.g. Null) do not support skipping indices.
+    if (endsWith(engine.name, "MergeTree"))
     {
         auto indices = make_intrusive<ASTExpressionList>();
 
@@ -828,20 +843,8 @@ ASTPtr SystemLog<LogElement>::getCreateTableQuery()
 
     create->set(create->columns_list, new_columns_list);
 
-    ParserStorageWithComment storage_parser;
-
-    ASTPtr storage_with_comment_ast = parseQuery(
-        storage_parser, storage_def.data(), storage_def.data() + storage_def.size(),
-        "Storage to create table for " + LogElement::name(), 0, DBMS_DEFAULT_MAX_PARSER_DEPTH, DBMS_DEFAULT_MAX_PARSER_BACKTRACKS);
-
-    StorageWithComment & storage_with_comment = storage_with_comment_ast->as<StorageWithComment &>();
-
-    create->set(create->storage, storage_with_comment.storage);
-    create->set(create->comment, storage_with_comment.comment);
-
     /// Write additional (default) settings for MergeTree engine to make it make it possible to compare ASTs
     /// and recreate tables on settings changes.
-    const auto & engine = create->storage->engine->as<ASTFunction &>();
     if (endsWith(engine.name, "MergeTree"))
     {
         auto storage_settings = std::make_unique<MergeTreeSettings>(getContext()->getMergeTreeSettings());
