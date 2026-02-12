@@ -18,9 +18,6 @@
 namespace DeltaLake
 {
 
-/// TODO: Reorganize TableSnapshot to refer only to a single version,
-/// so we could add a proper cache of metadata per version.
-
 /**
  * A class representing DeltaLake table snapshot -
  * a snapshot of table state, its schema, data files, etc.
@@ -124,8 +121,8 @@ private:
 
     size_t getVersionUnlocked() const TSA_REQUIRES(mutex);
 
-    void initSnapshot(bool recreate = false) const TSA_REQUIRES(mutex);
-    void initSchema() const TSA_REQUIRES(mutex);
+    void initOrUpdateSnapshot(bool recreate = false) const TSA_REQUIRES(mutex);
+    void initOrUpdateSchemaIfChanged() const TSA_REQUIRES(mutex);
 
     SnapshotStats getSnapshotStats() const TSA_REQUIRES(mutex);
     SnapshotStats getSnapshotStatsImpl() const TSA_REQUIRES(mutex);

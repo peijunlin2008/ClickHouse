@@ -525,7 +525,7 @@ size_t TableSnapshot::getVersion() const
 
 size_t TableSnapshot::getVersionUnlocked() const
 {
-    initSnapshot();
+    initOrUpdateSnapshot();
     return kernel_snapshot_state->snapshot_version;
 }
 
@@ -543,7 +543,7 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStats() const
 
 TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
 {
-    initSnapshot();
+    initOrUpdateSnapshot();
 
     KernelScan fallback_scan;
     fallback_scan = KernelUtils::unwrapResult(
@@ -654,10 +654,10 @@ void TableSnapshot::updateSnapshotVersion()
         /// so next attempt to create it would return the latest snapshot.
         return;
     }
-    initSnapshot(/* recreate */true);
+    initOrUpdateSnapshot(/* recreate */true);
 }
 
-void TableSnapshot::initSnapshot(bool recreate) const
+void TableSnapshot::initOrUpdateSnapshot(bool recreate) const
 {
     if (!recreate && kernel_snapshot_state)
         return;
@@ -707,8 +707,6 @@ DB::ObjectIterator TableSnapshot::iterate(
     auto update_stats_func = [self = shared_from_this(), this](SnapshotStats && stats)
     {
         std::unique_lock lock(mutex, std::defer_lock);
-        /// Suppress warning because tsa annotations do not work properly
-        /// with std::unique_lock, which is taken here
         if (lock.try_lock()
             && (!snapshot_stats.has_value()
                 || snapshot_stats->version < stats.version))
@@ -721,7 +719,7 @@ DB::ObjectIterator TableSnapshot::iterate(
     };
     const auto & settings = context->getSettingsRef();
     std::lock_guard lock(mutex);
-    initSchema();
+    initOrUpdateSchemaIfChanged();
     return std::make_shared<TableSnapshot::Iterator>(
         kernel_snapshot_state,
         helper,
@@ -740,11 +738,11 @@ DB::ObjectIterator TableSnapshot::iterate(
         log);
 }
 
-void TableSnapshot::initSchema() const
+void TableSnapshot::initOrUpdateSchemaIfChanged() const
 {
     if (!schema.has_value() || schema->version != getVersionUnlocked())
     {
-        initSnapshot();
+        initOrUpdateSnapshot();
         auto [table_schema, physical_names_map] = getTableSchemaFromSnapshot(kernel_snapshot_state->snapshot.get());
 
         if (table_schema.empty())
@@ -774,28 +772,28 @@ void TableSnapshot::initSchema() const
 const DB::NamesAndTypesList & TableSnapshot::getTableSchema() const
 {
     std::lock_guard lock(mutex);
-    initSchema();
+    initOrUpdateSchemaIfChanged();
     return schema->table_schema;
 }
 
 const DB::NamesAndTypesList & TableSnapshot::getReadSchema() const
 {
     std::lock_guard lock(mutex);
-    initSchema();
+    initOrUpdateSchemaIfChanged();
     return schema->read_schema;
 }
 
 const DB::Names & TableSnapshot::getPartitionColumns() const
 {
     std::lock_guard lock(mutex);
-    initSchema();
+    initOrUpdateSchemaIfChanged();
     return schema->partition_columns;
 }
 
 const DB::NameToNameMap & TableSnapshot::getPhysicalNamesMap() const
 {
     std::lock_guard lock(mutex);
-    initSchema();
+    initOrUpdateSchemaIfChanged();
     return schema->physical_names_map;
 }
 
