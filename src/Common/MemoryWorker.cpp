@@ -528,8 +528,13 @@ void MemoryWorker::purgeDirtyPagesThread()
     LOG_INFO(log, "Default dirty pages decay period: {}ms", default_dirty_decay_ms);
     while (true)
     {
-        purge_dirty_pages_cv.wait(
+        /// We add timeout of 1 second to protect against rare race condition where
+        /// signal could be missed leading to this thread being suck forever.
+        /// We cannot use mutex in RSS update thread because we want to keep them independent,
+        /// i.e. purging dirty pages should not block RSS update.
+        purge_dirty_pages_cv.wait_for(
             purge_dirty_pages_lock,
+            std::chrono::seconds(1),
             [&]
             {
                 auto state = decay_state.load(std::memory_order_relaxed);
