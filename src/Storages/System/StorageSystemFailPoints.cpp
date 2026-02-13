@@ -33,7 +33,6 @@ ColumnsDescription StorageSystemFailPoints::getColumnsDescription()
 void StorageSystemFailPoints::fillData(
     MutableColumns & res_columns, ContextPtr /* context */, const ActionsDAG::Node * /* predicate */, std::vector<UInt8> /* columns_mask */) const
 {
-#ifndef NDEBUG
     /// Get all available failpoints from the FailPointInjection registry.
     /// getFailPoints() returns a vector of {name, type, enabled} tuples
     /// covering all four categories: once, regular, pauseable_once, pauseable.
@@ -45,9 +44,6 @@ void StorageSystemFailPoints::fillData(
         res_columns[1]->insert(static_cast<Int8>(type)); /// 0=once, 1=regular, 2=pauseable_once, 3=pauseable
         res_columns[2]->insert(static_cast<UInt8>(enabled ? 1 : 0));
     }
-#else
-    UNUSED(res_columns);
-#endif
 }
 
 }
