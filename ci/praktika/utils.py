@@ -399,6 +399,7 @@ class Shell:
                             print(
                                 f"Retry {retry+1}/{retries}: command failed, exit code: {proc.returncode}"
                                 )
+
                     should_retry = not retry_errors
                     if retry_errors:
                         for err in retry_errors:
@@ -412,19 +413,11 @@ class Shell:
                             print(
                                 f"No retryable errors found, stopping retry attempts"
                             )
-                    if retry_errors:
-                        should_retry = False
-                        for err in retry_errors:
-                            if any(err in err_line for err_line in err_output):
-                                print(
-                                    f"Retryable error occurred: [{err}], [{retry+1}/{retries}]"
-                                )
-                                should_retry = True
-                                break
-                        if should_retry and retry < retries - 1:
-                            delay = min(2 ** (retry + 1), 60)
-                            print(f"Retrying in {delay}s...")
-                            time.sleep(delay)
+                            break
+                    if should_retry and retry < retries - 1:
+                        delay = min(2 ** (retry + 1), 60)
+                        print(f"Retrying in {delay}s...")
+                        time.sleep(delay)
             except Exception as e:
                 if verbose:
                     if retries == 1:
