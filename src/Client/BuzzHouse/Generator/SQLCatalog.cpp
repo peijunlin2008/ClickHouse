@@ -532,12 +532,13 @@ void SQLBase::setTablePath(RandomGenerator & rg, const FuzzConfig & fc, const bo
             {
                 /// DeltaLake tables on Spark must be on the `spark_catalog` :(
                 next_bucket_path = fmt::format(
-                    "{}{}{}{}t{}",
+                    "{}{}{}{}t{}{}",
                     isOnLocal() ? fc.lakes_path.generic_string() : "",
                     isOnLocal() ? "/" : "",
                     (integration == IntegrationCall::Dolor) ? getSparkCatalogName() : "",
                     (integration == IntegrationCall::Dolor) ? "/test/" : "",
-                    tname);
+                    tname,
+                    rg.nextBool() ? "/" : "");
             }
             else if (fc.dolor_server.has_value() && fc.minio_server.has_value())
             {
@@ -563,7 +564,12 @@ void SQLBase::setTablePath(RandomGenerator & rg, const FuzzConfig & fc, const bo
                         UNREACHABLE();
                 }
                 next_bucket_path = fmt::format(
-                    "http://{}:{}/{}/t{}/", fc.minio_server.value().server_hostname, fc.minio_server.value().port, cat->warehouse, tname);
+                    "http://{}:{}/{}/t{}{}",
+                    fc.minio_server.value().server_hostname,
+                    fc.minio_server.value().port,
+                    cat->warehouse,
+                    tname,
+                    rg.nextBool() ? "/" : "");
             }
         }
         else
@@ -742,6 +748,24 @@ String SQLBase::getTablePath(RandomGenerator & rg, const FuzzConfig & fc, const 
         if (slash_pos != std::string::npos && rg.nextMediumNumber() < 81)
         {
             res.replace(slash_pos + 1, std::string::npos, rg.nextBool() ? "*" : "**");
+        }
+        return res;
+    }
+    if ((isAnyIcebergEngine() || isAnyDeltaLakeEngine()) && allow_not_deterministic && rg.nextSmallNumber() < 4)
+    {
+        /// Add or remove '/'
+        String res = bucket_path.has_value() ? bucket_path.value() : "test";
+
+        if (endsWith(res, "/"))
+        {
+            while (endsWith(res, "/"))
+            {
+                res.pop_back();
+            }
+        }
+        else
+        {
+            res += "/";
         }
         return res;
     }
