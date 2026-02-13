@@ -324,7 +324,7 @@ Result:
 ```
 
 The huge index granularity ensures that the text index is created for the entire part.
-Explicitly specified index granularities are ignored.
+Explicitly specified index granularity is ignored.
 
 ## Using a Text Index {#using-a-text-index}
 
@@ -334,7 +334,7 @@ If no index exists on a column or table part, the string search functions will f
 :::note
 We recommend using functions `hasAnyTokens` and `hasAllTokens` to search the text index, please see [below](#functions-example-hasanytokens-hasalltokens).
 These functions work with all available tokenizers and all possible preprocessor expressions.
-As the other supported functions historically preceeded the text index, they had to retain their legacy behavior in many cases (e.g. no preprocessor support).
+As the other supported functions historically preceded the text index, they had to retain their legacy behavior in many cases (e.g. no preprocessor support).
 :::
 
 ### Supported functions {#functions-support}
