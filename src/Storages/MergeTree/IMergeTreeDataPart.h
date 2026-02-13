@@ -673,7 +673,7 @@ private:
     /// PackedFilesReader for statistics archive.
     /// Lazily loaded on first access to loadStatistics when packed format is used.
     mutable std::mutex statistics_reader_mutex;
-    mutable std::unique_ptr<PackedFilesReader> statistics_reader;
+    mutable std::unique_ptr<PackedFilesReader> statistics_reader TSA_GUARDED_BY(statistics_reader_mutex);
 
 protected:
     /// Total size on disk, not only columns. May not contain size of
@@ -744,7 +744,7 @@ private:
     /// Small state of finalized statistics for suitable statistics types.
     /// Lazily initialized on a first access.
     mutable std::mutex estimates_mutex;
-    mutable std::optional<Estimates> estimates;
+    mutable std::optional<Estimates> estimates TSA_GUARDED_BY(estimates_mutex);
 
     /// Reads part unique identifier (if exists) from uuid.txt
     void loadUUID();
