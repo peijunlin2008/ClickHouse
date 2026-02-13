@@ -76,7 +76,7 @@ if __name__ == "__main__":
     # So far I call `tests/docker_scripts/setup_minio.sh stateless` to start MinIO
     cluster_settings = {
         "minio_ip": "127.0.0.1",
-        "minio_port": 9000,  # this is wrong, the setup_minio.sh sets a random port for the Web console
+        "minio_port": 11111,
         "minio_s3_port": 11111,
         "minio_bucket": "test",
         "minio_access_key": "clickhouse",
