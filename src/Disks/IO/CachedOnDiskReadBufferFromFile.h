@@ -117,8 +117,6 @@ public:
         /// List of file segments which we need to read
         /// given initial [start_offset, read_until_position).
         FileSegmentsHolderPtr file_segments;
-        /// Profile counters collected separately for each file segment.
-        ProfileEvents::Counters current_file_segment_counters;
 
         void reset();
     };
@@ -193,7 +191,6 @@ private:
         size_t size,
         size_t offset,
         FileSegment & file_segment,
-        ReadInfo & info,
         LoggerPtr log);
 
     static std::string getInfoForLog(

@@ -65,9 +65,7 @@ void CachedOnDiskReadBufferFromFile::ReadInfo::reset()
 {
     remote_file_reader.reset();
     cache_file_reader.reset();
-
     file_segments = {};
-    current_file_segment_counters.reset();
 }
 
 CachedOnDiskReadBufferFromFile::CachedOnDiskReadBufferFromFile(
@@ -155,8 +153,6 @@ void CachedOnDiskReadBufferFromFile::appendFilesystemCacheLog(
         .read_buffer_id = current_buffer_id,
         .user_id = origin.user_id,
     };
-
-    info.current_file_segment_counters.reset();
 
     switch (type)
     {
@@ -533,8 +529,7 @@ CachedOnDiskReadBufferFromFile::prepareReadFromFileSegmentState(
         watch.stop();
 
         const auto elapsed = watch.elapsedMicroseconds();
-        ProfileEvents::increment(ProfileEvents::FileSegmentWaitReadBufferMicroseconds, elapsed);
-        info.current_file_segment_counters.increment(ProfileEvents::FileSegmentWaitReadBufferMicroseconds, elapsed);
+        ProfileEvents::increment(ProfileEvents::CachedReadBufferWaitReadBufferMicroseconds, elapsed);
     }
 
     LOG_TEST(log, "Current read type: {}, read offset: {}/{}, impl file offset: {}, file segment: {}",
@@ -751,7 +746,6 @@ bool CachedOnDiskReadBufferFromFile::predownloadForFileSegment(
 
                 watch.stop();
                 auto elapsed = watch.elapsedMicroseconds();
-                info.current_file_segment_counters.increment(ProfileEvents::FileSegmentReadMicroseconds, elapsed);
                 ProfileEvents::increment(ProfileEvents::CachedReadBufferPredownloadedFromSourceMicroseconds, elapsed);
             }
 
@@ -816,7 +810,6 @@ bool CachedOnDiskReadBufferFromFile::predownloadForFileSegment(
                     size,
                     current_write_offset,
                     file_segment,
-                    info,
                     log);
 
                 if (continue_predownload)
@@ -929,7 +922,6 @@ bool CachedOnDiskReadBufferFromFile::writeCache(
     size_t size,
     size_t offset,
     FileSegment & file_segment,
-    ReadInfo & info,
     LoggerPtr log)
 {
     Stopwatch watch(CLOCK_MONOTONIC);
@@ -1092,10 +1084,7 @@ bool CachedOnDiskReadBufferFromFile::nextImplStep()
     chassert(!nextimpl_working_buffer_offset);
 
     if (size)
-    {
         file_offset_of_buffer_end += size;
-        info.current_file_segment_counters.increment(ProfileEvents::FileSegmentUsedBytes, size);
-    }
 
     working_buffer = Buffer(internal_buffer.begin(), internal_buffer.begin() + size);
 
@@ -1233,7 +1222,7 @@ size_t CachedOnDiskReadBufferFromFile::readFromFileSegment(
             {
                 chassert(file_segment.getCurrentWriteOffset() == static_cast<size_t>(state.buf->getPosition()));
 
-                success = writeCache(state.buf->buffer().begin(), size, offset, file_segment, info, log);
+                success = writeCache(state.buf->buffer().begin(), size, offset, file_segment, log);
                 if (success)
                 {
                     chassert(file_segment.getCurrentWriteOffset() <= file_segment.range().right + 1);
@@ -1365,7 +1354,6 @@ size_t CachedOnDiskReadBufferFromFile::readFromFileSegment(
             info.file_segments->size(),
             file_segment.getInfoForLog());
     }
-
 
     // No necessary because of the SCOPE_EXIT above, but useful for logging below.
     LOG_TEST(log, "Read {} bytes (buffer size: {}). Read info: {}",
