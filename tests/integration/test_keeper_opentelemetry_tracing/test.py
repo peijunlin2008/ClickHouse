@@ -20,6 +20,7 @@ def started_cluster(request):
         user_configs=[
             "configs/server/users.xml",
         ],
+        with_remote_database_disk=False,
     )
 
     # we're running keepers as standalone ClickHouse servers as we need to collect span log from them
