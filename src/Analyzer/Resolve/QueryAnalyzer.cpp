@@ -4446,13 +4446,7 @@ void QueryAnalyzer::resolveJoin(QueryTreeNodePtr & join_node, IdentifierResolveS
               * It's compatible with a default behavior for old analyzer.
               */
             if (settings[Setting::analyzer_compatibility_join_using_top_level_identifier])
-            {
-                /// If we resolving column from consecutive JOIN, still resolve identifier from the leftmost table
-                auto leftmost_table_expression = join_node_typed.getLeftTableExpression();
-                while (leftmost_table_expression->getNodeType() == QueryTreeNodeType::JOIN)
-                    leftmost_table_expression = leftmost_table_expression->as<JoinNode &>().getLeftTableExpression();
-                result_left_table_expression = try_resolve_identifier_from_query_projection(identifier_full_name, leftmost_table_expression, scope);
-            }
+                result_left_table_expression = try_resolve_identifier_from_query_projection(identifier_full_name, join_node_typed.getLeftTableExpression(), scope);
 
             if (!result_left_table_expression)
             {
