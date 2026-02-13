@@ -649,7 +649,7 @@ logger.jetty.level = warn
             builder.config(
                 "spark.databricks.delta.retentionDurationCheck.enabled", "false"
             )
-            builder.config("spark.hadoop.zlib.compress.level", "DEFAULT")
+            builder.config("spark.hadoop.zlib.compress.level", "DEFAULT_COMPRESSION")
             # Set timezone to match ClickHouse
             if "TZ" in env:
                 builder.config("spark.sql.session.timeZone", env["TZ"])
