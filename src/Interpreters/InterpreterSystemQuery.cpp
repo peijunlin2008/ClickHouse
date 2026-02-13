@@ -747,10 +747,10 @@ BlockIO InterpreterSystemQuery::execute()
                 LOG_INFO(getLogger("InterpreterSystemQuery"), "Delta kernel tracing level reloaded to {}", level_str);
             else
                 LOG_WARNING(getLogger("InterpreterSystemQuery"), "Failed to reload delta kernel tracing level to {}", level_str);
+            break;
 #else
             throw Exception(ErrorCodes::SUPPORT_IS_DISABLED, "Delta Kernel support is not enabled");
 #endif
-            break;
         }
         case Type::RECONNECT_ZOOKEEPER:
         {
