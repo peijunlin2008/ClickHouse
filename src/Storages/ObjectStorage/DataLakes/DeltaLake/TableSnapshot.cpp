@@ -98,13 +98,11 @@ private:
 
         ScannedDataFile(
             DB::ObjectInfoPtr object_,
-            ffi::SharedDvInfo * dv_info_,
-            ffi::OptionalValue<ffi::SharedExpression *> transform_)
+            KernelDvInfo dv_info_,
+            std::optional<KernelExpression> transform_)
             : object(std::move(object_))
-            , dv_info_handle(dv_info_)
-            , transform_handle(transform_.tag == ffi::OptionalValue<ffi::SharedExpression *>::Tag::Some
-                ? std::optional<KernelExpression>{transform_.some._0}
-                : std::nullopt)
+            , dv_info_handle(std::move(dv_info_))
+            , transform_handle(std::move(transform_))
         {}
     };
 
@@ -423,11 +421,6 @@ public:
             /// otherwise delta-kernel will panic and call terminate.
             context->setScanException();
 
-            /// Free handles before returning
-            ffi::free_kernel_dv_info(dv_info);
-            if (transform.tag == ffi::OptionalValue<ffi::SharedExpression *>::Tag::Some)
-                ffi::free_kernel_expression(transform.some._0);
-
             return false;  /// Stop iteration on exception
         }
     }
@@ -441,6 +434,12 @@ public:
         ffi::OptionalValue<ffi::SharedExpression *> transform,
         const struct ffi::CStringMap * /* deprecated */)
     {
+        /// Wrap handles in RAII immediately to ensure cleanup on any exit path
+        KernelDvInfo dv_info_handle(dv_info);
+        std::optional<KernelExpression> transform_handle;
+        if (transform.tag == ffi::OptionalValue<ffi::SharedExpression *>::Tag::Some)
+            transform_handle.emplace(transform.some._0);
+
         auto * context = static_cast<TableSnapshot::Iterator *>(engine_context);
         if (context->shutdown)
         {
@@ -492,7 +491,7 @@ public:
 
         {
             std::lock_guard lock(context->next_mutex);
-            context->data_files.emplace_back(std::move(object), dv_info, transform);
+            context->data_files.emplace_back(std::move(object), std::move(dv_info_handle), std::move(transform_handle));
         }
         context->data_files_cv.notify_one();
         return true;  /// Continue iteration
