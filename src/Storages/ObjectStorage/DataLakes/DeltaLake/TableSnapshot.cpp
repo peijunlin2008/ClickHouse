@@ -530,7 +530,11 @@ size_t TableSnapshot::getVersionUnlocked() const
 
 TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStats() const
 {
-    if (!snapshot_stats.has_value() || snapshot_stats->version != getVersionUnlocked())
+    if (snapshot_stats.has_value())
+    {
+        chassert(snapshot_stats->version == getVersionUnlocked());
+    }
+    else
     {
         snapshot_stats = getSnapshotStatsImpl();
         LOG_TEST(
@@ -635,27 +639,6 @@ std::optional<size_t> TableSnapshot::getTotalBytes() const
     return getSnapshotStats().total_bytes;
 }
 
-void TableSnapshot::updateSnapshotVersion()
-{
-    if (snapshot_version_to_read.has_value())
-    {
-        /// If version is set, we cannot update it.
-        throw DB::Exception(
-            DB::ErrorCodes::LOGICAL_ERROR,
-            "Table snapshot has a set snapshot version {}",
-            snapshot_version_to_read.value());
-    }
-
-    std::lock_guard lock(mutex);
-    if (!kernel_snapshot_state)
-    {
-        /// Snapshot is not yet created,
-        /// so next attempt to create it would return the latest snapshot.
-        return;
-    }
-    initOrUpdateSnapshot(/* recreate */true);
-}
-
 void TableSnapshot::initOrUpdateSnapshot(bool recreate) const
 {
     if (!recreate && kernel_snapshot_state)
@@ -745,7 +728,11 @@ DB::ObjectIterator TableSnapshot::iterate(
 
 void TableSnapshot::initOrUpdateSchemaIfChanged() const
 {
-    if (!schema.has_value() || schema->version != getVersionUnlocked())
+    if (schema.has_value())
+    {
+        chassert(schema->version == getVersionUnlocked());
+    }
+    else
     {
         auto state = getKernelSnapshotState();
         auto [table_schema, physical_names_map] = getTableSchemaFromSnapshot(state->snapshot.get());

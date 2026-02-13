@@ -39,10 +39,6 @@ public:
     std::optional<size_t> getTotalRows() const;
     std::optional<size_t> getTotalBytes() const;
 
-    /// Update snapshot to latest version
-    /// or the one specified in delta_lake_snapshot_version setting.
-    void updateSnapshotVersion();
-
     /// Iterate over DeltaLake data files.
     DB::ObjectIterator iterate(
         const DB::ActionsDAG * filter_dag,

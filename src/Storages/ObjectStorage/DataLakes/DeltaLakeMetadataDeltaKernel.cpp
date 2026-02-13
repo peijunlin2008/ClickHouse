@@ -125,9 +125,9 @@ DeltaLake::TableSnapshotPtr
 DeltaLakeMetadataDeltaKernel::getTableSnapshot(std::optional<SnapshotVersion> version) const
 {
     std::lock_guard lock(snapshots_mutex);
-    return snapshots.getOrSet(
-        version.value_or(DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION),
-        [&]()
+    const auto cache_version = version.value_or(DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION);
+    auto [snapshot, created] = snapshots.getOrSet(
+        cache_version, [&]()
         {
             auto actual_snapshot_version = version.has_value() && version.value() >= 0
                 ? std::optional<size_t>(static_cast<size_t>(version.value()))
@@ -138,7 +138,14 @@ DeltaLakeMetadataDeltaKernel::getTableSnapshot(std::optional<SnapshotVersion> ve
                 kernel_helper,
                 object_storage,
                 log);
-        }).first;
+        });
+
+    if (created && cache_version == DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION)
+    {
+        /// Put snapshot into cache at its own version.
+        snapshots.getOrSet(snapshot->getVersion(), [&]() { return snapshot; });
+    }
+    return snapshot;
 }
 
 bool DeltaLakeMetadataDeltaKernel::operator ==(const IDataLakeMetadata & metadata) const
@@ -197,7 +204,19 @@ void DeltaLakeMetadataDeltaKernel::update(const ContextPtr & context)
 {
     const auto snapshot_version = getSnapshotVersion(context->getSettingsRef());
     if (snapshot_version == DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION)
-        getTableSnapshot()->updateSnapshotVersion();
+    {
+        std::lock_guard lock(snapshots_mutex);
+        auto latest_snapshot = std::make_shared<DeltaLake::TableSnapshot>(
+                /* version */std::nullopt,
+                kernel_helper,
+                object_storage,
+                log);
+        snapshots.set(
+            DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION,
+            latest_snapshot);
+        /// Put snapshot into cache at its own version.
+        snapshots.getOrSet(latest_snapshot->getVersion(), [&]() { return latest_snapshot; });
+    }
 }
 
 DeltaLake::TableChangesPtr DeltaLakeMetadataDeltaKernel::getTableChanges(
