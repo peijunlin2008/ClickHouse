@@ -10,11 +10,8 @@ doc_type: 'reference'
 
 Contains a list of all available failpoints registered in the server, along with their type and whether they are currently enabled.
 
-:::note
-This table is only available in debug builds (i.e., when `NDEBUG` is not defined). It will not exist in release builds.
-:::
 
-Failpoints can be enabled and disabled at runtime using the [`SYSTEM ENABLE FAILPOINT`](/docs/en/sql-reference/statements/system#enable-failpoint) and [`SYSTEM DISABLE FAILPOINT`](/docs/en/sql-reference/statements/system#disable-failpoint) statements.
+Failpoints can be enabled and disabled at runtime using the `SYSTEM ENABLE FAILPOINT` and `SYSTEM DISABLE FAILPOINT` statements.
 
 ## Columns {#columns}
 
@@ -29,17 +26,12 @@ Failpoints can be enabled and disabled at runtime using the [`SYSTEM ENABLE FAIL
 ## Example {#example}
 
 ```sql
+SYSTEM ENABLE FAILPOINT replicated_merge_tree_insert_retry_pause;
 SELECT * FROM system.fail_points WHERE enabled = 1
 ```
 
 ```text
-┌─name──────────────────────────────────┬─type────┬─enabled─┐
-│ replicated_merge_tree_commit_zk_fail  │ once    │       1 │
-└───────────────────────────────────────┴─────────┴─────────┘
+┌─name──────────────────────────────────────┬─type────────────┬─enabled─┐
+│ replicated_merge_tree_insert_retry_pause  │ pauseable_once  │       1 │
+└───────────────────────────────────────────┴─────────────────┴─────────┘
 ```
-
-## See Also {#see-also}
-
-- [SYSTEM ENABLE FAILPOINT](/docs/en/sql-reference/statements/system#enable-failpoint)
-- [SYSTEM DISABLE FAILPOINT](/docs/en/sql-reference/statements/system#disable-failpoint)
-- [SYSTEM WAIT FAILPOINT](/docs/en/sql-reference/statements/system#wait-failpoint)
