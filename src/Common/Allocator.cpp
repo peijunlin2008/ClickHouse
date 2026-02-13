@@ -1,10 +1,11 @@
+#include <Common/AllocationInterceptors.h>
 #include <Common/Allocator.h>
+#include <Common/BitHelpers.h>
 #include <Common/CurrentMemoryTracker.h>
 #include <Common/Exception.h>
 #include <Common/VersionNumber.h>
 #include <Common/formatReadable.h>
 #include <Common/logger_useful.h>
-#include <Common/AllocationInterceptors.h>
 
 #include <base/errnoToString.h>
 #include <base/getPageSize.h>
@@ -74,13 +75,21 @@ void * allocNoTrack(size_t size, size_t alignment)
     void * buf;
     if (likely(alignment <= MALLOC_MIN_ALIGNMENT))
     {
+        if (alignment > 8 && (!isPowerOf2(alignment) || (alignment % sizeof(void *) != 0)))
+            throw DB::Exception(
+                DB::ErrorCodes::CANNOT_ALLOCATE_MEMORY,
+                "This would fail with posix_memalign: alignment ({}) must be a power of two and a multiple of {}.",
+                alignment,
+                sizeof(void *));
+
         if constexpr (clear_memory)
             buf = __real_calloc(size, 1);
         else
             buf = __real_malloc(size);
 
         if (unlikely(nullptr == buf))
-            throw DB::ErrnoException(DB::ErrorCodes::CANNOT_ALLOCATE_MEMORY, "Allocator: Cannot malloc {}.", ReadableSize(static_cast<double>(size)));
+            throw DB::ErrnoException(
+                DB::ErrorCodes::CANNOT_ALLOCATE_MEMORY, "Allocator: Cannot malloc {}.", ReadableSize(static_cast<double>(size)));
     }
     else
     {
@@ -88,8 +97,11 @@ void * allocNoTrack(size_t size, size_t alignment)
         int res = __real_posix_memalign(&buf, alignment, size);
 
         if (unlikely(0 != res))
-            throw DB::ErrnoException(
-                DB::ErrorCodes::CANNOT_ALLOCATE_MEMORY, "Cannot allocate memory (posix_memalign) {}.", ReadableSize(size));
+        {
+            // The value of `errno` is not set according to the man: https://man7.org/linux/man-pages/man3/posix_memalign.3.html
+            DB::ErrnoException::throwWithErrno(
+                DB::ErrorCodes::CANNOT_ALLOCATE_MEMORY, res, "Cannot allocate memory (posix_memalign) {}.", ReadableSize(size));
+        }
 
         if constexpr (clear_memory)
             memset(buf, 0, size);
