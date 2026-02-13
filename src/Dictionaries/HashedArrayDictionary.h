@@ -132,8 +132,8 @@ public:
 private:
     using KeyContainerType = std::conditional_t<
         dictionary_key_type == DictionaryKeyType::Simple,
-        HashMap<UInt64, size_t, DefaultHash<UInt64>, HashTableGrower<>>,
-        HashMapWithSavedHash<std::string_view, size_t, DefaultHash<std::string_view>, HashTableGrower<>>>;
+        HashMap<UInt64, size_t>,
+        HashMapWithSavedHash<std::string_view, size_t, DefaultHash<std::string_view>>>;
 
     template <typename Value>
     using AttributeContainerType = std::conditional_t<std::is_same_v<Value, Array>, std::vector<Value>, PaddedPODArray<Value>>;
