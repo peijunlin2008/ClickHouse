@@ -328,6 +328,8 @@ public:
     void enqueueActivation(ISchedulerNode * node)
     {
         std::unique_lock lock{mutex};
+        if (node->is_linked()) // already scheduled
+            return;
         bool was_empty = events.empty() && activations.empty();
         node->activation_event_id = ++last_event_id;
         activations.push_back(*node);
