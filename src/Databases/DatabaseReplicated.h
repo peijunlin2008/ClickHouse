@@ -80,8 +80,6 @@ public:
     void dropTable(ContextPtr, const String & table_name, bool sync) override;
     void renameTable(ContextPtr context, const String & table_name, IDatabase & to_database,
                      const String & to_table_name, bool exchange, bool dictionary) override;
-    StoragePtr detachTable(ContextPtr context, const String & table_name) override;
-    void attachTable(ContextPtr context, const String & table_name, const StoragePtr & table, const String & relative_table_path) override;
     void detachTablePermanently(ContextPtr context, const String & table_name) override;
     void removeDetachedPermanentlyFlag(ContextPtr context, const String & table_name, const String & table_metadata_path, bool attach) override;
 
@@ -92,6 +90,19 @@ public:
     BlockIO tryEnqueueReplicatedDDL(const ASTPtr & query, ContextPtr query_context, QueryFlags flags, DDLGuardPtr && database_guard) override;
 
     bool canExecuteReplicatedMetadataAlter() const override;
+
+    /// RAII guard to suppress digest checks during SYSTEM RESTART REPLICA.
+    /// The table is temporarily removed from the in-memory tables map during restart,
+    /// making it inconsistent with tables_metadata_digest (which remains correct).
+    struct RestartReplicaGuard
+    {
+        explicit RestartReplicaGuard(DatabaseReplicated & db_) : db(db_) { db.tables_being_restarted.fetch_add(1); }
+        ~RestartReplicaGuard() { db.tables_being_restarted.fetch_sub(1); }
+        RestartReplicaGuard(const RestartReplicaGuard &) = delete;
+        RestartReplicaGuard & operator=(const RestartReplicaGuard &) = delete;
+    private:
+        DatabaseReplicated & db;
+    };
 
     bool hasReplicationThread() const override { return true; }
 
@@ -243,10 +254,11 @@ private:
     /// It allows to detect if metadata is broken and recover replica.
     UInt64 tables_metadata_digest TSA_GUARDED_BY(metadata_mutex);
 
-    /// Flag to indicate that tables_metadata_digest has been initialized.
-    /// During startup, tables are attached before the digest is computed,
-    /// so we should not update the digest in attachTable/detachTable until it is initialized.
-    std::atomic<bool> digest_initialized{false};
+    /// Counter for tables currently being restarted by SYSTEM RESTART REPLICA.
+    /// During restart, the table is temporarily removed from the in-memory tables map,
+    /// making it inconsistent with tables_metadata_digest. We skip digest checks
+    /// while any restart is in progress to avoid false LOGICAL_ERROR exceptions in debug builds.
+    std::atomic<int> tables_being_restarted{0};
 
     mutable ClusterPtr cluster;
     mutable ClusterPtr cluster_all_groups;
