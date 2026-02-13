@@ -822,10 +822,16 @@ InterpreterSelectQuery::InterpreterSelectQuery(
                         parts_for_estimator = *parts;
                 }
 
+                /// Just attempting to read statistics files on disk can increase query latencies
+                /// First check the in-memory metadata if statistics are present at all
+                auto estimator = storage_snapshot->metadata->hasStatistics()
+                                    ? storage->getConditionSelectivityEstimator(parts_for_estimator, context)
+                                    : nullptr;
+
                 MergeTreeWhereOptimizer where_optimizer{
                     std::move(column_compressed_sizes),
                     storage_snapshot,
-                    storage->getConditionSelectivityEstimator(parts_for_estimator, context),
+                    estimator,
                     queried_columns,
                     supported_prewhere_columns,
                     log};
@@ -908,7 +914,7 @@ InterpreterSelectQuery::InterpreterSelectQuery(
             query_info.filter_asts.clear();
 
             /// Fix source_header for filter actions.
-            if (row_policy_filter && !row_policy_filter->empty())
+            if (row_policy_filter && !row_policy_filter->isAlwaysTrue())
             {
                 row_policy_info = generateFilterActions(
                     table_id, row_policy_filter->expression, context, storage, storage_snapshot, metadata_snapshot, required_columns,
