@@ -10,7 +10,6 @@ doc_type: 'reference'
 
 Contains a list of all available failpoints registered in the server, along with their type and whether they are currently enabled.
 
-
 Failpoints can be enabled and disabled at runtime using the `SYSTEM ENABLE FAILPOINT` and `SYSTEM DISABLE FAILPOINT` statements.
 
 ## Columns {#columns}
