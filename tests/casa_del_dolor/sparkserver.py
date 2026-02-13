@@ -76,7 +76,8 @@ if __name__ == "__main__":
     # So far I call `tests/docker_scripts/setup_minio.sh stateless` to start MinIO
     cluster_settings = {
         "minio_ip": "127.0.0.1",
-        "minio_port": 11111,
+        "minio_port": 9000,  # this is wrong, the setup_minio.sh sets a random port for the Web console
+        "minio_s3_port": 11111,
         "minio_bucket": "test",
         "minio_access_key": "clickhouse",
         "minio_secret_key": "clickhouse",
@@ -88,6 +89,9 @@ if __name__ == "__main__":
         "instances_dir": "/var/lib/clickhouse/user_files",
         "client_bin_path": sys.argv[1],
         "with_kafka": False,
+        "iceberg_rest_catalog_port": 8181,
+        "glue_catalog_port": 3000,
+        "hms_catalog_port": 9083,
         "get_instance_ip": lambda _: "127.0.0.1",
     }
     cluster = SimpleNamespace(**cluster_settings)
