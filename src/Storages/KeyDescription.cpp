@@ -3,11 +3,13 @@
 #include <Functions/IFunction.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTFunction.h>
+#include <Parsers/ASTSubquery.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/ExpressionAnalyzer.h>
 #include <Interpreters/TreeRewriter.h>
 #include <Storages/ColumnsDescription.h>
 #include <Storages/extractKeyExpressionList.h>
+#include <Common/checkStackSize.h>
 #include <Common/quoteString.h>
 #include <Interpreters/FunctionNameNormalizer.h>
 #include <Parsers/ASTOrderByElement.h>
@@ -20,6 +22,7 @@ namespace DB
 
 namespace ErrorCodes
 {
+    extern const int BAD_ARGUMENTS;
     extern const int LOGICAL_ERROR;
     extern const int DATA_TYPE_CANNOT_BE_USED_IN_KEY;
 }
@@ -119,6 +122,17 @@ bool KeyDescription::moduloToModuloLegacyRecursive(ASTPtr node_expr)
     return modulo_in_ast;
 }
 
+static void checkExpressionDoesntContainSubqueries(const IAST & ast)
+{
+    checkStackSize();
+
+    if (ast.as<ASTSubquery>())
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Key expressions cannot contain subqueries");
+
+    for (const auto & child : ast.children)
+        checkExpressionDoesntContainSubqueries(*child);
+}
+
 KeyDescription KeyDescription::getSortingKeyFromAST(
     const ASTPtr & definition_ast,
     const ColumnsDescription & columns,
@@ -128,6 +142,7 @@ KeyDescription KeyDescription::getSortingKeyFromAST(
     KeyDescription result;
     result.definition_ast = definition_ast;
     auto key_expression_list = extractKeyExpressionList(definition_ast);
+    checkExpressionDoesntContainSubqueries(*key_expression_list);
 
     result.expression_list_ast = make_intrusive<ASTExpressionList>();
     for (const auto & child : key_expression_list->children)
