@@ -1088,7 +1088,7 @@ static MetadataFileWithInfo getLatestMetadataFileAndVersion(
     return {latest_metadata_file_info.version, latest_metadata_file_info.path, getCompressionMethodFromMetadataFile(latest_metadata_file_info.path)};
 }
 
-std::optional<String> resolveContained(const std::filesystem::path & base, const std::filesystem::path & relative)
+static String resolveContained(const std::filesystem::path & base, const std::filesystem::path & relative)
 {
     auto norm_base = base.lexically_normal();
     auto combined = (norm_base / relative).lexically_normal();
@@ -1097,7 +1097,11 @@ std::optional<String> resolveContained(const std::filesystem::path & base, const
 
     if (rel.empty() || rel.begin()->string() == "..")
     {
-        return std::nullopt;
+        throw Exception(
+            ErrorCodes::PATH_ACCESS_DENIED,
+            "Explicit metadata file path `{}` should be in the table path directory : `{}`",
+            relative.string(),
+            base.string());
     }
 
     return combined.string();
@@ -1115,6 +1119,7 @@ MetadataFileWithInfo getLatestOrExplicitMetadataFileAndVersion(
     if (data_lake_settings[DataLakeStorageSetting::iceberg_metadata_file_path].changed)
     {
         auto explicit_metadata_path = data_lake_settings[DataLakeStorageSetting::iceberg_metadata_file_path].value;
+        LOG_TEST(log, "Explicit metadata file path is specified {}, will read from this metadata file", explicit_metadata_path);
         std::filesystem::path p(explicit_metadata_path);
         auto it = p.begin();
         if (it != p.end())
@@ -1122,30 +1127,8 @@ MetadataFileWithInfo getLatestOrExplicitMetadataFileAndVersion(
             if (*it == "." || *it == "..")
                 throw Exception(ErrorCodes::BAD_ARGUMENTS, "Relative paths are not allowed");
         }
-        // i() auto base_string_table_path = table_path;
-        // if (!base_string_table_path.empty() && base_string_table_path.back() != std::filesystem::path::preferred_separator)
-        // {
-        //     base_string_table_path += std::filesystem::path::preferred_separator;
-        // }
-        // String resolved_path
-        //     = std::filesystem::weakly_canonical(std::filesystem::path{base_string_table_path} / explicit_metadata_path).string();
-        std::optional<String> resolved_path = resolveContained(table_path, explicit_metadata_path);
-        // LOG_DEBUG(
-        //     log,
-        //     "Table path: {}, file system table path: {}, explicit metadata file path is specified {}, filesystem_path: {}, resolved "
-        //     "absolute path is {}",
-        //     table_path,
-        //     base_string_table_path,
-        //     std::filesystem::path{base_string_table_path}.string(),
-        //     explicit_metadata_path,
-        //     resolved_path);
-        if (!resolved_path.has_value())
-            throw Exception(
-                ErrorCodes::PATH_ACCESS_DENIED,
-                "Explicit metadata file path `{}` should be in the table path directory : `{}`",
-                explicit_metadata_path,
-                table_path);
-        return getMetadataFileAndVersion(resolved_path.value());
+        String resolved_path = resolveContained(table_path, explicit_metadata_path);
+        return getMetadataFileAndVersion(resolved_path);
     }
     else if (data_lake_settings[DataLakeStorageSetting::iceberg_metadata_table_uuid].changed)
     {
