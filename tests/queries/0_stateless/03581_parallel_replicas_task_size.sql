@@ -31,8 +31,8 @@ SELECT * FROM t FORMAT Null SETTINGS log_comment = 'parallel_replicas_task_size_
 SYSTEM FLUSH LOGS query_log;
 
 -- The objective is to check that we request enough marks with each request. Obviously, the more we request, the less requests we will have.
--- Before the fix, in this particular case we made ~ 70 requests, now it should be <= 15 (25 is used to ensure no flakyness).
-SELECT throwIf(ProfileEvents['ParallelReplicasNumRequests'] > 25)
+-- Before the fix, in this particular case we made ~ 70 requests, now it should be well under 15.
+SELECT throwIf(ProfileEvents['ParallelReplicasNumRequests'] > 15)
 FROM system.query_log
 WHERE current_database = currentDatabase() AND log_comment = 'parallel_replicas_task_size_82982938' AND type = 'QueryFinish'
 SETTINGS enable_parallel_replicas = 0
