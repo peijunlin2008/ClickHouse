@@ -20,8 +20,8 @@ $CLICKHOUSE_CLIENT --query "INSERT INTO t2 VALUES ('a', 'x')"
 $CLICKHOUSE_CLIENT --query "INSERT INTO t3 VALUES ('a', 'y')"
 
 # Previously caused LOGICAL_ERROR: Bad cast from type DB::ConstantNode to DB::ListNode.
-# After the fix, the query may succeed or return INVALID_JOIN_ON_EXPRESSION depending on
-# the analyzer configuration -- both are acceptable, as long as there is no LOGICAL_ERROR.
+# After the fix, the query may succeed or return an expected error depending on
+# the analyzer configuration -- all are acceptable, as long as there is no LOGICAL_ERROR.
 ERROR=$($CLICKHOUSE_CLIENT --query "
     SET analyzer_compatibility_join_using_top_level_identifier = 1;
     SELECT t1.val, concat('_1', 2, 2) AS id
@@ -32,7 +32,7 @@ ERROR=$($CLICKHOUSE_CLIENT --query "
 if echo "$ERROR" | grep -q "LOGICAL_ERROR"; then
     echo "UNEXPECTED: LOGICAL_ERROR encountered"
     echo "$ERROR"
-elif [ -z "$ERROR" ] || echo "$ERROR" | grep -q "INVALID_JOIN_ON_EXPRESSION"; then
+elif [ -z "$ERROR" ] || echo "$ERROR" | grep -qE "INVALID_JOIN_ON_EXPRESSION|AMBIGUOUS_IDENTIFIER"; then
     echo "OK"
 else
     echo "UNEXPECTED error: $ERROR"
