@@ -1854,7 +1854,13 @@ bool StorageReplicatedMergeTree::checkPartsImpl(bool skip_sanity_checks)
         if (!getActiveContainingPart(missing_name))
             parts_to_fetch.push_back(missing_name);
 
-    paranoidCheckForCoveredPartsInZooKeeperOnStart(expected_parts_vec, parts_to_fetch);
+    /// The paranoid check looks for parts that exist in ZooKeeper and are covered by another ZK part,
+    /// but don't exist in the in-memory data_parts set. When outdated parts are still being loaded
+    /// asynchronously, a covered part may exist on disk but not yet be in the data_parts set,
+    /// causing a false positive. Skip the check on the first (optimistic) call; it will run on the
+    /// second call after `waitForOutdatedPartsToBeLoaded` in `checkParts`.
+    if (!incomplete_list_of_outdated_parts)
+        paranoidCheckForCoveredPartsInZooKeeperOnStart(expected_parts_vec, parts_to_fetch);
 
     waitForUnexpectedPartsToBeLoaded();
 
@@ -7956,11 +7962,13 @@ void StorageReplicatedMergeTree::fetchPartition(
 
         missing_parts.clear();
 
+        std::mutex missing_parts_mutex; /// Must be created before runner, so it outlives it
         ThreadPoolCallbackRunnerLocal<void> fetch_partition_runner(getFetchPartitionThreadPool().get(), ThreadName::MERGETREE_FETCH_PARTITION);
-        std::mutex missing_parts_mutex;
+
         for (const String & part : parts_to_fetch)
         {
-            fetch_partition_runner.enqueueAndKeepTrack([&]()
+            /// Passing by reference here is ok. All passed variables are created before the runner, so they will outlive it
+            fetch_partition_runner.enqueueAndKeepTrack([this, &part, &metadata_snapshot, &from_zookeeper_name, &best_replica_path, &zookeeper, &missing_parts_mutex, &missing_parts]()
             {
                 bool fetched = false;
 
