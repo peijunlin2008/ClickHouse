@@ -88,6 +88,7 @@ if __name__ == "__main__":
         "instances_dir": "/var/lib/clickhouse/user_files",
         "client_bin_path": sys.argv[1],
         "with_kafka": False,
+        "get_instance_ip": lambda _: "127.0.0.1",
     }
     cluster = SimpleNamespace(**cluster_settings)
     os.makedirs(cluster.instances_dir, exist_ok=True)
