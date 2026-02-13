@@ -130,11 +130,10 @@ public:
     Pipe read(const Names & column_names, size_t max_block_size, size_t num_streams) const override;
 
 private:
-
     using KeyContainerType = std::conditional_t<
         dictionary_key_type == DictionaryKeyType::Simple,
-        HashMap<UInt64, size_t>,
-        HashMapWithSavedHash<std::string_view, size_t, DefaultHash<std::string_view>>>;
+        HashMap<UInt64, size_t, DefaultHash<UInt64>, HashTableGrower<>>,
+        HashMapWithSavedHash<std::string_view, size_t, DefaultHash<std::string_view>, HashTableGrower<>>>;
 
     template <typename Value>
     using AttributeContainerType = std::conditional_t<std::is_same_v<Value, Array>, std::vector<Value>, PaddedPODArray<Value>>;
@@ -144,8 +143,6 @@ private:
 
     struct Attribute final
     {
-        AttributeUnderlyingType type;
-
         std::variant<
             AttributeContainerShardsType<UInt8>,
             AttributeContainerShardsType<UInt16>,
@@ -176,6 +173,8 @@ private:
         /// One container per shard
         using RowsMask = std::vector<bool>;
         std::optional<std::vector<RowsMask>> is_index_null;
+
+        AttributeUnderlyingType type;
     };
 
     struct KeyAttribute final
