@@ -1022,7 +1022,7 @@ Pipe ReadFromParallelRemoteReplicasStep::createPipeForSingeReplica(
     const ConnectionPoolPtr & pool, ASTPtr ast, IConnections::ReplicaInfo replica_info, const SharedHeader & out_header,
     size_t parallel_marshalling_threads)
 {
-    bool add_agg_info = query_plan ? false : stage == QueryProcessingStage::WithMergeableState;
+    bool add_agg_info = stage == QueryProcessingStage::WithMergeableState;
     bool add_totals = false;
     bool add_extremes = false;
     bool async_read = context->getSettingsRef()[Setting::async_socket_for_remote];
