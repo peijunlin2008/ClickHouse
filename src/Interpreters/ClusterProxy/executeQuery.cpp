@@ -711,8 +711,12 @@ void executeQueryWithParallelReplicas(
         }
 
         std::shared_ptr<const QueryPlan> remote_query_plan;
+        WriteBufferFromOwnString serialized_query_plan_buf;
         if (new_context->getSettingsRef()[Setting::serialize_query_plan])
+        {
             remote_query_plan = createRemotePlanForParallelReplicas(query_ast, * header, new_context, processed_stage);
+            remote_query_plan->ensureSerialized(DBMS_QUERY_PLAN_SERIALIZATION_VERSION);
+        }
 
         auto read_from_local = std::make_unique<ReadFromLocalParallelReplicaStep>(std::move(local_plan));
         auto stub_local_plan = std::make_unique<QueryPlan>();
