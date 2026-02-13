@@ -181,7 +181,7 @@ endforeach()
 string(APPEND output_content "constexpr std::array embedded_resources = {\n")
 string(APPEND output_content "${resource_array_entries}")
 string(APPEND output_content "};\n\n")
-string(APPEND output_content "} // namespace DB::ClickStack\n")
+string(APPEND output_content "}\n")
 
 # Write the generated file
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/Server/ClickStackResources.generated.h" "${output_content}")
