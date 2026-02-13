@@ -75,13 +75,6 @@ void * allocNoTrack(size_t size, size_t alignment)
     void * buf;
     if (likely(alignment <= MALLOC_MIN_ALIGNMENT))
     {
-        if (alignment > 8 && (!isPowerOf2(alignment) || (alignment % sizeof(void *) != 0)))
-            throw DB::Exception(
-                DB::ErrorCodes::CANNOT_ALLOCATE_MEMORY,
-                "This would fail with posix_memalign: alignment ({}) must be a power of two and a multiple of {}.",
-                alignment,
-                sizeof(void *));
-
         if constexpr (clear_memory)
             buf = __real_calloc(size, 1);
         else
