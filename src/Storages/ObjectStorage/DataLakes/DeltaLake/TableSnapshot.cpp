@@ -695,14 +695,19 @@ DB::ObjectIterator TableSnapshot::iterate(
     auto update_stats_func = [self = shared_from_this(), this](SnapshotStats && stats)
     {
         std::unique_lock lock(mutex, std::defer_lock);
-        if (lock.try_lock()
-            && (!snapshot_stats.has_value()
-                || snapshot_stats->version < stats.version))
+        if (lock.try_lock())
         {
-            snapshot_stats.emplace(std::move(stats));
-            LOG_TEST(
-                log, "Updated statistics from data files iterator for snapshot version {}",
-                snapshot_stats->version);
+            if (snapshot_stats.has_value())
+            {
+                chassert(snapshot_stats->version == stats.version);
+            }
+            else
+            {
+                snapshot_stats.emplace(std::move(stats));
+                LOG_TEST(
+                    log, "Updated statistics from data files iterator for snapshot version {}",
+                    snapshot_stats->version);
+            }
         }
     };
     const auto & settings = context->getSettingsRef();

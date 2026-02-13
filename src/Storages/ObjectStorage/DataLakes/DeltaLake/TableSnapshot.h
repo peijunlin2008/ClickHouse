@@ -92,8 +92,11 @@ private:
         /// Snapshot version
         size_t version;
         /// Table logical schema
+        /// (e.g. actual table schema)
         TableSchema table_schema;
         /// Table read schema
+        /// (contains only columns contained in data file,
+        /// e.g. does not contain partition columns, generated columns, etc)
         ReadSchema read_schema;
         /// Mapping for physical names of parquet data files
         DB::NameToNameMap physical_names_map;
