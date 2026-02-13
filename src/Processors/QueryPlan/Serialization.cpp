@@ -138,6 +138,7 @@ void QueryPlan::ensureSerialized(size_t max_supported_version) const
 
     serialized_plan = std::make_unique<WriteBufferFromOwnString>();
     serialize(*serialized_plan, max_supported_version);
+    serialized_plan->finalize();
 }
 
 std::string_view QueryPlan::getSerializedData() const
@@ -146,7 +147,7 @@ std::string_view QueryPlan::getSerializedData() const
         throw Exception(ErrorCodes::LOGICAL_ERROR,
             "Query plan is not serialized. Call ensureSerialized() first.");
 
-    return serialized_plan->str();
+    return serialized_plan->stringView();
 }
 
 bool QueryPlan::isSerialized() const
