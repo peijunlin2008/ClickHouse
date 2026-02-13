@@ -19,12 +19,7 @@
 
 namespace ProfileEvents
 {
-extern const Event FileSegmentWaitReadBufferMicroseconds;
-extern const Event FileSegmentReadMicroseconds;
-extern const Event FileSegmentCacheWriteMicroseconds;
-extern const Event FileSegmentPredownloadMicroseconds;
-extern const Event FileSegmentUsedBytes;
-
+extern const Event CachedReadBufferWaitReadBufferMicroseconds;
 extern const Event CachedReadBufferReadFromSourceMicroseconds;
 extern const Event CachedReadBufferPredownloadedFromSourceMicroseconds;
 extern const Event CachedReadBufferReadFromCacheMicroseconds;
@@ -158,8 +153,6 @@ void CachedOnDiskReadBufferFromFile::appendFilesystemCacheLog(
         .file_segment_size = range.size(),
         .read_from_cache_attempted = true,
         .read_buffer_id = current_buffer_id,
-        .profile_counters = std::make_shared<ProfileEvents::Counters::Snapshot>(
-            info.current_file_segment_counters.getPartiallyAtomicSnapshot()),
         .user_id = origin.user_id,
     };
 
@@ -699,13 +692,6 @@ bool CachedOnDiskReadBufferFromFile::predownloadForFileSegment(
     ReadInfo & info,
     LoggerPtr log)
 {
-    Stopwatch predownload_watch(CLOCK_MONOTONIC);
-    SCOPE_EXIT({
-        predownload_watch.stop();
-        info.current_file_segment_counters.increment(
-            ProfileEvents::FileSegmentPredownloadMicroseconds, predownload_watch.elapsedMicroseconds());
-    });
-
     OpenTelemetry::SpanHolder span("CachedOnDiskReadBufferFromFile::predownload");
     span.addAttribute("clickhouse.key", file_segment.key().toString());
     span.addAttribute("clickhouse.size", state.bytes_to_predownload);
@@ -966,7 +952,6 @@ bool CachedOnDiskReadBufferFromFile::writeCache(
 
     watch.stop();
     auto elapsed = watch.elapsedMicroseconds();
-    info.current_file_segment_counters.increment(ProfileEvents::FileSegmentCacheWriteMicroseconds, elapsed);
     ProfileEvents::increment(ProfileEvents::CachedReadBufferCacheWriteMicroseconds, elapsed);
     ProfileEvents::increment(ProfileEvents::CachedReadBufferCacheWriteBytes, size);
 
@@ -1206,7 +1191,6 @@ size_t CachedOnDiskReadBufferFromFile::readFromFileSegment(
 
         watch.stop();
         auto elapsed = watch.elapsedMicroseconds();
-        info.current_file_segment_counters.increment(ProfileEvents::FileSegmentReadMicroseconds, elapsed);
 
         chassert(state.buf->position() == state.buf->buffer().begin());
 
@@ -1382,7 +1366,6 @@ size_t CachedOnDiskReadBufferFromFile::readFromFileSegment(
             file_segment.getInfoForLog());
     }
 
-    info.current_file_segment_counters.increment(ProfileEvents::FileSegmentUsedBytes, state.buf->available());
 
     // No necessary because of the SCOPE_EXIT above, but useful for logging below.
     LOG_TEST(log, "Read {} bytes (buffer size: {}). Read info: {}",

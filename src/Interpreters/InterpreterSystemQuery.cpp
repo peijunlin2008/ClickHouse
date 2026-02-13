@@ -72,6 +72,7 @@
 #include <Common/getRandomASCIIString.h>
 #include <Common/logger_useful.h>
 #include <Common/typeid_cast.h>
+#include <base/sleep.h>
 
 #if USE_PROTOBUF
 #include <Formats/ProtobufSchemas.h>
@@ -1131,11 +1132,21 @@ StoragePtr InterpreterSystemQuery::doRestartReplica(const StorageID & replica, C
 
             break;
         }
-        catch (...)
+        catch (const Coordination::Exception & e)
         {
+            /// Only retry on transient ZooKeeper errors (connection loss, session expired, etc.)
+            if (!Coordination::isHardwareError(e.code))
+                throw;
+
             tryLogCurrentException(
                 getLogger("InterpreterSystemQuery"),
                 fmt::format("Failed to restart replica {}, will retry", replica.getNameForLogs()));
+
+            /// Check if the query was cancelled (e.g. server is shutting down)
+            if (auto process_list_element = getContext()->getProcessListElementSafe())
+                process_list_element->checkTimeLimit();
+
+            sleepForSeconds(1);
         }
     }
 
@@ -1256,7 +1267,11 @@ void InterpreterSystemQuery::dropReplica(ASTSystemQuery & query)
             LOG_TRACE(log, "Dropped replica {} from database {}", query.replica, backQuoteIfNeed(database->getDatabaseName()));
         }
     }
-    else if (!query.replica_zk_path.empty())
+    else if (query.replica_zk_path.empty())
+    {
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "ZooKeeper path is empty");
+    }
+    else
     {
         getContext()->checkAccess(AccessType::SYSTEM_DROP_REPLICA);
         String remote_replica_path = fs::path(query.replica_zk_path)  / "replicas" / query.replica;
@@ -1298,8 +1313,6 @@ void InterpreterSystemQuery::dropReplica(ASTSystemQuery & query)
         StorageReplicatedMergeTree::dropReplica(zookeeper, info, log);
         LOG_INFO(log, "Dropped replica {}", remote_replica_path);
     }
-    else
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Invalid query");
 }
 
 bool InterpreterSystemQuery::dropStorageReplica(const String & query_replica, const StoragePtr & storage)
@@ -1324,7 +1337,7 @@ bool InterpreterSystemQuery::dropStorageReplica(const String & query_replica, co
 
 void InterpreterSystemQuery::dropStorageReplicasFromDatabase(const String & query_replica, DatabasePtr database)
 {
-    for (auto iterator = database->getLightweightTablesIterator(getContext()); iterator->isValid(); iterator->next())
+    for (auto iterator = database->getTablesIterator(getContext()); iterator->isValid(); iterator->next())
         dropStorageReplica(query_replica, iterator->table());
 
     LOG_TRACE(log, "Dropped storage replica from {} of database {}", query_replica, backQuoteIfNeed(database->getDatabaseName()));
@@ -1611,7 +1624,11 @@ void InterpreterSystemQuery::dropDatabaseReplica(ASTSystemQuery & query)
             LOG_TRACE(log, "Dropped replica {} of Replicated database {}", query.replica, backQuoteIfNeed(database->getDatabaseName()));
         }
     }
-    else if (!query.replica_zk_path.empty())
+    else if (query.replica_zk_path.empty())
+    {
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "ZooKeeper path is empty");
+    }
+    else
     {
         getContext()->checkAccess(AccessType::SYSTEM_DROP_REPLICA);
 
@@ -1653,8 +1670,6 @@ void InterpreterSystemQuery::dropDatabaseReplica(ASTSystemQuery & query)
         DatabaseReplicated::dropReplica(nullptr, query.replica_zk_path, query.shard, query.replica, /*throw_if_noop*/ true);
         LOG_INFO(log, "Dropped replica {} of Replicated database with path {}", query.replica, query.replica_zk_path);
     }
-    else
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Invalid query");
 }
 
 bool InterpreterSystemQuery::trySyncReplica(StoragePtr table, SyncReplicaMode sync_replica_mode, const std::unordered_set<String> & src_replicas, ContextPtr context_)
