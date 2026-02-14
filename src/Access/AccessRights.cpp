@@ -562,8 +562,26 @@ public:
 
     friend bool operator!=(const Node & left, const Node & right) { return !(left == right); }
 
+    /// Checks whether `this` node's access rights are a superset of `other`'s
     bool contains(const Node & other) const
     {
+        /// The check traverses children from both sides:
+        /// 1) For each child in `other`, find the matching node in `this` and verify containment.
+        /// 2) For each child in `this`, find the matching node in `other` and verify containment.
+        ///
+        /// The reverse traversal (step 2) is needed to handle partial revokes correctly.
+        /// Example: GRANT SELECT ON *.*, REVOKE SELECT ON foo.*
+        ///
+        ///   this:                   other:
+        ///       root (SELECT)         root (SELECT)
+        ///        |
+        ///      "foo" (SELECT)
+        ///        |
+        ///        "" (leaf, USAGE)
+        ///
+        /// Step 1 alone would pass because `other` has no children to check against, but `this` does not contain `other` because
+        /// `this` has revoked SELECT on "foo".
+
         if (!flags.contains(other.flags))
             return false;
 
