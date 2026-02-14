@@ -4081,7 +4081,26 @@ void QueryAnalyzer::resolveTableFunction(QueryTreeNodePtr & table_function_node,
         }
     }
 
-    auto table_function_storage = scope_context->getQueryContext()->executeTableFunction(table_function_ast, table_function_ptr);
+    /// Use the query context by default for table function execution (enables caching).
+    /// However, if the current subquery or any parent subquery has per-subquery SETTINGS,
+    /// use the scope context instead, because it has those settings applied,
+    /// while getQueryContext returns the top-level context without them.
+    ContextMutablePtr execute_context = scope_context->getQueryContext();
+    {
+        const IdentifierResolveScope * scope_to_check = &scope;
+        while (scope_to_check != nullptr)
+        {
+            if (auto * query_node = scope_to_check->scope_node->as<QueryNode>(); query_node && query_node->hasSettingsChanges())
+            {
+                auto * nearest_query_scope = scope.getNearestQueryScope();
+                if (nearest_query_scope)
+                    execute_context = nearest_query_scope->scope_node->as<QueryNode &>().getMutableContext();
+                break;
+            }
+            scope_to_check = scope_to_check->parent_scope;
+        }
+    }
+    auto table_function_storage = execute_context->executeTableFunction(table_function_ast, table_function_ptr);
     table_function_node_typed.resolve(std::move(table_function_ptr), std::move(table_function_storage), scope_context, std::move(skip_analysis_arguments_indexes));
 }
 
