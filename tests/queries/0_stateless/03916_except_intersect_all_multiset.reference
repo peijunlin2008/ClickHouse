@@ -20,8 +20,8 @@
 -- EXCEPT ALL: empty left side
 -- INTERSECT ALL: empty right side
 -- EXCEPT ALL with strings
-b
 a
+b
 -- INTERSECT ALL with strings
 a
 b
