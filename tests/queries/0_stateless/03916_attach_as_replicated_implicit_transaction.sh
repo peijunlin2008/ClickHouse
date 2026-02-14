@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tags: zookeeper, no-replicated-database, no-ordinary-database, no-shared-merge-tree
+# Tags: zookeeper, no-replicated-database, no-ordinary-database, no-shared-merge-tree, no-encrypted-storage
 
 # Regression test: ATTACH TABLE AS REPLICATED with implicit_transaction caused
 # assertHasValidVersionMetadata() LOGICAL_ERROR in debug/sanitizer builds.
@@ -16,8 +16,9 @@ ${CLICKHOUSE_CLIENT} -n -q "
 "
 
 # Insert with implicit_transaction to create parts with transaction metadata
-${CLICKHOUSE_CLIENT} --implicit_transaction=1 -q "INSERT INTO t_implicit_txn VALUES (1)"
-${CLICKHOUSE_CLIENT} --implicit_transaction=1 -q "INSERT INTO t_implicit_txn VALUES (2)"
+# Disable async_insert because it is incompatible with implicit_transaction
+${CLICKHOUSE_CLIENT} --implicit_transaction=1 --async_insert=0 -q "INSERT INTO t_implicit_txn VALUES (1)"
+${CLICKHOUSE_CLIENT} --implicit_transaction=1 --async_insert=0 -q "INSERT INTO t_implicit_txn VALUES (2)"
 
 ${CLICKHOUSE_CLIENT} -n -q "
     DETACH TABLE t_implicit_txn;
