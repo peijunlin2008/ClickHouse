@@ -3,6 +3,13 @@
 -- could crash because the aggregate function was created with non-nullable argument
 -- types, but the actual data columns became nullable after GROUP BY.
 
+-- Original reproducer from the issue:
+CREATE DICTIONARY d0 (c0 Int) PRIMARY KEY (c0) SOURCE(NULL()) LAYOUT(HASHED()) LIFETIME(1);
+SELECT min('a') OVER () FROM d0 GROUP BY 'a', c0 WITH CUBE WITH TOTALS SETTINGS group_by_use_nulls = 1;
+DROP DICTIONARY d0;
+
+SELECT '---';
+
 SELECT min('a') OVER () FROM numbers(3) GROUP BY 'a', number WITH CUBE WITH TOTALS SETTINGS group_by_use_nulls = 1;
 
 SELECT '---';
