@@ -117,8 +117,8 @@ for i in $(seq $REPLICAS); do
     $CLICKHOUSE_CLIENT --query "SELECT SUM(toUInt64(value1)) > $INITIAL_SUM FROM concurrent_alter_detach_$i"
 
     # Wait for all mutations and replication queue entries to finish.
-    # SYSTEM SYNC REPLICA may return while a MUTATE_PART entry is postponed
-    # (e.g. waiting for an in-progress MERGE_PARTS on the same part to complete).
+    # In this case, it might be more robust than SYSTEM SYNC REPLICA
+    # for unclear reasons.
     for _ in {1..120}; do
         mutations_count=$($CLICKHOUSE_CLIENT --query "SELECT count() FROM system.mutations WHERE database = '$CLICKHOUSE_DATABASE' AND is_done = 0 AND table = 'concurrent_alter_detach_$i'")
         queue_count=$($CLICKHOUSE_CLIENT --query "SELECT count() FROM system.replication_queue WHERE database = '$CLICKHOUSE_DATABASE' AND table = 'concurrent_alter_detach_$i' AND (type = 'ALTER_METADATA' OR type = 'MUTATE_PART')")
