@@ -1,0 +1,26 @@
+-- https://github.com/ClickHouse/ClickHouse/issues/82499
+-- Window functions with `group_by_use_nulls = 1` and CUBE/ROLLUP/GROUPING SETS
+-- could crash because the aggregate function was created with non-nullable argument
+-- types, but the actual data columns became nullable after GROUP BY.
+
+SELECT min('a') OVER () FROM numbers(3) GROUP BY 'a', number WITH CUBE WITH TOTALS SETTINGS group_by_use_nulls = 1;
+
+SELECT '---';
+
+WITH 'a' AS x SELECT leadInFrame(x) OVER () GROUP BY ROLLUP(x) SETTINGS group_by_use_nulls = 1;
+
+SELECT '---';
+
+SELECT max('hello') OVER (), min('world') OVER () FROM numbers(2) GROUP BY number WITH ROLLUP SETTINGS group_by_use_nulls = 1;
+
+SELECT '---';
+
+SELECT any('test') OVER () FROM numbers(2) GROUP BY GROUPING SETS(('test', number), ('test')) SETTINGS group_by_use_nulls = 1;
+
+SELECT '---';
+
+WITH 'x' AS v SELECT lag(v) OVER (ORDER BY v), lead(v) OVER (ORDER BY v) GROUP BY ROLLUP(v) SETTINGS group_by_use_nulls = 1;
+
+SELECT '---';
+
+SELECT min(1) OVER (), max(42) OVER (), sum(1) OVER () FROM numbers(2) GROUP BY number WITH ROLLUP SETTINGS group_by_use_nulls = 1;
