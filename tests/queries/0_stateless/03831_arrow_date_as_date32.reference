@@ -1,0 +1,8 @@
+Arrow schema inference:
+d	Date32
+ArrowStream schema inference:
+d	Date32
+Arrow roundtrip:
+2024-01-15	2020-12-31
+ArrowStream roundtrip:
+2024-01-15	2020-12-31

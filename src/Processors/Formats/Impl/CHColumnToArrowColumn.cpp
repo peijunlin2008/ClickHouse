@@ -83,7 +83,7 @@ namespace DB
         {"Float32", arrow::float32()},
         {"Float64", arrow::float64()},
 
-        {"Date", arrow::uint16()},      /// uint16 is used instead of date32, because Apache Arrow cannot correctly serialize Date32Array.
+        {"Date", arrow::date32()},
         {"DateTime", arrow::uint32()},  /// uint32 is used instead of date64, because we don't need milliseconds.
         {"Date32", arrow::date32()},
 
@@ -625,7 +625,7 @@ namespace DB
         size_t end)
     {
         const PaddedPODArray<UInt16> & internal_data = assert_cast<const ColumnVector<UInt16> &>(*write_column).getData();
-        arrow::UInt16Builder & builder = assert_cast<arrow::UInt16Builder &>(*array_builder);
+        arrow::Date32Builder & builder = assert_cast<arrow::Date32Builder &>(*array_builder);
         arrow::Status status;
 
         if (null_bytemap)
@@ -635,14 +635,17 @@ namespace DB
                 if ((*null_bytemap)[value_i])
                     status = builder.AppendNull();
                 else
-                    status = builder.Append(internal_data[value_i]);
+                    status = builder.Append(static_cast<Int32>(internal_data[value_i]));
                 checkStatus(status, write_column->getName(), format_name);
             }
         }
         else
         {
-            status = builder.AppendValues(internal_data.data() + start, end - start);
-            checkStatus(status, write_column->getName(), format_name);
+            for (size_t value_i = start; value_i < end; ++value_i)
+            {
+                status = builder.Append(static_cast<Int32>(internal_data[value_i]));
+                checkStatus(status, write_column->getName(), format_name);
+            }
         }
     }
 
