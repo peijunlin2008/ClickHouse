@@ -160,7 +160,8 @@ private:
 
     static bool lessOrEqual(const IColumn & left, const Result & right, size_t i, size_t) { return left[i] >= right; }
 
-    static bool lessOrEqual(const Array & arr, const Field & rhs, size_t pos, size_t) {
+    static bool lessOrEqual(const Array & arr, const Field & rhs, size_t pos, size_t)
+    {
         return accurateLessOrEqual(rhs, arr[pos]);
     }
 
