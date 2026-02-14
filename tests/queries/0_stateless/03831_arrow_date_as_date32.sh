@@ -10,10 +10,10 @@ CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 # Schema inference should show Date32 (Arrow date32 maps to ClickHouse Date32)
 echo "Arrow schema inference:"
-$CLICKHOUSE_LOCAL -q "SELECT toDate('2024-01-15') AS d FORMAT Arrow" | $CLICKHOUSE_LOCAL --input-format=Arrow --table=test -q "SELECT name, type FROM system.columns WHERE table = 'test'"
+$CLICKHOUSE_LOCAL -q "SELECT toDate('2024-01-15') AS d FORMAT Arrow" | $CLICKHOUSE_LOCAL --input-format=Arrow --table=test -q "SELECT name, type FROM system.columns WHERE table = 'test' AND database = currentDatabase()"
 
 echo "ArrowStream schema inference:"
-$CLICKHOUSE_LOCAL -q "SELECT toDate('2024-01-15') AS d FORMAT ArrowStream" | $CLICKHOUSE_LOCAL --input-format=ArrowStream --table=test -q "SELECT name, type FROM system.columns WHERE table = 'test'"
+$CLICKHOUSE_LOCAL -q "SELECT toDate('2024-01-15') AS d FORMAT ArrowStream" | $CLICKHOUSE_LOCAL --input-format=ArrowStream --table=test -q "SELECT name, type FROM system.columns WHERE table = 'test' AND database = currentDatabase()"
 
 # Verify values are preserved through roundtrip
 echo "Arrow roundtrip:"
@@ -24,10 +24,10 @@ $CLICKHOUSE_LOCAL -q "SELECT toDate('2024-01-15') AS d, toDate('2020-12-31') AS 
 
 # With output_format_arrow_date_as_uint16=1, schema inference should show UInt16
 echo "Arrow schema inference (uint16 compat):"
-$CLICKHOUSE_LOCAL --output_format_arrow_date_as_uint16=1 -q "SELECT toDate('2024-01-15') AS d FORMAT Arrow" | $CLICKHOUSE_LOCAL --input-format=Arrow --table=test -q "SELECT name, type FROM system.columns WHERE table = 'test'"
+$CLICKHOUSE_LOCAL --output_format_arrow_date_as_uint16=1 -q "SELECT toDate('2024-01-15') AS d FORMAT Arrow" | $CLICKHOUSE_LOCAL --input-format=Arrow --table=test -q "SELECT name, type FROM system.columns WHERE table = 'test' AND database = currentDatabase()"
 
 echo "ArrowStream schema inference (uint16 compat):"
-$CLICKHOUSE_LOCAL --output_format_arrow_date_as_uint16=1 -q "SELECT toDate('2024-01-15') AS d FORMAT ArrowStream" | $CLICKHOUSE_LOCAL --input-format=ArrowStream --table=test -q "SELECT name, type FROM system.columns WHERE table = 'test'"
+$CLICKHOUSE_LOCAL --output_format_arrow_date_as_uint16=1 -q "SELECT toDate('2024-01-15') AS d FORMAT ArrowStream" | $CLICKHOUSE_LOCAL --input-format=ArrowStream --table=test -q "SELECT name, type FROM system.columns WHERE table = 'test' AND database = currentDatabase()"
 
 # Verify values are preserved with uint16 compat mode
 echo "Arrow roundtrip (uint16 compat):"
