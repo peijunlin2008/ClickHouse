@@ -1563,17 +1563,26 @@ if (window.location.hash) {
 }
 
 let in_flight = false;
+
+// Favicon changes to gray while a query is running, to indicate progress on the browser tab.
+const favicon_default = document.querySelector('link[rel="icon"]').href;
+const favicon_running = 'data:image/svg+xml;base64,' + btoa(atob(favicon_default.split(',')[1]).replace('#ff0', '#bbb'));
+
+function setFavicon(href) { document.querySelector('link[rel="icon"]').href = href; }
+
 async function post()
 {
     ++request_num;
     document.body.scrollTo(0, 0);
     let query = await getQueryUnderCursor();
     in_flight = true;
+    setFavicon(favicon_running);
     let run = document.getElementById('run');
     run.innerText = 'Stop';
     await postImpl(request_num, query);
     run.blur();
     run.innerText = 'Run';
+    setFavicon(favicon_default);
     in_flight = false;
 }
 
