@@ -2,7 +2,9 @@
 #include <Columns/ColumnDecimal.h>
 
 #if USE_EMBEDDED_COMPILER
+#    include <DataTypes/DataTypeDateTime64.h>
 #    include <DataTypes/DataTypeNullable.h>
+#    include <DataTypes/DataTypeTime64.h>
 #    include <Columns/ColumnConst.h>
 #    include <Columns/ColumnNullable.h>
 
@@ -140,17 +142,23 @@ llvm::Value * nativeCast(llvm::IRBuilderBase & b, const DataTypePtr & from_type,
     auto * from_native_type = toNativeType(b, from_type);
     auto * to_native_type = toNativeType(b, to_type);
 
-    /// Handle scale conversion for DateTime/DateTime64/Time/Time64/Decimal types.
+    /// Handle scale conversion for DateTime/DateTime64/Time/Time64 types.
     /// When converting between types with different scales (e.g., DateTime with implicit
     /// scale 0 to DateTime64 with scale 3), we need to multiply/divide by the appropriate
     /// power of 10, not just cast the integer value.
+    /// Note: Decimal types are NOT handled here because JIT-compiled aggregate functions
+    /// (e.g., avg) already manage Decimal scale conversion themselves.
     {
         auto get_effective_scale = [](const DataTypePtr & type) -> std::optional<UInt32>
         {
             WhichDataType which(type);
             if (which.isDateTime() || which.isTime())
                 return 0u;
-            return tryGetDecimalScale(*type);
+            if (which.isDateTime64())
+                return typeid_cast<const DataTypeDateTime64 *>(type.get())->getScale();
+            if (which.isTime64())
+                return typeid_cast<const DataTypeTime64 *>(type.get())->getScale();
+            return std::nullopt;
         };
 
         auto from_scale = get_effective_scale(from_type);
