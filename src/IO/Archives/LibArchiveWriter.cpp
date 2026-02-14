@@ -335,6 +335,7 @@ void LibArchiveWriter::cancel() noexcept
         stream_info->archive_write_buffer->cancel();
         stream_info.reset();
     }
+    finalized = true;
 }
 
 void LibArchiveWriter::setPassword(const String & password_)

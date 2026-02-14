@@ -817,8 +817,10 @@ TEST_P(ArchiveReaderAndWriterTest, WriteErrorProducesException)
     auto writer = createArchiveWriter(getPathToArchive(), std::move(failing_buffer));
 
     auto out = writer->writeFile("a.txt");
-    /// Write enough data to trigger the underlying buffer flush failure.
-    String large_content(1024 * 1024, 'x');
+    /// Write enough random (incompressible) data to trigger the underlying buffer flush failure.
+    /// Using random data ensures that compressed formats (bz2, lzma, zst, xz) also exceed
+    /// the byte threshold, since repetitive data compresses to nearly nothing.
+    String large_content = getRandomASCIIString(1024 * 1024);
     EXPECT_THROW(
         {
             writeString(large_content, *out);
@@ -826,6 +828,11 @@ TEST_P(ArchiveReaderAndWriterTest, WriteErrorProducesException)
             writer->finalize();
         },
         Exception);
+
+    /// Clean up after the expected exception: the writer was not finalized,
+    /// so we must cancel it to avoid the chassert in the destructor.
+    out.reset();
+    writer->cancel();
 }
 
 

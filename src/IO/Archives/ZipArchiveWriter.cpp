@@ -389,6 +389,8 @@ void ZipArchiveWriter::cancel() noexcept
         stream_info->getWriteBuffer().cancel();
         stream_info.reset();
     }
+
+    finalized = true;
 }
 
 void ZipArchiveWriter::setCompression(const String & compression_method_, int compression_level_)
