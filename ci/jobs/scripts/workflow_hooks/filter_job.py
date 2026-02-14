@@ -45,7 +45,17 @@ INTEGRATION_TEST_FLAKY_CHECK_JOBS = [
 
 FUNCTIONAL_TEST_FLAKY_CHECK_JOBS = [
     "Build (amd_asan)",
+    "Build (amd_tsan)",
+    "Build (amd_msan)",
+    "Build (amd_ubsan)",
+    "Build (amd_debug)",
+    "Build (amd_binary)",
     "Stateless tests (amd_asan, flaky check)",
+    "Stateless tests (amd_tsan, flaky check)",
+    "Stateless tests (amd_msan, flaky check)",
+    "Stateless tests (amd_ubsan, flaky check)",
+    "Stateless tests (amd_debug, flaky check)",
+    "Stateless tests (amd_binary, flaky check)",
 ]
 
 
