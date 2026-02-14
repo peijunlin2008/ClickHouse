@@ -1023,6 +1023,31 @@ function checkURL() {
 url_elem.addEventListener('input', checkURL);
 checkURL();
 
+async function auxiliaryQuery(server_address, user, password, query, url_params = '') {
+    let url = server_address +
+        (server_address.indexOf('?') >= 0 ? '&' : '?') +
+        'add_http_cors_header=1&default_format=JSON' + url_params;
+    if (user) url += '&user=' + encodeURIComponent(user);
+    if (password) url += '&password=' + encodeURIComponent(password);
+
+    let response;
+    try {
+        response = await fetch(url, { method: "POST", body: query, headers: { 'Authorization': 'never' } });
+    } catch (e) {
+        clear();
+        renderError("Network error");
+        return false;
+    }
+    if (!response.ok) {
+        clear();
+        renderError(await response.text());
+        return false;
+    }
+    clearElement('error');
+    document.getElementById('logo-container').style.display = 'block';
+    return await response.json();
+}
+
 async function getServerStatus(server_address, user, password) {
     let url = server_address +
         (server_address.indexOf('?') >= 0 ? '&' : '?') +
@@ -1043,24 +1068,16 @@ let load_databases_request_num = 0;
 async function loadDatabases(server_address, user, password) {
     ++load_databases_request_num;
     const current_load_databases_request_num = load_databases_request_num;
-    let url = server_address +
-        (server_address.indexOf('?') >= 0 ? '&' : '?') +
-        'add_http_cors_header=1&default_format=JSON';
-    if (user) url += '&user=' + encodeURIComponent(user);
-    if (password) url += '&password=' + encodeURIComponent(password);
 
-    let response = await fetch(url, {
-        method: "POST",
-        body: `SELECT database, database = currentDatabase() AS current
+    let json = await auxiliaryQuery(server_address, user, password,
+        `SELECT database, database = currentDatabase() AS current
             FROM system.databases WHERE database != 'INFORMATION_SCHEMA'
             ORDER BY
                 database = 'information_schema',
                 database = 'system',
                 database != 'default',
-                database`,
-        headers: { 'Authorization': 'never' } });
-    if (!response.ok) return false;
-    json = await response.json();
+                database`);
+    if (!json) return false;
 
     if (current_load_databases_request_num != load_databases_request_num) return false;
 
@@ -1097,7 +1114,7 @@ async function loadDatabases(server_address, user, password) {
 
         database_link.addEventListener('click', e => {
             if (!database.dataset['opened']) {
-                loadTables(server_address, user, password, elem.database, database).then(() => database.dataset['opened'] = 1);
+                loadTables(server_address, user, password, elem.database, database).then(ok => { if (ok !== false) database.dataset['opened'] = 1; });
             } else {
                 delete database.dataset['opened'];
                 while (tables.firstChild) tables.removeChild(tables.firstChild);
@@ -1110,20 +1127,12 @@ let load_tables_request_num = 0;
 async function loadTables(server_address, user, password, database, container) {
     ++load_tables_request_num;
     const current_load_tables_request_num = load_tables_request_num;
-    let url = server_address +
-        (server_address.indexOf('?') >= 0 ? '&' : '?') +
-        'add_http_cors_header=1&default_format=JSON';
-    if (user) url += '&user=' + encodeURIComponent(user);
-    if (password) url += '&password=' + encodeURIComponent(password);
-    url += '&param_database=' + encodeURIComponent(database);
 
-    let response = await fetch(url, {
-        method: "POST",
-        body: `SELECT table, engine, total_rows, total_bytes FROM system.tables WHERE database = {database:String}
+    let json = await auxiliaryQuery(server_address, user, password,
+        `SELECT table, engine, total_rows, total_bytes FROM system.tables WHERE database = {database:String}
             ORDER BY table LIKE '.inner%', table`,
-        headers: { 'Authorization': 'never' } });
-    if (!response.ok) return false;
-    json = await response.json();
+        '&param_database=' + encodeURIComponent(database));
+    if (!json) return false;
 
     if (current_load_tables_request_num != load_tables_request_num) return false;
 
@@ -1203,7 +1212,7 @@ async function loadTables(server_address, user, password, database, container) {
 let databases_toggle = document.getElementById('databases-toggle');
 databases_toggle.addEventListener('click', e => {
     if (!databases_toggle.dataset['opened']) {
-        loadDatabases(url_elem.value, user_elem.value, password_elem.value).then(() => databases_toggle.dataset['opened'] = 1);
+        loadDatabases(url_elem.value, user_elem.value, password_elem.value).then(ok => { if (ok !== false) databases_toggle.dataset['opened'] = 1; });
     } else {
         delete databases_toggle.dataset['opened'];
         let databases_elem = document.getElementById('databases');
