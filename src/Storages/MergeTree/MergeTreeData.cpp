@@ -7696,6 +7696,9 @@ void MergeTreeData::optimizeDryRun(
     }
 
     auto future_part = constructFuturePart(*this, choice, {MergeTreeDataPartState::Active});
+    if (!future_part)
+        throw Exception(ErrorCodes::NO_SUCH_DATA_PART, "Failed to construct future part for OPTIMIZE DRY RUN. Some of the source parts don't exist in the table");
+
     UInt64 disk_space = CompactionStatistics::estimateNeededDiskSpace(future_part->parts);
     ReservationSharedPtr reservation = getStoragePolicy()->reserveAndCheck(disk_space);
     future_part->updatePath(*this, reservation.get());

@@ -1,8 +1,3 @@
--- Tags: no-shared-merge-tree
--- no-shared-merge-tree: OPTIMIZE DRY RUN modifies local merge state, not compatible with shared MergeTree
-
-SET optimize_on_insert = 0;
-
 DROP TABLE IF EXISTS t_dry_run_proj;
 
 CREATE TABLE t_dry_run_proj (key UInt64, value UInt64, PROJECTION p_sum (SELECT key, sum(value) GROUP BY key))

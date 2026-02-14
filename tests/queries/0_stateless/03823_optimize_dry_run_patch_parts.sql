@@ -1,7 +1,3 @@
--- Tags: no-shared-merge-tree
--- no-shared-merge-tree: OPTIMIZE DRY RUN modifies local merge state, not compatible with shared MergeTree
-
-SET optimize_on_insert = 0;
 SET enable_lightweight_update = 1;
 SET apply_patch_parts = 1;
 
