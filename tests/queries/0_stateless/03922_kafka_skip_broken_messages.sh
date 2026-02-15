@@ -9,9 +9,10 @@ CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 KAFKA_TOPIC="${CLICKHOUSE_TEST_UNIQUE_NAME}"
 KAFKA_GROUP="${CLICKHOUSE_TEST_UNIQUE_NAME}_group"
 KAFKA_BROKER="localhost:9092"
+KAFKA_PRODUCER_OPTS="--producer-property delivery.timeout.ms=30000 --producer-property linger.ms=0"
 
 # Create topic
-kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC \
+timeout 30 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC \
     --partitions 1 --replication-factor 1 2>/dev/null
 
 # Produce a mix of valid and invalid JSON messages
@@ -21,7 +22,8 @@ kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC \
     echo '{"id": 2, "value": "good_2"}'
     echo '{broken json'
     echo '{"id": 3, "value": "good_3"}'
-} | kafka-console-producer.sh --bootstrap-server $KAFKA_BROKER --topic $KAFKA_TOPIC 2>/dev/null
+} | timeout 30 kafka-console-producer.sh --bootstrap-server $KAFKA_BROKER --topic $KAFKA_TOPIC \
+    $KAFKA_PRODUCER_OPTS 2>/dev/null
 
 # Create Kafka table with kafka_skip_broken_messages enabled
 $CLICKHOUSE_CLIENT -q "
@@ -63,4 +65,4 @@ $CLICKHOUSE_CLIENT -q "SELECT id, value FROM ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst 
 $CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS ${CLICKHOUSE_TEST_UNIQUE_NAME}_mv"
 $CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst"
 $CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS ${CLICKHOUSE_TEST_UNIQUE_NAME}_kafka"
-kafka-topics.sh --bootstrap-server $KAFKA_BROKER --delete --topic $KAFKA_TOPIC 2>/dev/null
+timeout 10 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --delete --topic $KAFKA_TOPIC 2>/dev/null

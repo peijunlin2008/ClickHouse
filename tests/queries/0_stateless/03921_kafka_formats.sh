@@ -7,15 +7,17 @@ CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 . "$CUR_DIR"/../shell_config.sh
 
 KAFKA_BROKER="localhost:9092"
+KAFKA_PRODUCER_OPTS="--producer-property delivery.timeout.ms=30000 --producer-property linger.ms=0"
 
 # Test JSONEachRow format
 KAFKA_TOPIC="${CLICKHOUSE_TEST_UNIQUE_NAME}_json"
-kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC \
+timeout 30 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC \
     --partitions 1 --replication-factor 1 2>/dev/null
 
 for i in $(seq 1 3); do
     echo "{\"a\": $i, \"b\": \"json_$i\"}"
-done | kafka-console-producer.sh --bootstrap-server $KAFKA_BROKER --topic $KAFKA_TOPIC 2>/dev/null
+done | timeout 30 kafka-console-producer.sh --bootstrap-server $KAFKA_BROKER --topic $KAFKA_TOPIC \
+    $KAFKA_PRODUCER_OPTS 2>/dev/null
 
 $CLICKHOUSE_CLIENT -q "
     CREATE TABLE ${CLICKHOUSE_TEST_UNIQUE_NAME}_json_kafka (a UInt64, b String)
@@ -37,12 +39,13 @@ $CLICKHOUSE_CLIENT -q "
 
 # Test CSV format
 KAFKA_TOPIC_CSV="${CLICKHOUSE_TEST_UNIQUE_NAME}_csv"
-kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC_CSV \
+timeout 30 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC_CSV \
     --partitions 1 --replication-factor 1 2>/dev/null
 
 for i in $(seq 1 3); do
     echo "$i,\"csv_$i\""
-done | kafka-console-producer.sh --bootstrap-server $KAFKA_BROKER --topic $KAFKA_TOPIC_CSV 2>/dev/null
+done | timeout 30 kafka-console-producer.sh --bootstrap-server $KAFKA_BROKER --topic $KAFKA_TOPIC_CSV \
+    $KAFKA_PRODUCER_OPTS 2>/dev/null
 
 $CLICKHOUSE_CLIENT -q "
     CREATE TABLE ${CLICKHOUSE_TEST_UNIQUE_NAME}_csv_kafka (a UInt64, b String)
@@ -64,12 +67,13 @@ $CLICKHOUSE_CLIENT -q "
 
 # Test TSV format
 KAFKA_TOPIC_TSV="${CLICKHOUSE_TEST_UNIQUE_NAME}_tsv"
-kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC_TSV \
+timeout 30 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC_TSV \
     --partitions 1 --replication-factor 1 2>/dev/null
 
 for i in $(seq 1 3); do
     printf '%d\ttsv_%d\n' "$i" "$i"
-done | kafka-console-producer.sh --bootstrap-server $KAFKA_BROKER --topic $KAFKA_TOPIC_TSV 2>/dev/null
+done | timeout 30 kafka-console-producer.sh --bootstrap-server $KAFKA_BROKER --topic $KAFKA_TOPIC_TSV \
+    $KAFKA_PRODUCER_OPTS 2>/dev/null
 
 $CLICKHOUSE_CLIENT -q "
     CREATE TABLE ${CLICKHOUSE_TEST_UNIQUE_NAME}_tsv_kafka (a UInt64, b String)
@@ -115,6 +119,6 @@ for fmt in json csv tsv; do
     $CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS ${CLICKHOUSE_TEST_UNIQUE_NAME}_${fmt}_dst"
     $CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS ${CLICKHOUSE_TEST_UNIQUE_NAME}_${fmt}_kafka"
 done
-kafka-topics.sh --bootstrap-server $KAFKA_BROKER --delete --topic $KAFKA_TOPIC 2>/dev/null
-kafka-topics.sh --bootstrap-server $KAFKA_BROKER --delete --topic $KAFKA_TOPIC_CSV 2>/dev/null
-kafka-topics.sh --bootstrap-server $KAFKA_BROKER --delete --topic $KAFKA_TOPIC_TSV 2>/dev/null
+timeout 10 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --delete --topic $KAFKA_TOPIC 2>/dev/null
+timeout 10 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --delete --topic $KAFKA_TOPIC_CSV 2>/dev/null
+timeout 10 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --delete --topic $KAFKA_TOPIC_TSV 2>/dev/null
