@@ -5,7 +5,7 @@ from ci.defs.job_configs import JobConfigs
 
 workflow = Workflow.Config(
     name="NightlyToolchain",
-    event=Workflow.Event.SCHEDULE,
+    event=Workflow.Event.DISPATCH,
     branches=[BASE_BRANCH],
     jobs=[
         *JobConfigs.toolchain_build_jobs,
@@ -19,7 +19,6 @@ workflow = Workflow.Config(
     enable_cache=True,
     enable_report=True,
     enable_cidb=True,
-    cron_schedules=["13 0 * * *"],
 )
 
 WORKFLOWS = [
