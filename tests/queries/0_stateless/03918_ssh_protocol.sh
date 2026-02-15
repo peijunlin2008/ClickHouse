@@ -19,12 +19,30 @@ if ! command -v ssh &>/dev/null; then
     exit 0
 fi
 
-SSH_USER_KEY="$CURDIR/../../config/ssh_user_ed25519_key"
+# Copy the private key to a temp file with restrictive permissions,
+# because OpenSSH refuses keys with permissions that are too open (644 from git).
+SSH_USER_KEY_ORIG="$CURDIR/../../config/ssh_user_ed25519_key"
+SSH_USER_KEY="${CLICKHOUSE_TMP}/ssh_user_ed25519_key_${CLICKHOUSE_TEST_UNIQUE_NAME}"
+cp "$SSH_USER_KEY_ORIG" "$SSH_USER_KEY"
+chmod 600 "$SSH_USER_KEY"
 
 # Extract the base64 public key from the .pub file
-SSH_USER_PUBKEY=$(awk '{print $2}' "$SSH_USER_KEY.pub")
+SSH_USER_PUBKEY=$(awk '{print $2}' "$SSH_USER_KEY_ORIG.pub")
 
 SSH_USER="ssh_user_${CLICKHOUSE_TEST_UNIQUE_NAME}"
+
+# Common SSH options: disable host key checking, use BatchMode to fail fast
+# instead of hanging on password prompt, and set timeouts.
+SSH_OPTS=(
+    -o StrictHostKeyChecking=no
+    -o UserKnownHostsFile=/dev/null
+    -o BatchMode=yes
+    -o ConnectTimeout=10
+    -o ServerAliveInterval=5
+    -o ServerAliveCountMax=3
+    -i "$SSH_USER_KEY"
+    -p "${CLICKHOUSE_PORT_SSH}"
+)
 
 # Create a user with SSH key authentication
 ${CLICKHOUSE_CLIENT} --query "DROP USER IF EXISTS ${SSH_USER}"
@@ -32,17 +50,10 @@ ${CLICKHOUSE_CLIENT} --query "CREATE USER ${SSH_USER} IDENTIFIED WITH ssh_key BY
 ${CLICKHOUSE_CLIENT} --query "GRANT ALL ON ${CLICKHOUSE_DATABASE}.* TO ${SSH_USER}"
 
 # Run queries via SSH
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -i "$SSH_USER_KEY" \
-    -p "${CLICKHOUSE_PORT_SSH}" \
-    "${SSH_USER}@${CLICKHOUSE_HOST}" \
-    "SELECT 1" 2>/dev/null
+ssh "${SSH_OPTS[@]}" "${SSH_USER}@${CLICKHOUSE_HOST}" "SELECT 1" 2>/dev/null
 
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    -i "$SSH_USER_KEY" \
-    -p "${CLICKHOUSE_PORT_SSH}" \
-    "${SSH_USER}@${CLICKHOUSE_HOST}" \
-    "SELECT currentUser() = '${SSH_USER}'" 2>/dev/null
+ssh "${SSH_OPTS[@]}" "${SSH_USER}@${CLICKHOUSE_HOST}" "SELECT currentUser() = '${SSH_USER}'" 2>/dev/null
 
 # Clean up
 ${CLICKHOUSE_CLIENT} --query "DROP USER IF EXISTS ${SSH_USER}"
+rm -f "$SSH_USER_KEY"
