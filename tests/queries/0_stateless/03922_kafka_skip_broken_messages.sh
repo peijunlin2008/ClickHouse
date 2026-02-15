@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Tags: no-fasttest
+# Tag no-fasttest: Kafka is not available in fast tests
+
+CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=../shell_config.sh
+. "$CUR_DIR"/../shell_config.sh
+
+KAFKA_TOPIC="${CLICKHOUSE_TEST_UNIQUE_NAME}"
+KAFKA_GROUP="${CLICKHOUSE_TEST_UNIQUE_NAME}_group"
+KAFKA_BROKER="localhost:9092"
+
+# Create topic
+kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC \
+    --partitions 1 --replication-factor 1 2>/dev/null
+
+# Produce a mix of valid and invalid JSON messages
+{
+    echo '{"id": 1, "value": "good_1"}'
+    echo 'this is not json'
+    echo '{"id": 2, "value": "good_2"}'
+    echo '{broken json'
+    echo '{"id": 3, "value": "good_3"}'
+} | kafka-console-producer.sh --bootstrap-server $KAFKA_BROKER --topic $KAFKA_TOPIC 2>/dev/null
+
+# Create Kafka table with kafka_skip_broken_messages enabled
+$CLICKHOUSE_CLIENT -q "
+    CREATE TABLE ${CLICKHOUSE_TEST_UNIQUE_NAME}_kafka (id UInt64, value String)
+    ENGINE = Kafka
+    SETTINGS kafka_broker_list = '$KAFKA_BROKER',
+             kafka_topic_list = '$KAFKA_TOPIC',
+             kafka_group_name = '$KAFKA_GROUP',
+             kafka_format = 'JSONEachRow',
+             kafka_max_block_size = 100,
+             kafka_skip_broken_messages = 10;
+"
+
+# Create destination table
+$CLICKHOUSE_CLIENT -q "
+    CREATE TABLE ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst (id UInt64, value String)
+    ENGINE = MergeTree ORDER BY id;
+"
+
+# Create materialized view
+$CLICKHOUSE_CLIENT -q "
+    CREATE MATERIALIZED VIEW ${CLICKHOUSE_TEST_UNIQUE_NAME}_mv TO ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst AS
+    SELECT * FROM ${CLICKHOUSE_TEST_UNIQUE_NAME}_kafka;
+"
+
+# Wait for valid messages to be consumed
+for i in $(seq 1 30); do
+    count=$($CLICKHOUSE_CLIENT -q "SELECT count() FROM ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst")
+    if [ "$count" -ge 3 ]; then
+        break
+    fi
+    sleep 1
+done
+
+# Only valid messages should be in the destination table
+$CLICKHOUSE_CLIENT -q "SELECT id, value FROM ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst ORDER BY id"
+
+# Cleanup
+$CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS ${CLICKHOUSE_TEST_UNIQUE_NAME}_mv"
+$CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst"
+$CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS ${CLICKHOUSE_TEST_UNIQUE_NAME}_kafka"
+kafka-topics.sh --bootstrap-server $KAFKA_BROKER --delete --topic $KAFKA_TOPIC 2>/dev/null
