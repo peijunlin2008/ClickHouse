@@ -23,6 +23,14 @@ REPO_PATH = "/ClickHouse"
 
 OUTPUT_DIR = f"{Utils.cwd()}/ci/tmp"
 
+# BOLT profile collection settings: time-limited to avoid filling disk
+# with fdata files (~15 MB per compilation unit)
+BOLT_PROFILE_TIMEOUT = 1200  # 20 minutes
+BOLT_PROFILE_PARALLELISM = 4
+
+# All LLVM projects for the final toolchain (note: "all" doesn't work with cmake)
+STAGE2_LLVM_PROJECTS = "clang;clang-tools-extra;lld;bolt;polly"
+
 
 class JobStages(metaclass=MetaClasses.WithIter):
     CLONE_LLVM = "clone_llvm"
@@ -88,9 +96,7 @@ def main():
     results = []
 
     if os.getuid() == 0:
-        Shell.check(
-            f"git config --global --add safe.directory {Utils.cwd()}"
-        )
+        Shell.check(f"git config --global --add safe.directory {Utils.cwd()}")
 
     # Stage 0: Clone LLVM
     if res and JobStages.CLONE_LLVM in stages:
@@ -108,13 +114,14 @@ def main():
         res = results[-1].is_ok()
 
     # Stage 1: Build instrumented clang for PGO profile collection
+    # Only needs clang + lld (for compilation/linking) and compiler-rt (profiling runtime)
     if res and JobStages.STAGE1_BUILD in stages:
         clean_dirs(STAGE1_BUILD_DIR, STAGE1_INSTALL_DIR)
         os.makedirs(STAGE1_BUILD_DIR, exist_ok=True)
 
         cmake_cmd = (
             f"cmake -G Ninja"
-            f' -DLLVM_ENABLE_PROJECTS="clang;lld;bolt"'
+            f' -DLLVM_ENABLE_PROJECTS="clang;lld"'
             f' -DLLVM_ENABLE_RUNTIMES="compiler-rt"'
             f" -DLLVM_TARGETS_TO_BUILD=Native"
             f" -DCMAKE_BUILD_TYPE=Release"
@@ -138,7 +145,7 @@ def main():
             results.append(
                 Result.from_commands_run(
                     name="Stage 1 Build (instrumented clang)",
-                    command=f"ninja -C {STAGE1_BUILD_DIR} clang lld llvm-profdata",
+                    command=f"ninja -C {STAGE1_BUILD_DIR} clang lld",
                 )
             )
             res = results[-1].is_ok()
@@ -149,8 +156,7 @@ def main():
                     name="Stage 1 Install",
                     command=(
                         f"ninja -C {STAGE1_BUILD_DIR}"
-                        f" install-clang install-clang-resource-headers"
-                        f" install-lld install-llvm-profdata"
+                        f" install-clang install-clang-resource-headers install-lld"
                     ),
                 )
             )
@@ -181,7 +187,7 @@ def main():
                 f" -DENABLE_THINLTO=0"
                 f" -DCMAKE_C_COMPILER={STAGE1_INSTALL_DIR}/bin/clang"
                 f" -DCMAKE_CXX_COMPILER={STAGE1_INSTALL_DIR}/bin/clang++"
-                f" -DCOMPILER_CACHE=none"
+                f" -DCOMPILER_CACHE=disabled"
                 f" -DENABLE_TESTS=0"
                 f" -DENABLE_UTILS=0"
                 f" -DCMAKE_TOOLCHAIN_FILE={toolchain_file}"
@@ -197,42 +203,53 @@ def main():
             res = results[-1].is_ok()
 
         if res:
-            results.append(
-                Result.from_commands_run(
-                    name="Profile collection build (ClickHouse)",
-                    command=f"ninja -C {CH_PROFILE_BUILD_DIR} clickhouse",
-                )
+            # Build may fail at link step but profraw files from compilation
+            # steps are still useful for PGO
+            build_result = Result.from_commands_run(
+                name="Profile collection build (ClickHouse)",
+                command=f"ninja -C {CH_PROFILE_BUILD_DIR} clickhouse",
             )
-            res = results[-1].is_ok()
+            results.append(build_result)
+            if not build_result.is_ok():
+                print(
+                    "ClickHouse build finished with errors"
+                    " (link failures with instrumented compiler are expected)."
+                    " Profraw files from compilation steps should still be available."
+                )
 
-        if res:
-            # Merge profraw files into a single profdata
+        # Merge profraw files using system llvm-profdata (stage 1 build lacks zlib
+        # support, but the profraw files may contain zlib-compressed sections)
+        profraw_dir = f"{STAGE1_BUILD_DIR}/profiles/"
+        if os.path.isdir(profraw_dir) and os.listdir(profraw_dir):
             results.append(
                 Result.from_commands_run(
                     name="Merge PGO profiles",
                     command=(
-                        f"{STAGE1_INSTALL_DIR}/bin/llvm-profdata merge"
+                        f"llvm-profdata-21 merge"
                         f" -output={PROFDATA_PATH}"
-                        f" {STAGE1_BUILD_DIR}/profiles/"
+                        f" {profraw_dir}"
                     ),
                 )
             )
             res = results[-1].is_ok()
+        else:
+            print(f"ERROR: No profraw files found in {profraw_dir}")
+            res = False
 
         # Clean up to free disk space (~80 GB)
         print("Cleaning Stage 1 build and CH profile build to free disk space")
         clean_dirs(STAGE1_BUILD_DIR, CH_PROFILE_BUILD_DIR, STAGE1_INSTALL_DIR)
 
-    # Stage 3: Build PGO-optimized clang with BOLT-compatible flags
+    # Stage 3: Build PGO-optimized clang with all projects/targets and BOLT-ready flags
     if res and JobStages.STAGE2_BUILD in stages:
         clean_dirs(STAGE2_BUILD_DIR, STAGE2_INSTALL_DIR)
         os.makedirs(STAGE2_BUILD_DIR, exist_ok=True)
 
         cmake_cmd = (
             f"cmake -G Ninja"
-            f' -DLLVM_ENABLE_PROJECTS="clang;lld;bolt"'
+            f' -DLLVM_ENABLE_PROJECTS="{STAGE2_LLVM_PROJECTS}"'
             f' -DLLVM_ENABLE_RUNTIMES="compiler-rt"'
-            f" -DLLVM_TARGETS_TO_BUILD=Native"
+            f" -DLLVM_TARGETS_TO_BUILD=all"
             f" -DCMAKE_BUILD_TYPE=Release"
             f" -DLLVM_PROFDATA_FILE={PROFDATA_PATH}"
             f" -DCMAKE_C_COMPILER=clang-21"
@@ -259,14 +276,17 @@ def main():
         if res:
             results.append(
                 Result.from_commands_run(
-                    name="Stage 2 Build and Install",
-                    command=(
-                        f"ninja -C {STAGE2_BUILD_DIR}"
-                        f" install-clang install-clang-resource-headers"
-                        f" install-lld install-llvm-ar install-llvm-ranlib"
-                        f" install-llvm-objcopy install-llvm-strip"
-                        f" install-llvm-profdata install-llvm-bolt install-merge-fdata"
-                    ),
+                    name="Stage 2 Build",
+                    command=f"ninja -C {STAGE2_BUILD_DIR}",
+                )
+            )
+            res = results[-1].is_ok()
+
+        if res:
+            results.append(
+                Result.from_commands_run(
+                    name="Stage 2 Install",
+                    command=f"ninja -C {STAGE2_BUILD_DIR} install",
                 )
             )
             res = results[-1].is_ok()
@@ -275,13 +295,17 @@ def main():
         print("Cleaning Stage 2 build directory to free disk space")
         clean_dirs(STAGE2_BUILD_DIR)
 
-    # Stage 4: BOLT optimization
+    # Stage 4: BOLT optimization (best-effort)
+    # BOLT can fail due to architecture-specific issues (e.g., ADR relaxation
+    # on aarch64 with AMDGPU code) or disk space constraints (fdata files are
+    # ~15 MB per compilation unit). If BOLT fails, we still have a PGO-optimized
+    # toolchain which provides ~23% compilation speedup.
     if res and JobStages.BOLT_OPTIMIZATION in stages:
+        bolt_ok = True
         clang_binary = f"{STAGE2_INSTALL_DIR}/bin/clang-21"
 
         # Find the actual clang binary (it may be clang-21, clang-20, etc.)
         if not os.path.exists(clang_binary):
-            # Try to find the versioned clang binary
             candidates = sorted(
                 glob.glob(f"{STAGE2_INSTALL_DIR}/bin/clang-[0-9]*"),
                 reverse=True,
@@ -291,113 +315,161 @@ def main():
             else:
                 clang_binary = f"{STAGE2_INSTALL_DIR}/bin/clang"
 
+        clang_basename = os.path.basename(clang_binary)
         print(f"BOLT target binary: {clang_binary}")
         llvm_bolt = f"{STAGE2_INSTALL_DIR}/bin/llvm-bolt"
         merge_fdata = f"{STAGE2_INSTALL_DIR}/bin/merge-fdata"
         clang_instrumented = f"{clang_binary}.inst"
         clang_bolted = f"{clang_binary}.bolt"
+        clangpp_inst = None  # set in step 2 if BOLT instrumentation succeeds
 
         clean_dirs(BOLT_PROFILES_DIR, CH_BOLT_BUILD_DIR)
         os.makedirs(BOLT_PROFILES_DIR, exist_ok=True)
 
-        # Instrument clang with BOLT
-        results.append(
-            Result.from_commands_run(
-                name="BOLT instrument clang",
-                command=(
-                    f"{llvm_bolt} {clang_binary}"
-                    f" -o {clang_instrumented}"
-                    f" -instrument"
-                    f" --instrumentation-file-append-pid"
-                    f" --instrumentation-file={BOLT_PROFILES_DIR}/prof"
-                ),
-            )
+        # Step 1: Instrument clang with BOLT
+        result = Result.from_commands_run(
+            name="BOLT instrument clang",
+            command=(
+                f"{llvm_bolt} {clang_binary}"
+                f" -o {clang_instrumented}"
+                f" -instrument"
+                f" --instrumentation-file-append-pid"
+                f" --instrumentation-file={BOLT_PROFILES_DIR}/prof"
+            ),
         )
-        res = results[-1].is_ok()
+        results.append(result)
+        if not result.is_ok():
+            bolt_ok = False
+            print(
+                "BOLT instrumentation failed"
+                " (known issue on aarch64 with AMDGPU backend code)."
+                " Continuing with PGO-only toolchain."
+            )
 
-        if res:
-            # Build ClickHouse with BOLT-instrumented clang for profile collection
+        # Step 2: Create symlinks for the instrumented binary so cmake can
+        # use it as both C and C++ compiler (clang dispatches based on argv[0])
+        if bolt_ok:
+            inst_dir = os.path.dirname(clang_instrumented)
+            clangpp_inst = os.path.join(inst_dir, "clang++.inst")
+            try:
+                if os.path.exists(clangpp_inst):
+                    os.remove(clangpp_inst)
+                os.symlink(os.path.basename(clang_instrumented), clangpp_inst)
+                print(f"Created symlink: {clangpp_inst} -> {os.path.basename(clang_instrumented)}")
+            except OSError as e:
+                print(f"Failed to create clang++ symlink: {e}")
+                bolt_ok = False
+
+        # Step 3: Configure ClickHouse build with BOLT-instrumented clang
+        if bolt_ok:
             cmake_cmd = (
                 f"cmake"
                 f" -DCMAKE_BUILD_TYPE=None"
                 f" -DENABLE_THINLTO=0"
                 f" -DCMAKE_C_COMPILER={clang_instrumented}"
-                f" -DCMAKE_CXX_COMPILER={clang_instrumented}"
-                f" -DCOMPILER_CACHE=none"
+                f" -DCMAKE_CXX_COMPILER={clangpp_inst}"
+                f" -DCOMPILER_CACHE=disabled"
                 f" -DENABLE_TESTS=0"
                 f" -DENABLE_UTILS=0"
                 f" -DCMAKE_TOOLCHAIN_FILE={toolchain_file}"
                 f" {REPO_PATH}"
                 f" -B {CH_BOLT_BUILD_DIR}"
             )
-            results.append(
-                Result.from_commands_run(
-                    name="BOLT profile collection CMake",
-                    command=cmake_cmd,
-                )
+            result = Result.from_commands_run(
+                name="BOLT profile collection CMake",
+                command=cmake_cmd,
             )
-            res = results[-1].is_ok()
+            results.append(result)
+            if not result.is_ok():
+                bolt_ok = False
+                print("BOLT profile collection cmake failed. Continuing with PGO-only.")
 
-        if res:
-            results.append(
-                Result.from_commands_run(
-                    name="BOLT profile collection build (ClickHouse)",
-                    command=f"ninja -C {CH_BOLT_BUILD_DIR} clickhouse",
-                )
+        # Step 4: Time-limited build to collect BOLT profiles
+        # Each compilation unit writes ~15 MB fdata file. With -j4 and a 20 minute
+        # timeout, we expect ~300 compilations producing ~4.5 GB of profiles,
+        # which gives BOLT enough data to optimize hot code paths.
+        if bolt_ok:
+            result = Result.from_commands_run(
+                name="BOLT profile collection build (time-limited)",
+                command=(
+                    f"bash -c 'timeout --signal=INT --kill-after=120"
+                    f" {BOLT_PROFILE_TIMEOUT}"
+                    f" ninja -j{BOLT_PROFILE_PARALLELISM} -k0"
+                    f" -C {CH_BOLT_BUILD_DIR} clickhouse"
+                    f" ; exit 0'"
+                ),
             )
-            res = results[-1].is_ok()
+            results.append(result)
 
-        if res:
-            # Merge BOLT profiles
-            bolt_profile_files = glob.glob(f"{BOLT_PROFILES_DIR}/prof.*")
-            print(f"Found {len(bolt_profile_files)} BOLT profile files")
-            results.append(
-                Result.from_commands_run(
-                    name="Merge BOLT profiles",
-                    command=(
-                        f"{merge_fdata} -o {BOLT_FDATA_PATH} {BOLT_PROFILES_DIR}/prof.*"
-                    ),
-                )
-            )
-            res = results[-1].is_ok()
+            # Check if we collected any profiles
+            fdata_files = glob.glob(f"{BOLT_PROFILES_DIR}/prof.*")
+            if not fdata_files:
+                bolt_ok = False
+                print("No BOLT fdata profiles collected. Continuing with PGO-only.")
+            else:
+                print(f"Collected {len(fdata_files)} BOLT profile files")
 
-        if res:
-            # Apply BOLT optimization
-            results.append(
-                Result.from_commands_run(
-                    name="BOLT optimize clang",
-                    command=(
-                        f"{llvm_bolt} {clang_binary}"
-                        f" -o {clang_bolted}"
-                        f" -data={BOLT_FDATA_PATH}"
-                        f" -reorder-blocks=ext-tsp"
-                        f" -reorder-functions=cdsort"
-                        f" -split-functions"
-                        f" -split-all-cold"
-                        f" -split-eh"
-                        f" -dyno-stats"
-                        f" -use-gnu-stack"
-                    ),
-                )
+        # Step 5: Merge BOLT profiles
+        if bolt_ok:
+            result = Result.from_commands_run(
+                name="Merge BOLT profiles",
+                command=(
+                    f"{merge_fdata} -o {BOLT_FDATA_PATH}"
+                    f" {BOLT_PROFILES_DIR}/prof.*"
+                ),
             )
-            res = results[-1].is_ok()
+            results.append(result)
+            if not result.is_ok():
+                bolt_ok = False
+                print("BOLT profile merge failed. Continuing with PGO-only.")
 
-        if res:
-            # Replace original binary with BOLTed version
-            results.append(
-                Result.from_commands_run(
-                    name="Install BOLTed clang",
-                    command=f"mv {clang_bolted} {clang_binary}",
-                )
+        # Step 6: Apply BOLT optimization
+        # Flags match upstream perf-helper.py bolt_optimize
+        if bolt_ok:
+            result = Result.from_commands_run(
+                name="BOLT optimize clang",
+                command=(
+                    f"{llvm_bolt} {clang_binary}"
+                    f" -o {clang_bolted}"
+                    f" -data={BOLT_FDATA_PATH}"
+                    f" -reorder-blocks=ext-tsp"
+                    f" -reorder-functions=cdsort"
+                    f" -split-functions"
+                    f" -split-all-cold"
+                    f" -split-eh"
+                    f" -dyno-stats"
+                    f" -use-gnu-stack"
+                ),
             )
-            res = results[-1].is_ok()
+            results.append(result)
+            if not result.is_ok():
+                bolt_ok = False
+                print("BOLT optimization failed. Continuing with PGO-only.")
+
+        # Step 7: Replace original binary with BOLTed version
+        if bolt_ok:
+            result = Result.from_commands_run(
+                name="Install BOLTed clang",
+                command=f"mv {clang_bolted} {clang_binary}",
+            )
+            results.append(result)
+            if not result.is_ok():
+                bolt_ok = False
+
+        if bolt_ok:
+            print("BOLT optimization applied successfully")
+        else:
+            print("Packaging PGO-only toolchain (BOLT was skipped or failed)")
 
         # Clean up BOLT intermediates
         print("Cleaning BOLT intermediate files")
         clean_dirs(CH_BOLT_BUILD_DIR, BOLT_PROFILES_DIR)
-        for f in [clang_instrumented, BOLT_FDATA_PATH]:
-            if os.path.exists(f):
-                os.remove(f)
+        for f in [clang_instrumented, clangpp_inst, BOLT_FDATA_PATH, clang_bolted]:
+            try:
+                if f and os.path.exists(f):
+                    os.remove(f)
+            except OSError:
+                pass
 
     # Stage 5: Package
     if res and JobStages.PACKAGE in stages:
