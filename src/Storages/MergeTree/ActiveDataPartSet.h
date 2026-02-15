@@ -51,6 +51,7 @@ public:
     bool add(const MergeTreePartInfo & part_info, Strings * out_replaced_parts = nullptr);
 
     AddPartOutcome tryAddPart(const MergeTreePartInfo & part_info, String * out_reason = nullptr);
+    AddPartOutcome tryAdd(const String & name, String * out_reason = nullptr);
 
     bool remove(const MergeTreePartInfo & part_info)
     {
