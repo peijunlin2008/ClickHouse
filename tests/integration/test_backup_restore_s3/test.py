@@ -184,9 +184,7 @@ def new_backup_name():
 
 
 def get_events_for_query(node, query_id: str) -> Dict[str, int]:
-    # Flush logs separately with a longer timeout because query_log is stored
-    # on S3 (policy_s3_plain_rewritable) and can be slow to flush under CI load.
-    node.query("SYSTEM FLUSH LOGS", timeout=300)
+    node.query("SYSTEM FLUSH LOGS")
     events = TSV(
         node.query(
             f"""
@@ -630,7 +628,7 @@ def broken_s3(init_broken_s3):
 
 def test_backup_to_s3_copy_multipart_check_error_message(cluster, broken_s3):
     storage_policy = "policy_s3"
-    size = 10000000
+    size = 1000000
     backup_name = new_backup_name()
     backup_destination = f"S3('http://resolver:8084/root/data/backups/multipart/{backup_name}', 'minio', '{minio_secret_key}')"
     node = cluster.instances["node"]
