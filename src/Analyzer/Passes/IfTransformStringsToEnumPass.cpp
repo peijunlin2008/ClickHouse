@@ -123,6 +123,9 @@ public:
             if (function_node->getArguments().getNodes().size() != 3)
                 return;
 
+            if (!isString(function_node->getResultType()))
+                return;
+
             auto modified_if_node = function_node->clone();
             auto * function_if_node = modified_if_node->as<FunctionNode>();
             auto & argument_nodes = function_if_node->getArguments().getNodes();
