@@ -1,5 +1,6 @@
 #pragma once
 
+#include <aws/core/auth/AWSCredentials.h>
 #include "config.h"
 
 #if USE_AWS_S3
