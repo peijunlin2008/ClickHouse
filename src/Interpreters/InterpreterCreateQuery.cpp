@@ -2378,7 +2378,13 @@ BlockIO InterpreterCreateQuery::fillTableIfNeeded(const ASTCreateQuery & create)
 
         alter->alter_object = ASTAlterQuery::AlterObjectType::TABLE;
         alter->set(alter->command_list, command_list);
-        return InterpreterAlterQuery(query, getContext()).execute();
+
+        /// The result of this internal ALTER is not visible to the user,
+        /// so disable verbose output to avoid creating a pulling pipeline
+        /// that executeTrivialBlockIO cannot handle.
+        auto alter_context = Context::createCopy(getContext());
+        alter_context->setSetting("alter_partition_verbose_result", Field(false));
+        return InterpreterAlterQuery(query, alter_context).execute();
     }
 
     return {};
