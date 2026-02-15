@@ -449,6 +449,31 @@ class JobConfigs:
             runs_on=RunnerLabels.AMD_MEDIUM,
             requires=[ArtifactNames.CH_AMD_ASAN],
         ),
+        Job.ParamSet(
+            parameter="amd_tsan, flaky check",
+            runs_on=RunnerLabels.AMD_LARGE,
+            requires=[ArtifactNames.CH_AMD_TSAN],
+        ),
+        Job.ParamSet(
+            parameter="amd_msan, flaky check",
+            runs_on=RunnerLabels.AMD_LARGE,
+            requires=[ArtifactNames.CH_AMD_MSAN],
+        ),
+        Job.ParamSet(
+            parameter="amd_ubsan, flaky check",
+            runs_on=RunnerLabels.AMD_MEDIUM,
+            requires=[ArtifactNames.CH_AMD_UBSAN],
+        ),
+        Job.ParamSet(
+            parameter="amd_debug, flaky check",
+            runs_on=RunnerLabels.AMD_MEDIUM,
+            requires=[ArtifactNames.CH_AMD_DEBUG],
+        ),
+        Job.ParamSet(
+            parameter="amd_binary, flaky check",
+            runs_on=RunnerLabels.AMD_MEDIUM,
+            requires=[ArtifactNames.CH_AMD_BINARY],
+        ),
     )
     stateless_tests_targeted_pr_jobs = common_ft_job_config.parametrize(
         Job.ParamSet(
@@ -460,7 +485,7 @@ class JobConfigs:
     # --root/--privileged/--cgroupns=host is required for clickhouse-test --memory-limit
     bugfix_validation_ft_pr_job = Job.Config(
         name=JobNames.BUGFIX_VALIDATE_FT,
-        runs_on=RunnerLabels.FUNC_TESTER_ARM,
+        runs_on=RunnerLabels.FUNC_TESTER_AMD,
         command="python3 ./ci/jobs/functional_tests.py --options BugfixValidation",
         # some tests can be flaky due to very slow disks - use tmpfs for temporary ClickHouse files
         run_in_docker="clickhouse/stateless-test+--network=host+--privileged+--cgroupns=host+root+--security-opt seccomp=unconfined+--tmpfs /tmp/clickhouse:mode=1777",
