@@ -52,10 +52,6 @@ public:
 
     AddPartOutcome tryAddPart(const MergeTreePartInfo & part_info, String * out_reason = nullptr);
 
-    /// Like `add` but returns outcome instead of throwing on intersecting parts.
-    /// Useful when the caller can handle intersections gracefully (e.g., detached directory).
-    AddPartOutcome tryAdd(const String & name, String * out_reason = nullptr);
-
     bool remove(const MergeTreePartInfo & part_info)
     {
         return part_info_to_name.erase(part_info) > 0;
