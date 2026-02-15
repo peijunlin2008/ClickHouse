@@ -2793,7 +2793,8 @@ StoragePtr Context::executeTableFunction(
     const ContextPtr & execution_context)
 {
     const auto hash = table_expression->getTreeHash(/*ignore_aliases=*/ true);
-    auto key = toString(hash);
+    const auto bare_key = toString(hash);
+    auto key = bare_key;
 
     /// Incorporate a hash of the execution context's changed settings into the cache key.
     /// This ensures that:
@@ -2813,6 +2814,12 @@ StoragePtr Context::executeTableFunction(
     {
         std::lock_guard lock(table_function_results_mutex);
         res = table_function_results[key];
+        /// Also check the bare key (without settings suffix) for compatibility with
+        /// the other overload of executeTableFunction. That overload is used in
+        /// executeQuery.cpp to pre-create StorageInput for INSERT...SELECT with
+        /// inline data, and it caches the result under the bare AST hash key.
+        if (!res && key != bare_key)
+            res = table_function_results[bare_key];
     }
 
     if (!res)
