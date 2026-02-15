@@ -644,7 +644,7 @@ def test_backup_to_s3_copy_multipart_check_error_message(cluster, broken_s3):
 
     try:
         backup_query_id = uuid.uuid4().hex
-        broken_s3.setup_at_part_upload(after=20, count=1)
+        broken_s3.setup_at_part_upload(after=2, count=1)
         error = node.query_and_get_error(
             f"BACKUP TABLE data TO {backup_destination} {format_settings(None)}",
             query_id=backup_query_id,
