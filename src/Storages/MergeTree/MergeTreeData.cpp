@@ -7693,7 +7693,9 @@ MergeTreeData::MutableDataPartsVector MergeTreeData::tryLoadPartsToAttach(const 
             auto outcome = active_parts.tryAddPart(part_info_parsed, &reason);
             if (outcome == ActiveDataPartSet::AddPartOutcome::HasIntersectingPart)
             {
-                LOG_WARNING(log, "Skipping detached part {} because it intersects another detached part: {}", part_info.dir_name, reason);
+                LOG_WARNING(log, "Ignoring detached part {} because it intersects another detached part: {}", part_info.dir_name, reason);
+                part_info.disk->moveDirectory(fs::path(relative_data_path) / source_dir / part_info.dir_name,
+                    fs::path(relative_data_path) / source_dir / ("ignored_" + part_info.dir_name));
             }
         }
 
