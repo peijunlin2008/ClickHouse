@@ -1486,6 +1486,13 @@ MergeMutateSelectedEntryPtr StorageMergeTree::selectPartsToMutate(
         if (currently_merging_mutating_parts.contains(part))
             continue;
 
+        /// Skip parts in partitions where merges/mutations are blocked (e.g. by REPLACE PARTITION).
+        /// This check must be inside selectPartsToMutate (under currently_processing_in_background_mutex)
+        /// to prevent a race where a mutation is selected after the partition blocker is set
+        /// but before stopMergesAndWaitForPartition finishes waiting.
+        if (merger_mutator.merges_blocker.isCancelledForPartition(part->info.getPartitionId()))
+            continue;
+
         auto mutations_begin_it = current_mutations_by_version.upper_bound(part->info.getDataVersion());
         if (mutations_begin_it == mutations_end_it)
             continue;

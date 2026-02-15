@@ -2,10 +2,24 @@
 # Tags: no-fasttest
 
 # Regression test for a race condition between REPLACE PARTITION and background mutations.
-# The bug: `merges_blocker` ActionLock in `replacePartitionFrom` was scoped inside the if/else block
-# and destroyed before the actual partition replacement. A background mutation could start on parts
-# in the target partition after the blocker was released, complete on an already-removed part, and
-# add a new version back to the working set — "resurrecting" old data alongside the new data.
+#
+# Three related bugs were fixed:
+# 1. `merges_blocker` ActionLock in `replacePartitionFrom` was scoped inside the if/else block
+#    and destroyed before the actual partition replacement. A background mutation could start on
+#    parts in the target partition after the blocker was released.
+# 2. The mutation task committed its result in two separate `data_parts_lock` acquisitions:
+#    first `renameTempPartAndReplace` (adds the result as PreActive), then `transaction.commit`
+#    (promotes to Active). If REPLACE PARTITION ran between these two steps, its
+#    `removePartsInRangeFromWorkingSet` only removed Active parts and missed the PreActive
+#    mutation result. After REPLACE released the lock, the mutation's commit promoted the
+#    PreActive part to Active, "resurrecting" old data.
+# 3. `selectPartsToMutate` did not check per-partition merge blockers. Even after
+#    `stopMergesAndWaitForPartition` set the partition blocker and drained
+#    `currently_merging_mutating_parts`, a new mutation could be selected because the
+#    `isCancelledForPartition` check in `scheduleDataProcessingJob` ran outside
+#    `currently_processing_in_background_mutex`, creating a window for the scheduling
+#    thread to pick the mutation between the blocker being set and the check.
+#
 # https://github.com/ClickHouse/ClickHouse/issues/73783
 
 CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
