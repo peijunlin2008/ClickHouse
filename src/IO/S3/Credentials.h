@@ -1,12 +1,12 @@
 #pragma once
 
-#include <aws/core/auth/AWSCredentials.h>
 #include "config.h"
 
 #if USE_AWS_S3
 
 #    include <base/types.h>
 
+#    include <aws/core/auth/AWSCredentials.h>
 #    include <aws/core/utils/threading/ReaderWriterLock.h>
 #    include <aws/core/http/HttpRequest.h>
 #    include <aws/core/endpoint/AWSEndpoint.h>
