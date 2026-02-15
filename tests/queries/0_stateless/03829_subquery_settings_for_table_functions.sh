@@ -82,5 +82,27 @@ $CLICKHOUSE_LOCAL --query "
     ORDER BY name
 "
 
+# Test 7: Verify table function caching — same table function with same SETTINGS
+# should be executed only once (cached). Check via TableFunctionExecute profile event.
+$CLICKHOUSE_LOCAL --query "
+    SELECT count() FROM (
+        SELECT * FROM (SELECT * FROM numbers(10) SETTINGS max_block_size = 65505)
+        UNION ALL
+        SELECT * FROM (SELECT * FROM numbers(10) SETTINGS max_block_size = 65505)
+    );
+    SELECT value FROM system.events WHERE event = 'TableFunctionExecute';
+"
+
+# Test 8: Different SETTINGS should NOT be cached — each table function gets
+# a separate execution despite having the same AST.
+$CLICKHOUSE_LOCAL --query "
+    SELECT count() FROM (
+        SELECT * FROM (SELECT * FROM numbers(10) SETTINGS max_block_size = 65505)
+        UNION ALL
+        SELECT * FROM (SELECT * FROM numbers(10) SETTINGS max_block_size = 65506)
+    );
+    SELECT value FROM system.events WHERE event = 'TableFunctionExecute';
+"
+
 # Cleanup.
 rm -f "$comma_csv" "$pipe_csv"
