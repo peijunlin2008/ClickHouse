@@ -986,7 +986,7 @@ public:
     /// For table functions s3/file/url/hdfs/input we can use structure from
     /// insertion table depending on select expression.
     StoragePtr executeTableFunction(const ASTPtr & table_expression, const ASTSelectQuery * select_query_hint = nullptr);
-    /// Overload for the new analyzer. Structure inference is performed in QueryAnalysisPass.
+    /// Overload for the analyzer. Structure inference is performed in QueryAnalysisPass.
     /// The execution_context is used for the actual table function execution
     /// (to respect per-subquery SETTINGS), while `this` context is used for caching.
     /// The cache key incorporates a hash of the settings changes so that identical table functions
