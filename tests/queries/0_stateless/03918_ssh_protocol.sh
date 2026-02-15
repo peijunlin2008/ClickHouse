@@ -37,9 +37,9 @@ SSH_OPTS=(
     -o StrictHostKeyChecking=no
     -o UserKnownHostsFile=/dev/null
     -o BatchMode=yes
-    -o ConnectTimeout=10
-    -o ServerAliveInterval=5
-    -o ServerAliveCountMax=3
+    -o ConnectTimeout=50
+    -o ServerAliveInterval=25
+    -o ServerAliveCountMax=15
     -i "$SSH_USER_KEY"
     -p "${CLICKHOUSE_PORT_SSH}"
 )
