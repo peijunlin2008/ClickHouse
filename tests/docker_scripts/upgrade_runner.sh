@@ -265,6 +265,8 @@ echo "<clickhouse>
     <profiles>
         <default>
             <compatibility>$old_major_version</compatibility>
+            <!-- Allow loading projections with positional arguments (e.g., GROUP BY 1, 2) created by the old server. -->
+            <enable_positional_arguments_for_projections>1</enable_positional_arguments_for_projections>
         </default>
     </profiles>
 </clickhouse>" > /etc/clickhouse-server/users.d/compatibility.xml
