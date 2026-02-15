@@ -425,9 +425,8 @@ class Runner:
             # Get host user's UID and GID (not from inside the container)
             uid = os.getuid()
             gid = os.getgid()
-            chown_cmd = f"docker run --rm --user root --volume ./:{current_dir} --workdir={current_dir} {docker} sh -c 'find {Settings.TEMP_DIR} -user root -exec chown {uid}:{gid} {{}} +'"
-            print(f"--- Run ownership fix command [{chown_cmd}]")
-            Shell.check(chown_cmd, verbose=True)
+            chown_cmd = f"docker run --rm --user root --volume ./:{current_dir} --workdir={current_dir} {docker} chown -R {uid}:{gid} {Settings.TEMP_DIR}"
+            Shell.run(chown_cmd)
 
         return exit_code
 
@@ -525,7 +524,7 @@ class Runner:
                 file=f,
             )
 
-        if run_exit_code == 0:
+        if run_exit_code == 0 or "amd_llvm_coverage" in job.name:
             providing_artifacts = []
             if job.provides and workflow.artifacts:
                 for provides_artifact_name in job.provides:
@@ -563,7 +562,9 @@ class Runner:
                             ), f"Artifact {artifact_path} not found"
                             for file_path in glob.glob(artifact_path):
                                 link = S3.copy_file_to_s3(
-                                    s3_path=s3_path, local_path=file_path
+                                    s3_path=s3_path,
+                                    local_path=file_path,
+                                    tags=artifact.ext.get("tags"),
                                 )
                                 result.set_link(link)
                                 artifact_links.append(link)
