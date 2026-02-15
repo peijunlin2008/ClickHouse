@@ -14,6 +14,7 @@ SETTINGS min_bytes_for_wide_part = 0, auto_statistics_types = 'uniq';
 set mutations_sync = 2;
 
 insert into t_stat_nullable_1 values(1, 'one', 'test');
+system sync replica t_stat_nullable_2;
 
 select table, column, type, statistics, estimates.cardinality
 from system.parts_columns
