@@ -3030,7 +3030,7 @@ class ClickHouseCluster:
             "Cannot wait ZooKeeper container (probably it's a `iptables-nft` issue, you may try to `sudo iptables -P FORWARD ACCEPT`)"
         ) from err
 
-    def wait_kafka_is_available(self, kafka_docker_id, kafka_port, max_retries=50):
+    def wait_kafka_is_available(self, kafka_docker_id, kafka_port, max_retries=120):
         retries = 0
         while True:
             if check_kafka_is_available(kafka_docker_id, kafka_port):
@@ -3315,7 +3315,7 @@ class ClickHouseCluster:
     def wait_arrowflight_to_start(self):
         time.sleep(5) # TODO
 
-    def start(self):
+    def start(self, connection_timeout=None):
         pytest_xdist_logging_to_separate_files.setup()
         logging.info("Running tests in {}".format(self.base_path))
         if not os.path.exists(self.instances_dir):
@@ -3891,7 +3891,7 @@ class ClickHouseCluster:
                 logging.debug(
                     f"Waiting for ClickHouse start in {instance.name}, ip: {instance.ip_address}..."
                 )
-                instance.wait_for_start(start_timeout)
+                instance.wait_for_start(start_timeout, connection_timeout=connection_timeout)
                 logging.debug(f"ClickHouse {instance.name} started")
 
                 instance.client = Client(

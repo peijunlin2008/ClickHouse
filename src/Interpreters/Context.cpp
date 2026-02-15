@@ -316,6 +316,8 @@ namespace Setting
     extern const SettingsBool filesystem_cache_skip_download_if_exceeds_per_query_cache_write_limit;
     extern const SettingsBool s3_allow_parallel_part_upload;
     extern const SettingsBool use_page_cache_for_disks_without_file_cache;
+    extern const SettingsBool use_page_cache_for_local_disks;
+    extern const SettingsBool use_page_cache_for_object_storage;
     extern const SettingsBool use_page_cache_with_distributed_cache;
     extern const SettingsUInt64 use_structure_from_insertion_table_in_table_functions;
     extern const SettingsString workload;
@@ -1993,6 +1995,15 @@ std::shared_ptr<const ContextAccessWrapper> Context::getAccess() const
         SharedLockGuard lock(mutex);
         if (access && !need_recalculate_access)
             return std::make_shared<const ContextAccessWrapper>(access, shared_from_this()); /// No need to recalculate access rights.
+    }
+
+    {
+        /// NOTE: We cannot just use SharedLockGuard here because we may need to write `need_recalculate_access`.
+        std::lock_guard lock(mutex);
+
+        /// Re-check after upgrading to exclusive lock - another thread may have already recalculated.
+        if (access && !need_recalculate_access)
+            return std::make_shared<const ContextAccessWrapper>(access, shared_from_this()); /// No need to recalculate access rights.
 
         params.emplace(get_params());
 
@@ -3124,6 +3135,16 @@ void Context::setCurrentDatabase(const String & name)
     setCurrentDatabaseWithLock(name, lock);
 }
 
+void Context::setCurrentDatabaseUnchecked(const String & name)
+{
+    if (name.empty())
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Database name cannot be empty");
+
+    std::lock_guard lock(mutex);
+    current_database = name;
+    need_recalculate_access = true;
+}
+
 void Context::setCurrentQueryId(const String & query_id)
 {
     /// Generate random UUID, but using lower quality RNG,
@@ -3184,7 +3205,7 @@ bool Context::isCurrentQueryKilled() const
     return false;
 }
 
-void Context::setInsertionTable(StorageID db_and_table, std::optional<Names> column_names, std::optional<ColumnsDescription> column_description)
+void Context::setInsertionTable(StorageID db_and_table, std::optional<Names> column_names, std::shared_ptr<ColumnsDescription> column_description)
 {
     insertion_table_info = {
         .table = std::move(db_and_table),
@@ -6913,7 +6934,7 @@ void Context::setAsynchronousInsertQueue(const std::shared_ptr<AsynchronousInser
 
     std::lock_guard lock(shared->mutex);
 
-    if (std::chrono::milliseconds(getSettingsRef()[Setting::async_insert_poll_timeout_ms]) == std::chrono::milliseconds::zero())
+    if (std::chrono::milliseconds(getSettingsRef()[Setting::async_insert_poll_timeout_ms].totalMilliseconds()) == std::chrono::milliseconds::zero())
         throw Exception(ErrorCodes::INVALID_SETTING_VALUE, "Setting async_insert_poll_timeout_ms can't be zero");
 
     shared->async_insert_queue = ptr;
@@ -7122,6 +7143,8 @@ ReadSettings Context::getReadSettings() const
     res.page_cache = getPageCache();
     res.use_page_cache_for_disks_without_file_cache = settings_ref[Setting::use_page_cache_for_disks_without_file_cache];
     res.use_page_cache_with_distributed_cache = settings_ref[Setting::use_page_cache_with_distributed_cache];
+    res.use_page_cache_for_local_disks = settings_ref[Setting::use_page_cache_for_local_disks];
+    res.use_page_cache_for_object_storage = settings_ref[Setting::use_page_cache_for_object_storage];
     res.read_from_page_cache_if_exists_otherwise_bypass_cache = settings_ref[Setting::read_from_page_cache_if_exists_otherwise_bypass_cache];
     res.page_cache_inject_eviction = settings_ref[Setting::page_cache_inject_eviction];
     res.page_cache_block_size = settings_ref[Setting::page_cache_block_size];
