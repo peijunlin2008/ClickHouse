@@ -170,6 +170,12 @@ if [ "$FAST_TEST" != "1" ]; then
     ln -sf $SRC_PATH/config.d/abort_on_logical_error.yaml $DEST_SERVER_PATH/config.d/
 fi
 
+# SSH protocol support (not supported with fasttest).
+if [ "$FAST_TEST" != "1" ]; then
+    ln -sf $SRC_PATH/config.d/ssh.xml $DEST_SERVER_PATH/config.d/
+    ln -sf $SRC_PATH/ssh_host_ed25519_key $DEST_SERVER_PATH/config.d/
+fi
+
 # Not supported with fasttest.
 if [ "$FAST_TEST" != "1" ]; then
    ln -sf "$SRC_PATH/config.d/legacy_geobase.xml" "$DEST_SERVER_PATH/config.d/"
