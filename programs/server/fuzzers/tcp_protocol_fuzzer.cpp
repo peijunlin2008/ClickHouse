@@ -24,6 +24,14 @@ static int64_t port = 9000;
 
 using namespace std::chrono_literals;
 
+bool isMerge(int argc, const char * const * argv)
+{
+    for (int i = 1; i < argc; ++i)
+        if (std::string_view arg{argv[i]}; std::string_view{arg.begin(), std::ranges::find(arg, '=')} == "-merge")
+            return true;
+    return false;
+}
+
 void on_exit()
 {
     BaseDaemon::terminate();
@@ -33,6 +41,10 @@ void on_exit()
 extern "C"
 int LLVMFuzzerInitialize(int * argc, char ***argv)
 {
+        // If it's a merge coordinator don't initialize anything
+    if (isMerge(*argc, *argv))
+        return 0;
+
     for (int i = 1; i < *argc; ++i)
     {
         if ((*argv)[i][0] == '-')
