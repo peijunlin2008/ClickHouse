@@ -39,6 +39,13 @@ if(ARCH_AMD64)
     if(OS_DARWIN)
         set(PLATFORM_DIRECTORY darwin_x86_64)
         add_definitions(-DL_ENDIAN)
+    elseif(SANITIZE STREQUAL "memory")
+        # MSan cannot instrument pre-generated assembly (.s files), so memory writes
+        # from assembly implementations are invisible to MSan, causing false positives
+        # (e.g. use-of-uninitialized-value in X25519 key exchange via libssh).
+        # Use C fallback implementations instead.
+        set(PLATFORM_DIRECTORY linux_x86_64)
+        add_definitions(-DL_ENDIAN)
     else()
         set(PLATFORM_DIRECTORY linux_x86_64)
         add_definitions(-DAES_ASM -DBSAES_ASM -DCMLL_ASM -DECP_NISTZ256_ASM -DGHASH_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_GF2m -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_MONT5 -DOPENSSL_CPUID_OBJ -DOPENSSL_IA32_SSE2 -DPOLY1305_ASM -DRC4_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DVPAES_ASM -DWHIRLPOOL_ASM -DX25519_ASM -DL_ENDIAN)
@@ -46,6 +53,9 @@ if(ARCH_AMD64)
 elseif(ARCH_AARCH64)
     if(OS_DARWIN)
         set(PLATFORM_DIRECTORY darwin_aarch64)
+        add_definitions(-DL_ENDIAN)
+    elseif(SANITIZE STREQUAL "memory")
+        set(PLATFORM_DIRECTORY linux_aarch64)
         add_definitions(-DL_ENDIAN)
     else()
         set(PLATFORM_DIRECTORY linux_aarch64)
@@ -1086,7 +1096,7 @@ if(NOT ENABLE_OPENSSL_DYNAMIC)
 endif()
 
 if(ARCH_AMD64)
-    if (OS_DARWIN)
+    if (OS_DARWIN OR SANITIZE STREQUAL "memory")
         set(CRYPTO_SRC ${CRYPTO_SRC}
             ${OPENSSL_SOURCE_DIR}/crypto/aes/aes_cbc.c
             ${OPENSSL_SOURCE_DIR}/crypto/aes/aes_core.c
@@ -1150,7 +1160,7 @@ if(ARCH_AMD64)
         )
     endif()
 elseif(ARCH_AARCH64)
-    if (OS_DARWIN)
+    if (OS_DARWIN OR SANITIZE STREQUAL "memory")
         set(CRYPTO_SRC ${CRYPTO_SRC}
             ${OPENSSL_SOURCE_DIR}/crypto/aes/aes_cbc.c
             ${OPENSSL_SOURCE_DIR}/crypto/aes/aes_core.c
