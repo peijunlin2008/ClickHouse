@@ -1053,6 +1053,20 @@ void IMergeTreeDataPart::loadColumnsChecksumsIndexes(bool require_columns_checks
             calculateColumnsAndSecondaryIndicesSizesOnDisk();
 
         loadRowsCount(); /// Must be called after loadIndexGranularity() as it uses the value of `index_granularity`.
+
+        /// For constant granularity parts (non-adaptive marks), the last mark granularity
+        /// is assumed to be a full granule because the mark file does not store per-granule
+        /// row counts. Now that we know the actual rows_count, fix the last mark.
+        if (rows_count > 0 && index_granularity->getConstantGranularity())
+        {
+            size_t total_from_granularity = index_granularity->getTotalRows();
+            if (total_from_granularity > rows_count)
+            {
+                size_t overestimate = total_from_granularity - rows_count;
+                index_granularity->adjustLastMark(index_granularity->getLastNonFinalMarkRows() - overestimate);
+            }
+        }
+
         loadExistingRowsCount(); /// Must be called after loadRowsCount() as it uses the value of `rows_count`.
         loadPartitionAndMinMaxIndex();
         bool has_broken_projections = false;
