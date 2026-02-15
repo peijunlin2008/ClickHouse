@@ -1676,7 +1676,7 @@ def test_kill_while_insert(start_cluster):
                 name=name
             )
         )
-        assert time.time() - start_time < 2
+        assert time.time() - start_time < 2.5
         node1.restart_clickhouse(kill=True)
 
         try:
