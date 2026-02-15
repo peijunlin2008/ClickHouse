@@ -323,9 +323,10 @@ class Runner:
                         f"NOTE: Job [{job.name}] use custom workdir - praktika won't control workdir"
                     )
                     workdir = ""
-            Shell.check(
-                "docker ps -a --format '{{.Names}}' | grep -q praktika && docker rm -f praktika ||:",
+            Shell.run(
+                "if docker ps -a --format '{{.Names}}' | grep -q praktika; then docker rm -f praktika; fi",
                 verbose=True,
+                strict=True,
             )
             if job.enable_gh_auth:
                 # pass gh auth seamlessly into the docker container

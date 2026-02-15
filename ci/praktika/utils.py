@@ -314,7 +314,6 @@ class Shell:
         stdin_str=None,
         timeout=None,
         retries=1,
-        retry_sleep=2,
         retry_errors: Union[List[str], str] = "",
         **kwargs,
     ):
@@ -422,18 +421,16 @@ class Shell:
                 if verbose:
                     if retries == 1:
                         print(
-                            f"ERROR: command failed, exit code: {proc.returncode}"
+                            f"ERROR: exception {e}"
                         )
                     else:
                         print(
-                            f"Retry {retry+1}/{retries}: command failed, exit code: {proc.returncode}"
+                            f"Retry {retry+1}/{retries}: exception {e}"
                         )
                 if proc:
                     proc.kill()
                 if strict and retry == retries - 1:
                     raise e
-            if retry_sleep:
-                time.sleep(retry_sleep)
 
         if strict and (not proc or proc.returncode != 0):
             err = "\n   ".join(err_output).strip()
