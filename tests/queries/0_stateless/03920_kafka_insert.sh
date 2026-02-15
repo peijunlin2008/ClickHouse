@@ -6,12 +6,12 @@ CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
 . "$CUR_DIR"/../shell_config.sh
 
-KAFKA_TOPIC="${CLICKHOUSE_TEST_UNIQUE_NAME}"
+KAFKA_TOPIC=$(echo "${CLICKHOUSE_TEST_UNIQUE_NAME}" | tr '_' '-')
 KAFKA_BROKER="localhost:9092"
 
 # Create topic
 timeout 30 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC \
-    --partitions 1 --replication-factor 1 2>/dev/null
+    --partitions 1 --replication-factor 1 2>/dev/null | sed 's/Created topic .*/Created topic./'
 
 # Create a Kafka table for producing (INSERT)
 $CLICKHOUSE_CLIENT -q "
@@ -25,7 +25,8 @@ $CLICKHOUSE_CLIENT -q "
 "
 
 # Insert data via ClickHouse (ClickHouse as Kafka producer)
-$CLICKHOUSE_CLIENT -q "
+# --send_logs_level=error: suppress librdkafka's "sasl.kerberos.kinit.cmd configuration parameter is ignored" warning
+$CLICKHOUSE_CLIENT --send_logs_level=error -q "
     INSERT INTO ${CLICKHOUSE_TEST_UNIQUE_NAME}_producer VALUES (1, 'hello'), (2, 'world'), (3, 'test');
 "
 

@@ -8,11 +8,12 @@ CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 KAFKA_BROKER="localhost:9092"
 KAFKA_PRODUCER_OPTS="--producer-property delivery.timeout.ms=30000 --producer-property linger.ms=0"
+KAFKA_BASE=$(echo "${CLICKHOUSE_TEST_UNIQUE_NAME}" | tr '_' '-')
 
 # Test JSONEachRow format
-KAFKA_TOPIC="${CLICKHOUSE_TEST_UNIQUE_NAME}_json"
+KAFKA_TOPIC="${KAFKA_BASE}-json"
 timeout 30 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC \
-    --partitions 1 --replication-factor 1 2>/dev/null
+    --partitions 1 --replication-factor 1 2>/dev/null | sed 's/Created topic .*/Created topic./'
 
 for i in $(seq 1 3); do
     echo "{\"a\": $i, \"b\": \"json_$i\"}"
@@ -38,9 +39,9 @@ $CLICKHOUSE_CLIENT -q "
 "
 
 # Test CSV format
-KAFKA_TOPIC_CSV="${CLICKHOUSE_TEST_UNIQUE_NAME}_csv"
+KAFKA_TOPIC_CSV="${KAFKA_BASE}-csv"
 timeout 30 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC_CSV \
-    --partitions 1 --replication-factor 1 2>/dev/null
+    --partitions 1 --replication-factor 1 2>/dev/null | sed 's/Created topic .*/Created topic./'
 
 for i in $(seq 1 3); do
     echo "$i,\"csv_$i\""
@@ -66,9 +67,9 @@ $CLICKHOUSE_CLIENT -q "
 "
 
 # Test TSV format
-KAFKA_TOPIC_TSV="${CLICKHOUSE_TEST_UNIQUE_NAME}_tsv"
+KAFKA_TOPIC_TSV="${KAFKA_BASE}-tsv"
 timeout 30 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC_TSV \
-    --partitions 1 --replication-factor 1 2>/dev/null
+    --partitions 1 --replication-factor 1 2>/dev/null | sed 's/Created topic .*/Created topic./'
 
 for i in $(seq 1 3); do
     printf '%d\ttsv_%d\n' "$i" "$i"

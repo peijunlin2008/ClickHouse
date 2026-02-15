@@ -6,14 +6,14 @@ CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
 . "$CUR_DIR"/../shell_config.sh
 
-KAFKA_TOPIC="${CLICKHOUSE_TEST_UNIQUE_NAME}"
+KAFKA_TOPIC=$(echo "${CLICKHOUSE_TEST_UNIQUE_NAME}" | tr '_' '-')
 KAFKA_GROUP="${CLICKHOUSE_TEST_UNIQUE_NAME}_group"
 KAFKA_BROKER="localhost:9092"
 KAFKA_PRODUCER_OPTS="--producer-property delivery.timeout.ms=30000 --producer-property linger.ms=0"
 
 # Create topic
 timeout 30 kafka-topics.sh --bootstrap-server $KAFKA_BROKER --create --topic $KAFKA_TOPIC \
-    --partitions 1 --replication-factor 1 2>/dev/null
+    --partitions 1 --replication-factor 1 2>/dev/null | sed 's/Created topic .*/Created topic./'
 
 # Produce messages with keys
 for i in $(seq 1 3); do
