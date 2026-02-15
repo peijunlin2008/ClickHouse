@@ -648,6 +648,7 @@ def test_backup_to_s3_copy_multipart_check_error_message(cluster, broken_s3):
         error = node.query_and_get_error(
             f"BACKUP TABLE data TO {backup_destination} {format_settings(None)}",
             query_id=backup_query_id,
+            settings={"s3_max_single_part_upload_size": 0},
         )
 
         assert "mock s3 injected unretryable error" in error, error
