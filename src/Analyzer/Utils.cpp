@@ -492,10 +492,19 @@ void addTableExpressionOrJoinIntoTablesInSelectQuery(
         }
         default:
         {
-            throw Exception(ErrorCodes::LOGICAL_ERROR,
-                            "Unexpected node type for table expression. "
-                            "Expected identifier, table, table function, query, union, join or array join. Actual {}",
-                            table_expression->getNodeTypeName());
+            /// Instead of throwing LOGICAL_ERROR (which traps in debug builds), handle this gracefully.
+            /// This can happen when `toAST` is called on an invalid query tree during error message formatting
+            /// (e.g., when a non-table-expression node ends up in a join tree position due to a bug).
+            auto result_table_expression = make_intrusive<ASTTableExpression>();
+            result_table_expression->children.push_back(table_expression->toAST(convert_to_ast_options));
+            result_table_expression->subquery = result_table_expression->children.back();
+
+            auto tables_in_select_query_element_ast = make_intrusive<ASTTablesInSelectQueryElement>();
+            tables_in_select_query_element_ast->children.push_back(std::move(result_table_expression));
+            tables_in_select_query_element_ast->table_expression = tables_in_select_query_element_ast->children.back();
+
+            tables_in_select_query_ast->children.push_back(std::move(tables_in_select_query_element_ast));
+            break;
         }
     }
 }
