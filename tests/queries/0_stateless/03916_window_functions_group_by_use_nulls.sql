@@ -1,3 +1,5 @@
+SET enable_analyzer = 1;
+
 -- https://github.com/ClickHouse/ClickHouse/issues/82499
 -- Window functions with `group_by_use_nulls = 1` and CUBE/ROLLUP/GROUPING SETS
 -- could crash because the aggregate function was created with non-nullable argument
