@@ -481,17 +481,33 @@ def main():
 
     # Stage 5: Package
     if res and JobStages.PACKAGE in stages:
-        output_path = f"{OUTPUT_DIR}/clang-pgo-bolt.tar.zst"
+        # Strip executables and shared libraries to reduce archive size
+        # (relocations from --emit-relocs and LTO symbols are no longer needed)
         results.append(
             Result.from_commands_run(
-                name="Package toolchain",
+                name="Strip binaries",
                 command=(
-                    f"tar -C {STAGE2_INSTALL_DIR} -cf - ."
-                    f" | zstd -T0 -19 -o {output_path}"
+                    f"find {STAGE2_INSTALL_DIR}/bin -type f -executable"
+                    f" -exec strip --strip-unneeded {{}} +"
+                    f" && find {STAGE2_INSTALL_DIR}/lib -name '*.so*' -type f"
+                    f" -exec strip --strip-unneeded {{}} +"
                 ),
             )
         )
         res = results[-1].is_ok()
+
+        if res:
+            output_path = f"{OUTPUT_DIR}/clang-pgo-bolt.tar.zst"
+            results.append(
+                Result.from_commands_run(
+                    name="Package toolchain",
+                    command=(
+                        f"tar -C {STAGE2_INSTALL_DIR} -cf - ."
+                        f" | zstd -T0 -19 -o {output_path}"
+                    ),
+                )
+            )
+            res = results[-1].is_ok()
 
         if res:
             file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
