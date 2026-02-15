@@ -435,7 +435,10 @@ void MergeTreeBackgroundExecutor<Queue>::threadFunction()
             });
         }
 
-        current_thread->flushUntrackedMemory();
+        {
+            ALLOW_ALLOCATIONS_IN_SCOPE;
+            current_thread->flushUntrackedMemory();
+        }
     }
 }
 
