@@ -83,7 +83,7 @@ function select_thread()
         # second call returns the cached snapshot.
         $CLICKHOUSE_CLIENT --query \
             "SELECT count() FROM ${TABLE} WHERE value IN (SELECT value FROM ${TABLE} WHERE key > $RANDOM)" \
-            2>/dev/null
+            >/dev/null 2>&1
         sleep 0.0$RANDOM
     done
 }
