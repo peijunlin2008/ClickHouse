@@ -34,13 +34,13 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -i "$SSH_USER_KEY" \
     -p "${CLICKHOUSE_PORT_SSH}" \
     "ssh_test_user@${CLICKHOUSE_HOST}" \
-    "SELECT 1" 2>/dev/null | tr -d '\0'
+    "SELECT 1" 2>/dev/null
 
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -i "$SSH_USER_KEY" \
     -p "${CLICKHOUSE_PORT_SSH}" \
     "ssh_test_user@${CLICKHOUSE_HOST}" \
-    "SELECT currentUser()" 2>/dev/null | tr -d '\0'
+    "SELECT currentUser()" 2>/dev/null
 
 # Clean up
 ${CLICKHOUSE_CLIENT} --query "DROP USER IF EXISTS ssh_test_user"
