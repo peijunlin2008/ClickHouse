@@ -37,6 +37,12 @@ $CLICKHOUSE_CLIENT --query "
     -- Stop cleanup on both replicas to prevent premature patch part removal.
     -- SYSTEM STOP MERGES does not stop the cleanup thread, which can race
     -- by cleaning up patch parts before the mutation incorporates them.
+    -- Cleanup must stay stopped on both replicas until the mutation completes
+    -- on both replicas. Starting cleanup on replica 2 too early would create
+    -- a DROP_PART log entry for the patch part that causes a three-way
+    -- deadlock in replica 1's replication queue: DROP_PART blocks GET_PART
+    -- (same part), MUTATE_PART waits for GET_PART, DROP_PART waits for
+    -- MUTATE_PART.
     SYSTEM STOP CLEANUP t_lwu_cleanup_1;
     SYSTEM STOP CLEANUP t_lwu_cleanup_2;
 
@@ -55,20 +61,12 @@ $CLICKHOUSE_CLIENT --query "
 
     ALTER TABLE t_lwu_cleanup_2 UPDATE v = v || '_updated' WHERE 1 SETTINGS mutations_sync = 1;
     SYSTEM SYNC REPLICA t_lwu_cleanup_1 PULL;
-
-    -- Start cleanup on replica 2 only after the mutation has completed,
-    -- so the cleanup cannot remove the patch before the mutation incorporates it.
-    SYSTEM START CLEANUP t_lwu_cleanup_2;
 "
 
-for _ in {0..50}; do
-    res=$($CLICKHOUSE_CLIENT --query "SELECT count() FROM system.parts WHERE database = currentDatabase() AND table = 't_lwu_cleanup_2' AND active AND startsWith(name, 'patch')")
-    if [[ $res == "0" ]]; then
-        break
-    fi
-    sleep 1.0
-done
-
+# Phase 1: Check state before mutation on replica 1.
+# Cleanup is stopped on both replicas, so the patch part is still present
+# on both replicas. On replica 2 it is obsolete (mutation incorporated it
+# into all_0_0_0_2) but not yet cleaned up.
 $CLICKHOUSE_CLIENT --query "
     SET apply_patch_parts =  1;
 
@@ -83,17 +81,16 @@ $CLICKHOUSE_CLIENT --query "
     SYSTEM START MERGES t_lwu_cleanup_1;
 "
 
-# Ensure that the GET_PART entry for the patch part is processed before
-# the MUTATE_PART entry can be selected. Use LIGHTWEIGHT mode because
-# DEFAULT would also wait for the MUTATE_PART entry which may be blocked.
-$CLICKHOUSE_CLIENT --query "SYSTEM SYNC REPLICA t_lwu_cleanup_1 LIGHTWEIGHT"
-
 wait_for_mutation "t_lwu_cleanup_1" "0000000000"
 
-$CLICKHOUSE_CLIENT --query "SYSTEM START CLEANUP t_lwu_cleanup_1"
+# Start cleanup on both replicas after the mutation has completed on both.
+$CLICKHOUSE_CLIENT --query "
+    SYSTEM START CLEANUP t_lwu_cleanup_1;
+    SYSTEM START CLEANUP t_lwu_cleanup_2;
+"
 
 for _ in {0..50}; do
-    res=$($CLICKHOUSE_CLIENT --query "SELECT count() FROM system.parts WHERE database = currentDatabase() AND table = 't_lwu_cleanup_1' AND active AND startsWith(name, 'patch')")
+    res=$($CLICKHOUSE_CLIENT --query "SELECT count() FROM system.parts WHERE database = currentDatabase() AND table IN ('t_lwu_cleanup_1', 't_lwu_cleanup_2') AND active AND startsWith(name, 'patch')")
     if [[ $res == "0" ]]; then
         break
     fi
