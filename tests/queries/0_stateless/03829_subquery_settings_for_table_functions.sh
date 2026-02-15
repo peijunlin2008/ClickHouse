@@ -12,6 +12,7 @@ CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # Create temporary CSV files with different delimiters.
 comma_csv="${CLICKHOUSE_TMP}/test_comma_${CLICKHOUSE_DATABASE}.csv"
 pipe_csv="${CLICKHOUSE_TMP}/test_pipe_${CLICKHOUSE_DATABASE}.csv"
+cache_csv="${CLICKHOUSE_TMP}/test_cache_${CLICKHOUSE_DATABASE}.csv"
 
 echo 'a,1' > "$comma_csv"
 echo 'b,2' >> "$comma_csv"
@@ -19,15 +20,18 @@ echo 'b,2' >> "$comma_csv"
 echo 'c|3' > "$pipe_csv"
 echo 'd|4' >> "$pipe_csv"
 
+printf '1\n2\n3\n' > "$cache_csv"
+
 # Test 1: SETTINGS on the immediate subquery level (CTE).
 $CLICKHOUSE_LOCAL --query "
     WITH
         file_a AS (SELECT * FROM file('${comma_csv}', CSV, 'name String, value UInt32') SETTINGS format_csv_delimiter = ','),
         file_b AS (SELECT * FROM file('${pipe_csv}', CSV, 'name String, value UInt32') SETTINGS format_csv_delimiter = '|')
-    SELECT * FROM file_a
-    UNION ALL
-    SELECT * FROM file_b
-    ORDER BY name
+    SELECT * FROM (
+        SELECT * FROM file_a
+        UNION ALL
+        SELECT * FROM file_b
+    ) ORDER BY name
 "
 
 # Test 2: SETTINGS on the immediate subquery level (inline subquery).
@@ -76,33 +80,34 @@ $CLICKHOUSE_LOCAL --query "
     WITH
         file_a AS (SELECT * FROM (SELECT * FROM file('${comma_csv}', CSV, 'name String, value UInt32')) SETTINGS format_csv_delimiter = ','),
         file_b AS (SELECT * FROM (SELECT * FROM file('${pipe_csv}', CSV, 'name String, value UInt32')) SETTINGS format_csv_delimiter = '|')
-    SELECT * FROM file_a
-    UNION ALL
-    SELECT * FROM file_b
-    ORDER BY name
+    SELECT * FROM (
+        SELECT * FROM file_a
+        UNION ALL
+        SELECT * FROM file_b
+    ) ORDER BY name
 "
 
-# Test 7: Verify table function caching — same table function with same SETTINGS
-# should be executed only once (cached). Check via TableFunctionExecute profile event.
+# Test 7: Verify table function caching with file() — same table function with
+# same SETTINGS should be executed only once (cached).
 $CLICKHOUSE_LOCAL --query "
     SELECT count() FROM (
-        SELECT * FROM (SELECT * FROM numbers(10) SETTINGS max_block_size = 65505)
+        SELECT * FROM (SELECT * FROM file('${cache_csv}', TSV, 'x UInt32') SETTINGS max_block_size = 65505)
         UNION ALL
-        SELECT * FROM (SELECT * FROM numbers(10) SETTINGS max_block_size = 65505)
+        SELECT * FROM (SELECT * FROM file('${cache_csv}', TSV, 'x UInt32') SETTINGS max_block_size = 65505)
     );
     SELECT value FROM system.events WHERE event = 'TableFunctionExecute';
 "
 
-# Test 8: Different SETTINGS should NOT be cached — each table function gets
-# a separate execution despite having the same AST.
+# Test 8: Different SETTINGS should NOT be cached — each file() table function
+# gets a separate execution despite having the same path and schema.
 $CLICKHOUSE_LOCAL --query "
     SELECT count() FROM (
-        SELECT * FROM (SELECT * FROM numbers(10) SETTINGS max_block_size = 65505)
+        SELECT * FROM (SELECT * FROM file('${cache_csv}', TSV, 'x UInt32') SETTINGS max_block_size = 65505)
         UNION ALL
-        SELECT * FROM (SELECT * FROM numbers(10) SETTINGS max_block_size = 65506)
+        SELECT * FROM (SELECT * FROM file('${cache_csv}', TSV, 'x UInt32') SETTINGS max_block_size = 65506)
     );
     SELECT value FROM system.events WHERE event = 'TableFunctionExecute';
 "
 
 # Cleanup.
-rm -f "$comma_csv" "$pipe_csv"
+rm -f "$comma_csv" "$pipe_csv" "$cache_csv"
