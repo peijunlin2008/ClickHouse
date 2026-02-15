@@ -2,7 +2,7 @@
 
 set -euxf -o pipefail
 
-KAFKA_BROKER=${KAFKA_BROKER:-localhost:9092}
+KAFKA_BROKER=${KAFKA_BROKER:-127.0.0.1:9092}
 
 write_kafka_config() {
     local config_file="$1"
@@ -10,11 +10,11 @@ write_kafka_config() {
 # KRaft mode (no ZooKeeper dependency)
 process.roles=broker,controller
 node.id=1
-controller.quorum.voters=1@localhost:9093
+controller.quorum.voters=1@127.0.0.1:9093
 controller.listener.names=CONTROLLER
-listeners=PLAINTEXT://localhost:9092,CONTROLLER://localhost:9093
+listeners=PLAINTEXT://127.0.0.1:9092,CONTROLLER://127.0.0.1:9093
 inter.broker.listener.name=PLAINTEXT
-advertised.listeners=PLAINTEXT://localhost:9092
+advertised.listeners=PLAINTEXT://127.0.0.1:9092
 listener.security.protocol.map=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
 
 log.dirs=/tmp/kafka-logs

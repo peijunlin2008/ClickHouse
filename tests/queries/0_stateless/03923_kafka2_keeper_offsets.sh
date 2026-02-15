@@ -8,7 +8,7 @@ CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 KAFKA_TOPIC=$(echo "${CLICKHOUSE_TEST_UNIQUE_NAME}" | tr '_' '-')
 KAFKA_GROUP="${CLICKHOUSE_TEST_UNIQUE_NAME}_group"
-KAFKA_BROKER="localhost:9092"
+KAFKA_BROKER="127.0.0.1:9092"
 KEEPER_PATH="/clickhouse/test/${CLICKHOUSE_TEST_UNIQUE_NAME}"
 KAFKA_PRODUCER_OPTS="--producer-property delivery.timeout.ms=30000 --producer-property linger.ms=0"
 
@@ -48,7 +48,7 @@ $CLICKHOUSE_CLIENT -q "
 "
 
 # Wait for first batch
-for i in $(seq 1 30); do
+for i in $(seq 1 60); do
     count=$($CLICKHOUSE_CLIENT -q "SELECT count() FROM ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst")
     if [ "$count" -ge 3 ]; then
         break
@@ -66,7 +66,7 @@ done | timeout 30 kafka-console-producer.sh --bootstrap-server $KAFKA_BROKER --t
     $KAFKA_PRODUCER_OPTS 2>/dev/null
 
 # Wait for second batch
-for i in $(seq 1 30); do
+for i in $(seq 1 60); do
     count=$($CLICKHOUSE_CLIENT -q "SELECT count() FROM ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst")
     if [ "$count" -ge 6 ]; then
         break

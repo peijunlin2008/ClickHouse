@@ -172,7 +172,7 @@ class ClickHouseProc:
 
         for _ in range(60):
             res = Shell.check(
-                "kafka-topics.sh --bootstrap-server localhost:9092 --list",
+                "kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --list",
                 verbose=True,
             )
             if res:

@@ -8,7 +8,7 @@ CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 KAFKA_TOPIC=$(echo "${CLICKHOUSE_TEST_UNIQUE_NAME}" | tr '_' '-')
 KAFKA_GROUP="${CLICKHOUSE_TEST_UNIQUE_NAME}_group"
-KAFKA_BROKER="localhost:9092"
+KAFKA_BROKER="127.0.0.1:9092"
 KAFKA_PRODUCER_OPTS="--producer-property delivery.timeout.ms=30000 --producer-property linger.ms=0"
 
 # Create topic
