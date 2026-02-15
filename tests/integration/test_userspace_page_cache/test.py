@@ -1,3 +1,5 @@
+import os
+import subprocess
 import uuid
 import time
 import logging
@@ -8,6 +10,32 @@ from helpers.cluster import ClickHouseCluster
 cluster = ClickHouseCluster(__file__)
 
 
+def _is_sanitizer_build():
+    """Detect sanitizer builds before starting the cluster, to avoid creating
+    containers that are slow to shut down under sanitizers."""
+    binary = os.environ.get(
+        "CLICKHOUSE_TESTS_SERVER_BIN_PATH", "/usr/bin/clickhouse"
+    )
+    try:
+        result = subprocess.run(
+            [
+                binary,
+                "local",
+                "--query",
+                "SELECT hasAddressSanitizer() OR hasThreadSanitizer() OR hasMemorySanitizer()",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return result.stdout.strip() == "1"
+    except Exception:
+        return False
+
+
+is_sanitizer = _is_sanitizer_build()
+
+
 @pytest.fixture(scope="module")
 def started_cluster():
     try:
@@ -15,16 +43,20 @@ def started_cluster():
             "node1",
             main_configs=["configs/conf.xml"],
             with_minio=True,
-            mem_limit='20g',
+            mem_limit="20g",
             cpu_limit=7,
         )
-        cluster.add_instance(
-            "node_smol",
-            main_configs=["configs/conf.xml", "configs/smol.xml"],
-            with_minio=True,
-            mem_limit='20g',
-            cpu_limit=7,
-        )
+        # Don't create node_smol in sanitizer builds: the ASan leak checker at
+        # exit is very slow with high max_server_memory_usage, causing Docker
+        # teardown to hang for minutes.
+        if not is_sanitizer:
+            cluster.add_instance(
+                "node_smol",
+                main_configs=["configs/conf.xml", "configs/smol.xml"],
+                with_minio=True,
+                mem_limit="20g",
+                cpu_limit=7,
+            )
         cluster.start()
 
         yield cluster
@@ -157,14 +189,10 @@ def test_basics(started_cluster):
 
 
 def test_size_adjustment(started_cluster):
-    node = cluster.instances["node_smol"]
-
-    if (
-        node.is_built_with_thread_sanitizer()
-        or node.is_built_with_memory_sanitizer()
-        or node.is_built_with_address_sanitizer()
-    ):
+    if is_sanitizer:
         pytest.skip("sanitizer build has higher memory consumption; also it is slow")
+
+    node = cluster.instances["node_smol"]
 
     # A few GB, see configs/smol.xml
     memory_limit = int(node.query("select value from system.server_settings where name='max_server_memory_usage'"))
