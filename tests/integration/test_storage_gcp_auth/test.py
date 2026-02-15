@@ -87,15 +87,25 @@ def run_gcs_mocks(cluster):
 def test_gcp_auth(started_cluster):
     node = started_cluster.instances["node"]
 
+    # Reset mock counters so the test is repeatable
+    resolver_id = started_cluster.get_container_id("resolver")
+    for port in [80, 22234]:
+        started_cluster.exec_in_container(
+            resolver_id,
+            ["curl", "-s", f"http://localhost:{port}/reset"],
+            nothrow=True,
+        )
+
     def get_num_requests():
         count_response = started_cluster.exec_in_container(
-            started_cluster.get_container_id("resolver"),
+            resolver_id,
             ["curl", "-s", f"http://localhost/counter"],
             nothrow=True,
         )
 
         return int(count_response)
 
+    node.query("DROP TABLE IF EXISTS s3_table")
     node.query(
         "CREATE TABLE s3_table (line String) ENGINE = S3(gcs_conn, filename='test.txt', format='LineAsString')"
     )
