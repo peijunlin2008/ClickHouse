@@ -3868,6 +3868,14 @@ def do_run_tests(
                 for p in processes:
                     if p.is_alive():
                         p.terminate()
+                # Wait for processes to exit, then force-kill stragglers
+                for p in processes:
+                    p.join(timeout=10)
+                    if p.is_alive():
+                        print(f"Force killing process {p.name} (pid {p.pid})")
+                        p.kill()
+                for p in processes:
+                    p.join(timeout=5)
                 break
 
             for p in processes[:]:
