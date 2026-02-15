@@ -334,7 +334,15 @@ class Shell:
         log_file = log_file or "/dev/null"
         proc = None
         err_output = []
+        delay = 1
+
         for retry in range(retries):
+
+            if retry > 0:
+                delay = min(2 * delay, 60)
+                print(f"Retrying in {delay}s...")
+                time.sleep(delay)
+
             try:
                 with open(log_file, "w") as log_fp:
                     proc = subprocess.Popen(
@@ -387,7 +395,7 @@ class Shell:
                     proc.wait()  # Wait for the process to finish
 
                     if proc.returncode == 0:
-                        break  # Exit retry loop if success
+                        return 0
 
                     if verbose:
                         if retries == 1:
@@ -413,10 +421,6 @@ class Shell:
                                 f"No retryable errors found, stopping retry attempts"
                             )
                             break
-                    if should_retry and retry < retries - 1:
-                        delay = min(2 ** (retry + 1), 60)
-                        print(f"Retrying in {delay}s...")
-                        time.sleep(delay)
             except Exception as e:
                 if verbose:
                     if retries == 1:
