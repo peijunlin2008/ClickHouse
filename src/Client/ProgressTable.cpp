@@ -67,6 +67,7 @@ const std::unordered_map<std::string_view, ProfileEvents::Event> & getEventNameT
     if (!event_name_to_event.empty())
         return event_name_to_event;
 
+    event_name_to_event.reserve(ProfileEvents::end());
     for (ProfileEvents::Event event = ProfileEvents::Event(0); event < ProfileEvents::end(); ++event)
         event_name_to_event.emplace(ProfileEvents::getName(event), event);
 
