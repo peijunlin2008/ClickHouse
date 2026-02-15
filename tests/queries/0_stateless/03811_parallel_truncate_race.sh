@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tags: race, no-parallel, long, no-replicated-database
+# Tags: race, no-parallel, long, no-replicated-database, no-parallel-replicas, no-object-storage
 # no-replicated-database: Distributed DDL queries (TRUNCATE TABLE) inside transactions are not supported
 
 # Stress test for concurrent TRUNCATE operations with transactions and PARALLEL WITH.
