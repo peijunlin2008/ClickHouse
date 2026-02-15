@@ -5,16 +5,12 @@
 #
 # BlockIO::operator= was not moving query_metadata_cache, causing premature
 # destruction of cached StorageSnapshots. When combined with concurrent
-# DETACH/ATTACH, the storage could be freed while parts still reference it,
-# leading to SEGFAULT in clearCaches.
+# DROP TABLE or DETACH/ATTACH, the storage could be freed while parts still
+# reference it, leading to SEGFAULT in clearCaches.
 #
-# The bug is triggered on every query through both TCP and HTTP paths:
-#   executeQuery(String, ...): res = executeQueryImpl(...)
-# The operator= moves the pipeline but not the cache. The temp BlockIO is
-# destroyed immediately, destroying the cache while the pipeline lives on.
-# For mutation validation queries (ALTER TABLE ... UPDATE), the validation
-# pipeline is created and destroyed inside MutationsInterpreter::validate(),
-# leaving the cache entry as the ONLY remaining StorageSnapshotPtr.
+# The MSan trace shows the storage freed by DatabaseCatalog::dropTablesParallel
+# on a background thread while TCPHandler's pipeline is still being destroyed
+# via BlockIO::onException, so we exercise both DROP and DETACH paths.
 
 CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
@@ -22,16 +18,20 @@ CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 TABLE="test_cache_race_${CLICKHOUSE_DATABASE}"
 
-$CLICKHOUSE_CLIENT --query "DROP TABLE IF EXISTS ${TABLE}"
-$CLICKHOUSE_CLIENT --query "
-    CREATE TABLE ${TABLE} (key UInt64, value String)
-    ENGINE = MergeTree ORDER BY key
-"
+function create_and_fill()
+{
+    $CLICKHOUSE_CLIENT --query "
+        CREATE TABLE IF NOT EXISTS ${TABLE} (key UInt64, value String)
+        ENGINE = MergeTree ORDER BY key
+    "
+    # Create multiple parts so snapshots have non-trivial data
+    for i in $(seq 1 10); do
+        $CLICKHOUSE_CLIENT --query "INSERT INTO ${TABLE} SELECT number, toString(number) FROM numbers($((i * 100)), 100)" 2>/dev/null
+    done
+}
 
-# Create multiple parts so snapshots have non-trivial data
-for i in $(seq 1 20); do
-    $CLICKHOUSE_CLIENT --query "INSERT INTO ${TABLE} SELECT number, toString(number) FROM numbers($((i * 100)), 100)"
-done
+$CLICKHOUSE_CLIENT --query "DROP TABLE IF EXISTS ${TABLE}"
+create_and_fill
 
 function mutation_thread()
 {
@@ -52,11 +52,24 @@ function detach_attach_thread()
     local TIMELIMIT=$((SECONDS+$1))
     while [ $SECONDS -lt "$TIMELIMIT" ]; do
         # DETACH removes the storage from the database, dropping its StoragePtr.
-        # If the cache snapshot holds the last ref, destroying the cache will
-        # free the storage while parts still exist in shared_ranges_in_parts.
         $CLICKHOUSE_CLIENT --query "DETACH TABLE ${TABLE}" 2>/dev/null
         sleep 0.0$RANDOM
         $CLICKHOUSE_CLIENT --query "ATTACH TABLE ${TABLE}" 2>/dev/null
+        sleep 0.0$RANDOM
+    done
+}
+
+function drop_create_thread()
+{
+    local TIMELIMIT=$((SECONDS+$1))
+    while [ $SECONDS -lt "$TIMELIMIT" ]; do
+        # DROP TABLE triggers DatabaseCatalog::dropTablesParallel on a background
+        # thread, which frees the storage. If a concurrent query's pipeline still
+        # holds parts referencing the storage via bare pointers, clearCaches will
+        # access freed memory.
+        $CLICKHOUSE_CLIENT --query "DROP TABLE IF EXISTS ${TABLE}" 2>/dev/null
+        sleep 0.0$RANDOM
+        create_and_fill
         sleep 0.0$RANDOM
     done
 }
@@ -82,6 +95,7 @@ mutation_thread $TIMEOUT &
 select_thread $TIMEOUT &
 select_thread $TIMEOUT &
 detach_attach_thread $TIMEOUT &
+drop_create_thread $TIMEOUT &
 
 wait
 
