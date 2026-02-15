@@ -1,72 +1,68 @@
 #!/usr/bin/env bash
-# Tags: no-replicated-database
+# Tags: zookeeper, no-replicated-database
 
 # Test that ATTACH PARTITION ALL handles intersecting parts in the detached directory
 # gracefully instead of throwing a LOGICAL_ERROR.
-# This can happen when detached directory accumulates parts from different table states
-# (e.g., from the BuzzHouse fuzzer).
+# SYSTEM RESTORE REPLICA moves ALL parts (including outdated merge intermediates) to
+# detached. These parts can intersect (e.g., all_1_5_4 and all_1_10_6 from different
+# merge stages). A subsequent ATTACH PARTITION ALL must handle this.
 
 CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
 . "$CURDIR"/../shell_config.sh
 
-$CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS t_attach_intersect"
+$CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS t_intersect"
 
 $CLICKHOUSE_CLIENT -q "
-    CREATE TABLE t_attach_intersect (x UInt64)
-    ENGINE = MergeTree ORDER BY x
+    CREATE TABLE t_intersect (x UInt64)
+    ENGINE = ReplicatedMergeTree('/clickhouse/tables/{database}/t_intersect', 'r1')
+    ORDER BY x
 "
 
-# Insert several parts and merge them
-$CLICKHOUSE_CLIENT -q "SYSTEM STOP MERGES t_attach_intersect"
-for i in $(seq 1 5); do
-    $CLICKHOUSE_CLIENT -q "INSERT INTO t_attach_intersect VALUES ($i)"
+# Insert several parts and let them merge progressively to create a chain of
+# intermediate merge results: all_1_2_1, all_1_3_2, all_1_4_3, all_1_5_4, etc.
+$CLICKHOUSE_CLIENT -q "SYSTEM STOP MERGES t_intersect"
+for i in $(seq 1 10); do
+    $CLICKHOUSE_CLIENT -q "INSERT INTO t_intersect VALUES ($i)"
 done
-$CLICKHOUSE_CLIENT -q "SYSTEM START MERGES t_attach_intersect"
-$CLICKHOUSE_CLIENT -q "OPTIMIZE TABLE t_attach_intersect FINAL"
-$CLICKHOUSE_CLIENT -q "SYSTEM SYNC REPLICA t_attach_intersect PULL" 2>/dev/null ||:
+$CLICKHOUSE_CLIENT -q "SYSTEM START MERGES t_intersect"
+$CLICKHOUSE_CLIENT -q "OPTIMIZE TABLE t_intersect FINAL"
+$CLICKHOUSE_CLIENT -q "SYSTEM SYNC REPLICA t_intersect"
 
-# Insert one more part to extend the block range
-$CLICKHOUSE_CLIENT -q "INSERT INTO t_attach_intersect VALUES (6)"
-# Now we have merged part all_1_5_N and a new part all_6_6_0
+# Get the ZK path before detaching.
+ZK_PATH=$($CLICKHOUSE_CLIENT -q "SELECT zookeeper_path FROM system.replicas WHERE database = currentDatabase() AND table = 't_intersect'")
 
-# Detach everything to populate the detached directory
-$CLICKHOUSE_CLIENT -q "ALTER TABLE t_attach_intersect DETACH PARTITION ALL"
+# Detach the table first — this releases the ZK session and ephemeral nodes,
+# allowing us to drop the replica metadata from ZK.
+$CLICKHOUSE_CLIENT -q "DETACH TABLE t_intersect"
 
-# Get the data directory path
-data_dir=$($CLICKHOUSE_CLIENT -q "
-    SELECT arrayJoin(data_paths) FROM system.tables
-    WHERE database = currentDatabase() AND name = 't_attach_intersect'" | head -1)
+# Drop the replica's ZK metadata while the table is detached.
+# This bypasses the "can't drop local replica" check.
+$CLICKHOUSE_CLIENT -q "SYSTEM DROP REPLICA 'r1' FROM ZKPATH '$ZK_PATH'"
 
-# Find the merged part (e.g., all_1_5_4) and copy it with a modified name
-# to create an intersecting part (wider range, lower level).
-# For example, copy all_1_5_4 to all_1_6_0.
-# all_1_5_4 and all_1_6_0 intersect because:
-# - all_1_6_0 covers a wider block range (1-6 vs 1-5)
-# - all_1_6_0 has a lower level (0 vs 4)
-# So neither contains the other, and they are not disjoint.
-for d in "${data_dir}detached/"all_*; do
-    [ -d "$d" ] || continue
-    n=$(basename "$d")
-    # Find the merged part (level > 0, covering multiple blocks)
-    if [[ $n =~ ^all_([0-9]+)_([0-9]+)_([0-9]+)$ ]]; then
-        min_block=${BASH_REMATCH[1]}
-        max_block=${BASH_REMATCH[2]}
-        level=${BASH_REMATCH[3]}
-        if [ "$level" -gt 0 ] && [ "$min_block" -ne "$max_block" ]; then
-            # Create an intersecting part: wider range, level 0
-            new_max=$((max_block + 1))
-            new_name="all_${min_block}_${new_max}_0"
-            cp -r "$d" "${data_dir}detached/${new_name}"
-            break
-        fi
+# Re-attach — without the ZK replica node, the table enters readonly mode.
+$CLICKHOUSE_CLIENT -q "ATTACH TABLE t_intersect"
+
+# Wait for the replica to become readonly.
+for _ in $(seq 1 100); do
+    is_readonly=$($CLICKHOUSE_CLIENT -q "SELECT is_readonly FROM system.replicas WHERE database = currentDatabase() AND table = 't_intersect'")
+    if [ "$is_readonly" = "1" ]; then
+        break
     fi
+    sleep 0.1
 done
 
-# ATTACH PARTITION ALL should handle intersecting parts gracefully
-$CLICKHOUSE_CLIENT -q "ALTER TABLE t_attach_intersect ATTACH PARTITION ALL"
+# SYSTEM RESTORE REPLICA moves ALL parts (active + outdated) to detached,
+# then re-attaches from ZooKeeper. The outdated intermediate merge results
+# remain in detached and intersect with each other.
+$CLICKHOUSE_CLIENT -q "SYSTEM RESTORE REPLICA t_intersect"
+$CLICKHOUSE_CLIENT -q "SYSTEM SYNC REPLICA t_intersect"
 
-# Verify we got data back
-$CLICKHOUSE_CLIENT -q "SELECT count() > 0 FROM t_attach_intersect"
+# Now detached directory has intersecting parts from different merge stages.
+# ATTACH PARTITION ALL should handle this gracefully.
+$CLICKHOUSE_CLIENT -q "ALTER TABLE t_intersect ATTACH PARTITION ALL"
 
-$CLICKHOUSE_CLIENT -q "DROP TABLE t_attach_intersect"
+# Verify we can read data.
+$CLICKHOUSE_CLIENT -q "SELECT count() > 0 FROM t_intersect"
+
+$CLICKHOUSE_CLIENT -q "DROP TABLE t_intersect"
