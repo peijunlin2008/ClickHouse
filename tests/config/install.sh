@@ -409,6 +409,10 @@ if [[ "$USE_DATABASE_REPLICATED" == "1" ]]; then
     sed -i "s|<filesystem_caches_path>/var/lib/clickhouse/filesystem_caches/</filesystem_caches_path>|<filesystem_caches_path>/var/lib/clickhouse/filesystem_caches_2/</filesystem_caches_path>|" $ch_server_2_path/config.d/filesystem_caches_path.xml
     sed -i "s|<custom_cached_disks_base_directory replace=\"replace\">/var/lib/clickhouse/filesystem_caches/</custom_cached_disks_base_directory>|<custom_cached_disks_base_directory replace=\"replace\">/var/lib/clickhouse/filesystem_caches_1/</custom_cached_disks_base_directory>|" $ch_server_1_path/config.d/filesystem_caches_path.xml
     sed -i "s|<custom_cached_disks_base_directory replace=\"replace\">/var/lib/clickhouse/filesystem_caches/</custom_cached_disks_base_directory>|<custom_cached_disks_base_directory replace=\"replace\">/var/lib/clickhouse/filesystem_caches_2/</custom_cached_disks_base_directory>|" $ch_server_2_path/config.d/filesystem_caches_path.xml
+
+    # Remove SSH config from replicas to avoid port conflicts on tcp_ssh_port.
+    rm -f $ch_server_1_path/config.d/ssh.xml $ch_server_1_path/config.d/ssh_host_ed25519_key
+    rm -f $ch_server_2_path/config.d/ssh.xml $ch_server_2_path/config.d/ssh_host_ed25519_key
 fi
 
 if [[ "$BUGFIX_VALIDATE_CHECK" -eq 1 ]]; then

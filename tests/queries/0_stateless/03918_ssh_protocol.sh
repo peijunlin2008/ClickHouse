@@ -26,6 +26,8 @@ SSH_USER_KEY="${CLICKHOUSE_TMP}/ssh_user_ed25519_key_${CLICKHOUSE_TEST_UNIQUE_NA
 cp "$SSH_USER_KEY_ORIG" "$SSH_USER_KEY"
 chmod 600 "$SSH_USER_KEY"
 
+SSH_STDERR="${CLICKHOUSE_TMP}/ssh_stderr_${CLICKHOUSE_TEST_UNIQUE_NAME}"
+
 # Extract the base64 public key from the .pub file
 SSH_USER_PUBKEY=$(awk '{print $2}' "$SSH_USER_KEY_ORIG.pub")
 
@@ -49,11 +51,11 @@ ${CLICKHOUSE_CLIENT} --query "DROP USER IF EXISTS ${SSH_USER}"
 ${CLICKHOUSE_CLIENT} --query "CREATE USER ${SSH_USER} IDENTIFIED WITH ssh_key BY KEY '${SSH_USER_PUBKEY}' TYPE 'ssh-ed25519'"
 ${CLICKHOUSE_CLIENT} --query "GRANT ALL ON ${CLICKHOUSE_DATABASE}.* TO ${SSH_USER}"
 
-# Run queries via SSH
-ssh "${SSH_OPTS[@]}" "${SSH_USER}@${CLICKHOUSE_HOST}" "SELECT 1" 2>/dev/null
+# Run queries via SSH, capturing stderr for diagnostics on failure
+ssh "${SSH_OPTS[@]}" "${SSH_USER}@${CLICKHOUSE_HOST}" "SELECT 1" 2>"$SSH_STDERR" || cat "$SSH_STDERR" >&2
 
-ssh "${SSH_OPTS[@]}" "${SSH_USER}@${CLICKHOUSE_HOST}" "SELECT currentUser() = '${SSH_USER}'" 2>/dev/null
+ssh "${SSH_OPTS[@]}" "${SSH_USER}@${CLICKHOUSE_HOST}" "SELECT currentUser() = '${SSH_USER}'" 2>"$SSH_STDERR" || cat "$SSH_STDERR" >&2
 
 # Clean up
 ${CLICKHOUSE_CLIENT} --query "DROP USER IF EXISTS ${SSH_USER}"
-rm -f "$SSH_USER_KEY"
+rm -f "$SSH_USER_KEY" "$SSH_STDERR"
