@@ -17,11 +17,6 @@ class ASTCreateNamedCollectionQuery;
 class ASTDropNamedCollectionQuery;
 class ASTAlterNamedCollectionQuery;
 
-struct UUIDHasher
-{
-    size_t operator()(const UUID & uuid) const { return std::hash<UUID>()(uuid); }
-};
-
 struct NamedCollectionDependency
 {
     String collection_name;
@@ -50,7 +45,7 @@ using NamedCollectionDependencies = boost::multi_index_container<
         boost::multi_index::hashed_non_unique<
             boost::multi_index::tag<TableUUID>,
             boost::multi_index::const_mem_fun<NamedCollectionDependency, UUID, &NamedCollectionDependency::getUUID>,
-            UUIDHasher
+            std::hash<UUID>
         >,
         /// For non-Atomic databases where tables don't have UUIDs
         boost::multi_index::hashed_non_unique<
