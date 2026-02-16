@@ -139,7 +139,6 @@ private:
     std::string google_adc_client_secret;
     std::string google_adc_refresh_token;
     std::string google_adc_quota_project_id;
-    mutable std::mutex google_token_mutex;
     mutable std::optional<std::pair<std::string, std::chrono::system_clock::time_point>> google_access_token;
 
     struct GoogleADCCredentials

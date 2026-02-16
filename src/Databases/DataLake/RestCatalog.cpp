@@ -1,14 +1,13 @@
 #include <Poco/JSON/Object.h>
 #include <Poco/JSON/Stringifier.h>
 #include <Poco/Net/HTTPRequest.h>
-#include "Common/Exception.h"
-#include "Common/logger_useful.h"
+#include <Common/Exception.h>
+#include <Common/logger_useful.h>
 #include <Common/setThreadName.h>
 #include <Storages/ObjectStorage/DataLakes/Iceberg/IcebergWrites.h>
-#include <exception>
 #include <mutex>
 #include <chrono>
-#include "Core/SettingsEnums.h"
+#include <Core/SettingsEnums.h>
 #include "config.h"
 
 #if USE_AVRO
@@ -183,17 +182,6 @@ RestCatalog::RestCatalog(
     config = loadConfig();
 }
 
-/// Constructor for BigLake catalog with Google Cloud OAuth2 authentication.
-/// Parameters:
-///   - warehouse_: Warehouse name (e.g., "gs://bucket-name")
-///   - base_url_: BigLake REST catalog URL (e.g., "https://biglake.googleapis.com/iceberg/v1/restcatalog")
-///   - google_project_id_: Google Cloud project ID (used in x-goog-user-project header, optional if google_adc_quota_project_id is provided)
-///   - google_service_account_: Service account email for metadata service (default: "default", only used if ADC credentials are not provided)
-///   - google_metadata_service_: Metadata service endpoint (default: "metadata.google.internal", only used if ADC credentials are not provided)
-///   - google_adc_client_id_: ADC client_id (required if using ADC authentication instead of metadata service)
-///   - google_adc_client_secret_: ADC client_secret (required if using ADC authentication instead of metadata service)
-///   - google_adc_refresh_token_: ADC refresh_token (required if using ADC authentication instead of metadata service)
-///   - google_adc_quota_project_id_: ADC quota_project_id (optional, used if google_project_id is not set)
 RestCatalog::RestCatalog(
     const std::string & warehouse_,
     const std::string & base_url_,
@@ -274,13 +262,10 @@ DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool update_token) const
     /// Only use Google OAuth if explicitly configured (google_project_id or google_adc_client_id).
     if (!google_project_id.empty() || !google_adc_client_id.empty())
     {
-        //std::lock_guard lock(google_token_mutex);
         if (!google_access_token.has_value() || update_token
             || std::chrono::system_clock::now() >= google_access_token->second)
         {
             auto token = retrieveGoogleCloudAccessToken();
-            /// If token wasn't cached in retrieveGoogleCloudAccessToken (e.g., refresh token flow),
-            /// cache it now with default expiration
             if (!google_access_token.has_value() || google_access_token->first != token)
             {
                 google_access_token = std::make_pair(token, std::chrono::system_clock::now() + std::chrono::minutes(55));
@@ -289,8 +274,7 @@ DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool update_token) const
 
         DB::HTTPHeaderEntries headers;
         headers.emplace_back("Authorization", "Bearer " + google_access_token->first);
-        
-        /// Use quota_project_id from ADC if google_project_id is not set
+
         std::string project_id = google_project_id;
         if (project_id.empty() && !google_adc_quota_project_id.empty())
         {
@@ -300,12 +284,12 @@ DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool update_token) const
         {
             project_id = google_adc_credentials->quota_project_id;
         }
-        
+
         if (!project_id.empty())
         {
             headers.emplace_back("x-goog-user-project", project_id);
         }
-        
+
         return headers;
     }
 
@@ -508,7 +492,7 @@ std::string RestCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken(const Go
     }
 
     access_token = object->getValue<String>("access_token");
-    
+
     /// Cache token expiration if provided (typically 3600 seconds for refresh token flow)
     if (object->has("expires_in"))
     {
@@ -517,13 +501,12 @@ std::string RestCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken(const Go
             *access_token,
             std::chrono::system_clock::now() + std::chrono::seconds(expires_in - 300)); /// 5 minutes buffer
     }
-    
+
     return *access_token;
 }
 
 std::string RestCatalog::retrieveGoogleCloudAccessToken() const
 {
-    /// Try to use Application Default Credentials (ADC) first if credentials are provided
     if (!google_adc_client_id.empty() && !google_adc_client_secret.empty() && !google_adc_refresh_token.empty())
     {
         try
@@ -541,7 +524,6 @@ std::string RestCatalog::retrieveGoogleCloudAccessToken() const
     }
 
     /// Fallback to GCP metadata service (works inside GCP infrastructure)
-    /// Similar to PocoHTTPClientGCPOAuth::requestBearerToken()
     /// https://cloud.google.com/compute/docs/metadata/overview
     static constexpr auto DEFAULT_REQUEST_TOKEN_PATH = "/computeMetadata/v1/instance/service-accounts";
 
@@ -598,20 +580,17 @@ std::string RestCatalog::retrieveGoogleCloudAccessToken() const
     }
 
     access_token = object->getValue<String>("access_token");
-    
+
     /// For refresh token flow, tokens typically expire in 1 hour
     /// We'll cache for 55 minutes to be safe
-    /// For metadata service, expires_in is provided in the response
     if (object->has("expires_in"))
     {
         Int64 expires_in = object->getValue<Int64>("expires_in");
-        /// Update cache expiration time
-        std::lock_guard lock(google_token_mutex);
         google_access_token = std::make_pair(
             *access_token,
-            std::chrono::system_clock::now() + std::chrono::seconds(expires_in - 300)); /// 5 minutes buffer
+            std::chrono::system_clock::now() + std::chrono::seconds(expires_in - 300));
     }
-    
+
     return *access_token;
 }
 
@@ -788,13 +767,7 @@ RestCatalog::Namespaces RestCatalog::getNamespaces(const std::string & base_name
             "Code: {}, status: {}, message: {}",
             e.code(), e.getHTTPStatus(), e.displayText());
 
-        if (google_project_id.empty())
-            throw DB::Exception(DB::ErrorCodes::DATALAKE_DATABASE_ERROR, "{}", message);
-        else
-        {
-            LOG_DEBUG(log, "{}", message);
-            return {};
-        }
+        throw DB::Exception(DB::ErrorCodes::DATALAKE_DATABASE_ERROR, "{}", message);
     }
 }
 
@@ -833,6 +806,7 @@ RestCatalog::Namespaces RestCatalog::parseNamespaces(DB::ReadBuffer & buf, const
 
             const int idx = static_cast<int>(current_namespace_array->size()) - 1;
             const auto current_namespace = current_namespace_array->get(idx).extract<String>();
+            /// Biglake for some unknown reason can return `base_namespace` as child of `base_namespace`
             if (getCatalogType() == DB::DatabaseDataLakeCatalogType::ICEBERG_BIGLAKE && !base_namespace.empty() && current_namespace == base_namespace)
             {
                 continue;
