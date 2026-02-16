@@ -361,7 +361,7 @@ static ReadFromMergeTree * findReadingStep(const QueryPlan::Node & top_of_single
     return nullptr;
 }
 
-// Transplant the sets from the single-replica plan to the parallel-replicas plan once we decided to enable parallel replicas
+/// Transplant the sets from the single-replica plan to the parallel-replicas plan once we decided to enable parallel replicas
 static void moveSetsFromLocalPlanToReplicasPlan(const QueryPlan & single_replica_plan, const QueryPlan & parallel_replicas_plan)
 {
     Stack stack;
@@ -397,15 +397,22 @@ static void moveSetsFromLocalPlanToReplicasPlan(const QueryPlan & single_replica
                 for (const auto & future_set : creating_sets_step->getSets())
                 {
                     if (auto it = sets_map.find(future_set->getHash()); it != sets_map.end())
+                    {
                         future_set->replaceSetAndKey(it->second);
+                    }
+                    else
+                    {
+                        throw Exception(
+                            ErrorCodes::LOGICAL_ERROR, "Cannot find a matching set in the map of sets from single-replica plan");
+                    }
                 }
             }
         });
 }
 
 /// Heuristic-based algorithm to decide whether to enable parallel replicas for the given query
-void considerEnablingParallelReplicas(
-    const QueryPlanOptimizationSettings & optimization_settings, QueryPlan::Node & root, QueryPlan::Nodes &, QueryPlan & query_plan)
+static void considerEnablingParallelReplicas(
+    const QueryPlanOptimizationSettings & optimization_settings, QueryPlan::Node & root, QueryPlan & query_plan)
 {
     if (!optimization_settings.automatic_parallel_replicas_mode
         || !optimization_settings.query_plan_with_parallel_replicas_builder
@@ -875,7 +882,7 @@ void optimizeTreeSecondPass(
     if (optimization_settings.query_plan_join_shard_by_pk_ranges)
         optimizeJoinByShards(root);
 
-    considerEnablingParallelReplicas(optimization_settings, root, nodes, query_plan);
+    considerEnablingParallelReplicas(optimization_settings, root, query_plan);
 }
 
 void addStepsToBuildSets(
