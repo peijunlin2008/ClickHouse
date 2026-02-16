@@ -191,9 +191,9 @@ def started_cluster():
         logging.info("Starting cluster...")
         cluster.start()
 
-        if cluster.instances["node1"].is_built_with_memory_sanitizer():
+        if int(cluster.instances["node1"].query("SELECT count() FROM system.table_engines WHERE name = 'DeltaLake'").strip()) == 0:
             pytest.skip(
-                "Memory Sanitizer cannot work with Rust code which is not instrumented"
+                "DeltaLake engine is not available"
             )
 
         cluster.default_s3_uploader = S3Uploader(
