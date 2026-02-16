@@ -788,30 +788,33 @@ void StatementGenerator::generateNextDrop(RandomGenerator & rg, Drop * dp)
     }
 }
 
-void StatementGenerator::generateNextTablePartition(RandomGenerator & rg, const bool allow_parts, const SQLTable & t, PartitionExpr * pexpr)
+void StatementGenerator::generateNextTablePartition(
+    RandomGenerator & rg, const bool allow_parts, const bool detached, const SQLTable & t, PartitionExpr * pexpr)
 {
-    bool set_part = false;
+    bool table_has_partitions = false;
 
     if (t.isMergeTreeFamily())
     {
         const String dname = t.getDatabaseName();
         const String tname = t.getTableName();
-        const bool table_has_partitions = rg.nextSmallNumber() < 9 && fc.tableHasPartitions(false, dname, tname);
 
-        if (table_has_partitions)
+        if ((table_has_partitions = (rg.nextMediumNumber() < 76 && fc.tableHasPartitions(detached, dname, tname))))
         {
             if (allow_parts && rg.nextBool())
             {
-                pexpr->set_part(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, false, dname, tname));
+                pexpr->set_part(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), detached, false, dname, tname));
             }
             else
             {
-                pexpr->set_partition_id(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, true, dname, tname));
+                pexpr->set_partition_id(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), detached, true, dname, tname));
             }
-            set_part = true;
         }
     }
-    if (!set_part)
+    if (!table_has_partitions && rg.nextBool())
+    {
+        pexpr->set_all(true);
+    }
+    else if (!table_has_partitions)
     {
         pexpr->set_tuple(true);
     }
@@ -822,7 +825,7 @@ void StatementGenerator::generateNextOptimizeTableInternal(RandomGenerator & rg,
     t.setName(ot->mutable_est(), false);
     if (rg.nextBool())
     {
-        generateNextTablePartition(rg, false, t, ot->mutable_single_partition()->mutable_partition());
+        generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, ot->mutable_single_partition()->mutable_partition());
     }
     ot->set_cleanup(rg.nextSmallNumber() < 3);
     if (!strict && rg.nextSmallNumber() < 4)
@@ -898,7 +901,7 @@ void StatementGenerator::generateNextCheckTable(RandomGenerator & rg, CheckTable
         t.setName(ct->mutable_est(), false);
         if (rg.nextBool())
         {
-            generateNextTablePartition(rg, true, t, ct->mutable_single_partition()->mutable_partition());
+            generateNextTablePartition(rg, true, rg.nextSmallNumber() < 3, t, ct->mutable_single_partition()->mutable_partition());
         }
     }
     else
@@ -1378,7 +1381,7 @@ void StatementGenerator::generateNextUpdate(RandomGenerator & rg, const SQLTable
 {
     if (rg.nextBool())
     {
-        generateNextTablePartition(rg, false, t, upt->mutable_single_partition()->mutable_partition());
+        generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, upt->mutable_single_partition()->mutable_partition());
     }
     flatTableColumnPath(flat_tuple | flat_nested, t.cols, [](const SQLColumn &) { return true; });
     if (this->entries.empty())
@@ -1448,7 +1451,7 @@ void StatementGenerator::generateNextDelete(RandomGenerator & rg, const SQLTable
 {
     if (rg.nextBool())
     {
-        generateNextTablePartition(rg, false, t, del->mutable_single_partition()->mutable_partition());
+        generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, del->mutable_single_partition()->mutable_partition());
     }
     generateUptDelWhere(rg, t, del->mutable_where()->mutable_expr()->mutable_expr());
 }
@@ -1634,7 +1637,6 @@ std::optional<String> StatementGenerator::alterSingleTable(
     const bool prev_allow_not_deterministic = this->allow_not_deterministic;
     const String dname = t.getDatabaseName();
     const String tname = t.getTableName();
-    const bool table_has_partitions = t.isMergeTreeFamily() && fc.tableHasPartitions(false, dname, tname);
 
     this->allow_not_deterministic = !t.is_deterministic;
     this->enforce_final = t.is_deterministic;
@@ -1678,14 +1680,14 @@ std::optional<String> StatementGenerator::alterSingleTable(
         const uint32_t detach_partition = 5 * static_cast<uint32_t>(no_oracle && t.isMergeTreeFamily());
         const uint32_t drop_partition = 5 * static_cast<uint32_t>(no_oracle && t.isMergeTreeFamily());
         const uint32_t drop_detached_partition = 5 * static_cast<uint32_t>(t.isMergeTreeFamily());
-        const uint32_t forget_partition = 5 * static_cast<uint32_t>(no_oracle && table_has_partitions);
+        const uint32_t forget_partition = 5 * static_cast<uint32_t>(no_oracle && t.isMergeTreeFamily());
         const uint32_t attach_partition = 5 * static_cast<uint32_t>(no_oracle && t.isMergeTreeFamily());
-        const uint32_t move_partition_to = 5 * static_cast<uint32_t>(no_oracle && table_has_partitions);
-        const uint32_t clear_column_partition = 5 * static_cast<uint32_t>(table_has_partitions);
+        const uint32_t move_partition_to = 5 * static_cast<uint32_t>(no_oracle && t.isMergeTreeFamily());
+        const uint32_t clear_column_partition = 5 * static_cast<uint32_t>(t.isMergeTreeFamily());
         const uint32_t freeze_partition = 5 * static_cast<uint32_t>(t.isMergeTreeFamily());
         const uint32_t unfreeze_partition = 7 * static_cast<uint32_t>(!t.frozen_partitions.empty());
-        const uint32_t clear_index_partition = 5 * static_cast<uint32_t>(table_has_partitions && !t.idxs.empty());
-        const uint32_t move_partition = 5 * static_cast<uint32_t>(no_oracle && table_has_partitions && !fc.disks.empty());
+        const uint32_t clear_index_partition = 5 * static_cast<uint32_t>(t.isMergeTreeFamily() && !t.idxs.empty());
+        const uint32_t move_partition = 5 * static_cast<uint32_t>(no_oracle && t.isMergeTreeFamily() && !fc.disks.empty());
         const uint32_t modify_ttl = 5 * static_cast<uint32_t>(!t.is_deterministic && t.can_run_merges);
         const uint32_t remove_ttl = 2 * static_cast<uint32_t>(!t.is_deterministic);
         const uint32_t attach_partition_from = 5 * static_cast<uint32_t>(no_oracle && t.isMergeTreeFamily());
@@ -1783,7 +1785,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
             this->entries.clear();
             if (rg.nextBool())
             {
-                generateNextTablePartition(rg, false, t, mcol->mutable_single_partition()->mutable_partition());
+                generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, mcol->mutable_single_partition()->mutable_partition());
             }
         }
         else if (drop_column && nopt < (heavy_delete + alter_order_by + add_column + materialize_column + drop_column + 1))
@@ -1818,7 +1820,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
             this->entries.clear();
             if (rg.nextBool())
             {
-                generateNextTablePartition(rg, false, t, ccol->mutable_single_partition()->mutable_partition());
+                generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, ccol->mutable_single_partition()->mutable_partition());
             }
         }
         else if (
@@ -1899,7 +1901,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
 
             if (rg.nextBool())
             {
-                generateNextTablePartition(rg, false, t, ope->mutable_single_partition()->mutable_partition());
+                generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, ope->mutable_single_partition()->mutable_partition());
             }
         }
         else if (
@@ -2002,7 +2004,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
             iip->mutable_idx()->set_index("i" + std::to_string(rg.pickRandomly(t.idxs)));
             if (rg.nextBool())
             {
-                generateNextTablePartition(rg, false, t, iip->mutable_single_partition()->mutable_partition());
+                generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, iip->mutable_single_partition()->mutable_partition());
             }
         }
         else if (
@@ -2017,7 +2019,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
             iip->mutable_idx()->set_index("i" + std::to_string(rg.pickRandomly(t.idxs)));
             if (rg.nextBool())
             {
-                generateNextTablePartition(rg, false, t, iip->mutable_single_partition()->mutable_partition());
+                generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, iip->mutable_single_partition()->mutable_partition());
             }
         }
         else if (
@@ -2161,7 +2163,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
             pip->mutable_proj()->set_projection("p" + std::to_string(rg.pickRandomly(t.projs)));
             if (rg.nextBool())
             {
-                generateNextTablePartition(rg, false, t, pip->mutable_single_partition()->mutable_partition());
+                generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, pip->mutable_single_partition()->mutable_partition());
             }
         }
         else if (
@@ -2178,7 +2180,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
             pip->mutable_proj()->set_projection("p" + std::to_string(rg.pickRandomly(t.projs)));
             if (rg.nextBool())
             {
-                generateNextTablePartition(rg, false, t, pip->mutable_single_partition()->mutable_partition());
+                generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, pip->mutable_single_partition()->mutable_partition());
             }
         }
         else if (
@@ -2212,21 +2214,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
                    + column_remove_setting + table_modify_setting + table_remove_setting + add_projection + remove_projection
                    + materialize_projection + clear_projection + add_constraint + remove_constraint + detach_partition + 1))
         {
-            const uint32_t nopt3 = rg.nextSmallNumber();
-            PartitionExpr * pexpr = ati->mutable_detach_partition()->mutable_partition();
-
-            if (table_has_partitions && nopt3 < 5)
-            {
-                pexpr->set_partition_id(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, true, dname, tname));
-            }
-            else if (table_has_partitions && nopt3 < 9)
-            {
-                pexpr->set_part(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, false, dname, tname));
-            }
-            else
-            {
-                pexpr->set_all(true);
-            }
+            generateNextTablePartition(rg, true, rg.nextSmallNumber() < 3, t, ati->mutable_detach_partition()->mutable_partition());
         }
         else if (
             drop_partition
@@ -2238,21 +2226,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
                    + materialize_projection + clear_projection + add_constraint + remove_constraint + detach_partition + drop_partition
                    + 1))
         {
-            const uint32_t nopt3 = rg.nextSmallNumber();
-            PartitionExpr * pexpr = ati->mutable_drop_partition()->mutable_partition();
-
-            if (table_has_partitions && nopt3 < 5)
-            {
-                pexpr->set_partition_id(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, true, dname, tname));
-            }
-            else if (table_has_partitions && nopt3 < 9)
-            {
-                pexpr->set_part(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, false, dname, tname));
-            }
-            else
-            {
-                pexpr->set_all(true);
-            }
+            generateNextTablePartition(rg, true, rg.nextSmallNumber() < 3, t, ati->mutable_drop_partition()->mutable_partition());
         }
         else if (
             drop_detached_partition
@@ -2264,22 +2238,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
                    + materialize_projection + clear_projection + add_constraint + remove_constraint + detach_partition
                    + drop_detached_partition + 1))
         {
-            const uint32_t nopt3 = rg.nextSmallNumber();
-            PartitionExpr * pexpr = ati->mutable_drop_detached_partition()->mutable_partition();
-            const bool table_has_detached_partitions = fc.tableHasPartitions(true, dname, tname);
-
-            if (table_has_detached_partitions && nopt3 < 5)
-            {
-                pexpr->set_partition_id(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), true, true, dname, tname));
-            }
-            else if (table_has_detached_partitions && nopt3 < 9)
-            {
-                pexpr->set_part(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), true, false, dname, tname));
-            }
-            else
-            {
-                pexpr->set_all(true);
-            }
+            generateNextTablePartition(rg, true, rg.nextSmallNumber() < 9, t, ati->mutable_drop_detached_partition()->mutable_partition());
         }
         else if (
             forget_partition
@@ -2291,9 +2250,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
                    + materialize_projection + clear_projection + add_constraint + remove_constraint + detach_partition + drop_partition
                    + drop_detached_partition + forget_partition + 1))
         {
-            PartitionExpr * pexpr = ati->mutable_forget_partition()->mutable_partition();
-
-            pexpr->set_partition_id(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, true, dname, tname));
+            generateNextTablePartition(rg, false, rg.nextBool(), t, ati->mutable_forget_partition()->mutable_partition());
         }
         else if (
             attach_partition
@@ -2305,22 +2262,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
                    + materialize_projection + clear_projection + add_constraint + remove_constraint + detach_partition + drop_partition
                    + drop_detached_partition + forget_partition + attach_partition + 1))
         {
-            const uint32_t nopt3 = rg.nextSmallNumber();
-            PartitionExpr * pexpr = ati->mutable_attach_partition()->mutable_partition();
-            const bool table_has_detached_partitions = fc.tableHasPartitions(true, dname, tname);
-
-            if (table_has_detached_partitions && nopt3 < 5)
-            {
-                pexpr->set_partition_id(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), true, true, dname, tname));
-            }
-            else if (table_has_detached_partitions && nopt3 < 9)
-            {
-                pexpr->set_part(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), true, false, dname, tname));
-            }
-            else
-            {
-                pexpr->set_all(true);
-            }
+            generateNextTablePartition(rg, true, rg.nextSmallNumber() < 9, t, ati->mutable_attach_partition()->mutable_partition());
         }
         else if (
             move_partition_to
@@ -2333,10 +2275,9 @@ std::optional<String> StatementGenerator::alterSingleTable(
                    + drop_detached_partition + forget_partition + attach_partition + move_partition_to + 1))
         {
             AttachPartitionFrom * apf = ati->mutable_move_partition_to();
-            PartitionExpr * pexpr = apf->mutable_single_partition()->mutable_partition();
             const SQLTable & t2 = rg.pickRandomly(filterCollection<SQLTable>(attached_tables));
 
-            pexpr->set_partition_id(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, true, dname, tname));
+            generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, apf->mutable_single_partition()->mutable_partition());
             t2.setName(apf->mutable_est(), false);
         }
         else if (
@@ -2350,9 +2291,8 @@ std::optional<String> StatementGenerator::alterSingleTable(
                    + drop_detached_partition + forget_partition + attach_partition + move_partition_to + clear_column_partition + 1))
         {
             ClearColumnInPartition * ccip = ati->mutable_clear_column_partition();
-            PartitionExpr * pexpr = ccip->mutable_single_partition()->mutable_partition();
 
-            pexpr->set_partition_id(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, true, dname, tname));
+            generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, ccip->mutable_single_partition()->mutable_partition());
             flatTableColumnPath(flat_nested, t.cols, [](const SQLColumn &) { return true; });
             columnPathRef(rg.pickRandomly(this->entries), ccip->mutable_col());
             this->entries.clear();
@@ -2370,10 +2310,9 @@ std::optional<String> StatementGenerator::alterSingleTable(
         {
             FreezePartition * fp = ati->mutable_freeze_partition();
 
-            if (table_has_partitions && rg.nextSmallNumber() < 9)
+            if (rg.nextSmallNumber() < 9)
             {
-                fp->mutable_single_partition()->mutable_partition()->set_partition_id(
-                    fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, true, dname, tname));
+                generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, fp->mutable_single_partition()->mutable_partition());
             }
             fp->set_fname(t.freeze_counter++);
         }
@@ -2410,9 +2349,8 @@ std::optional<String> StatementGenerator::alterSingleTable(
                    + freeze_partition + unfreeze_partition + clear_index_partition + 1))
         {
             ClearIndexInPartition * ccip = ati->mutable_clear_index_partition();
-            PartitionExpr * pexpr = ccip->mutable_single_partition()->mutable_partition();
 
-            pexpr->set_partition_id(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, true, dname, tname));
+            generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, ccip->mutable_single_partition()->mutable_partition());
             ccip->mutable_idx()->set_index("i" + std::to_string(rg.pickRandomly(t.idxs)));
         }
         else if (
@@ -2427,9 +2365,8 @@ std::optional<String> StatementGenerator::alterSingleTable(
                    + freeze_partition + unfreeze_partition + clear_index_partition + move_partition + 1))
         {
             MovePartition * mp = ati->mutable_move_partition();
-            PartitionExpr * pexpr = mp->mutable_single_partition()->mutable_partition();
 
-            pexpr->set_partition_id(fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, true, dname, tname));
+            generateNextTablePartition(rg, true, rg.nextSmallNumber() < 3, t, mp->mutable_single_partition()->mutable_partition());
             generateStorage(rg, mp->mutable_storage());
         }
         else if (
@@ -2473,14 +2410,9 @@ std::optional<String> StatementGenerator::alterSingleTable(
                    + attach_partition_from + 1))
         {
             AttachPartitionFrom * apf = ati->mutable_attach_partition_from();
-            PartitionExpr * pexpr = apf->mutable_single_partition()->mutable_partition();
             const SQLTable & t2 = rg.pickRandomly(filterCollection<SQLTable>(attached_tables));
-            const String dname2 = t2.getDatabaseName();
-            const String tname2 = t2.getTableName();
-            const bool table_has_partitions2 = t2.isMergeTreeFamily() && fc.tableHasPartitions(false, dname2, tname2);
 
-            pexpr->set_partition_id(
-                table_has_partitions2 ? fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, true, dname2, tname2) : "0");
+            generateNextTablePartition(rg, true, rg.nextSmallNumber() < 3, t2, apf->mutable_single_partition()->mutable_partition());
             t2.setName(apf->mutable_est(), false);
         }
         else if (
@@ -2496,14 +2428,9 @@ std::optional<String> StatementGenerator::alterSingleTable(
                    + attach_partition_from + replace_partition_from + 1))
         {
             AttachPartitionFrom * apf = ati->mutable_replace_partition_from();
-            PartitionExpr * pexpr = apf->mutable_single_partition()->mutable_partition();
             const SQLTable & t2 = rg.pickRandomly(filterCollection<SQLTable>(attached_tables));
-            const String dname2 = t2.getDatabaseName();
-            const String tname2 = t2.getTableName();
-            const bool table_has_partitions2 = t2.isMergeTreeFamily() && fc.tableHasPartitions(false, dname2, tname2);
 
-            pexpr->set_partition_id(
-                table_has_partitions2 ? fc.tableGetRandomPartitionOrPart(rg.nextInFullRange(), false, true, dname2, tname2) : "0");
+            generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t2, apf->mutable_single_partition()->mutable_partition());
             t2.setName(apf->mutable_est(), false);
         }
         else if (
@@ -2536,7 +2463,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
 
             if (rg.nextBool())
             {
-                generateNextTablePartition(rg, false, t, ope->mutable_single_partition()->mutable_partition());
+                generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t, ope->mutable_single_partition()->mutable_partition());
             }
         }
         else
