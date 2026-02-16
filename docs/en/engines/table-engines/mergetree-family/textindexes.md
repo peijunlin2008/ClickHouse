@@ -218,8 +218,13 @@ Examples:
 - `INDEX idx(col) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(col))`
 - `INDEX idx(col) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = substringIndex(col, '\n', 1))`
 - `INDEX idx(col) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(extractTextFromHTML(col))`
+- `INDEX idx(extractTextFromHTML(col)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(col)`
 
-Also, the preprocessor expression must only reference the column on top of which the text index is defined.
+
+The preprocessor expression must only reference the column on top of which the text index is defined.
+For indices defined as a functional expression the preprocessor must reference only the exact same expression.
+This is intentional to enable constructing indices in columns with different datatypes like [Maps](/sql-reference/data-types/map.md) without commutativity undefined behaviors.
+
 Using non-deterministic functions is disallowed.
 
 The preprocessor can also be used with [Array(String)](/sql-reference/data-types/array.md) and [Array(FixedString)](/sql-reference/data-types/array.md) columns.
@@ -271,6 +276,22 @@ ORDER BY tuple();
 
 SELECT count() FROM table WHERE hasToken(str, lower('Foo'));
 ```
+
+[Maps](/sql-reference/data-types/map.md) with string values or keys are also supported using index defined as expressions.
+In that case the same expressions need to be in the preprocessor and the function in the select and the index is defined as a function.
+
+Example:
+```sql
+CREATE TABLE tab
+(
+    val Map(String, String),
+    INDEX idx(mapKeys(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(mapKeys(val)))
+)
+...
+
+SELECT count() FROM tab WHERE hasAllTokens(mapKeys(val), 'foo');
+```
+
 **Other arguments (optional)**.
 
 <details markdown="1">
