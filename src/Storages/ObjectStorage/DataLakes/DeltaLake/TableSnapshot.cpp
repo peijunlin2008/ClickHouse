@@ -254,7 +254,7 @@ public:
                         update_stats_func(SnapshotStats{
                             .version = kernel_snapshot_state->snapshot_version,
                             .total_bytes = total_bytes,
-                            .total_rows = total_rows
+                            .total_rows = is_stats_consistent ? total_rows : std::nullopt
                         });
                     }
                     return;
@@ -489,6 +489,7 @@ private:
     bool iterator_finished = false;
 
     std::optional<size_t> total_rows;
+    bool is_stats_consistent = true;
     size_t total_bytes = 0;
     size_t total_data_files = 0;
 
@@ -568,6 +569,7 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
         size_t total_bytes = 0;
         /// Not all writers add rows count to metadata
         std::optional<size_t> total_rows;
+        bool is_stats_consistent = true;
 
         static void visit(
             ffi::NullableCvoid engine_context,
@@ -588,6 +590,8 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
                     visitor->total_rows.emplace(0);
                 visitor->total_rows.value() += stats->num_records;
             }
+            else
+                visitor->is_stats_consistent = false;
         }
 
         static void visitData(void * engine_context, ffi::SharedScanMetadata * scan_metadata)
@@ -619,10 +623,11 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
         visitor.total_rows ? DB::toString(*visitor.total_rows) : "Unknown",
         visitor.total_bytes);
 
+    /// total_rows is an optional statistic, but total_bytes is obligatory.
     return SnapshotStats{
         .version = state->snapshot_version,
         .total_bytes = visitor.total_bytes,
-        .total_rows = visitor.total_rows
+        .total_rows = visitor.is_stats_consistent ? visitor.total_rows : std::nullopt,
     };
 }
 
