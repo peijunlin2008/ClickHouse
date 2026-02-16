@@ -496,8 +496,6 @@ Direct read is controlled by two settings:
 - Setting [query_plan_direct_read_from_text_index](../../../operations/settings/settings#query_plan_direct_read_from_text_index) (true by default) which specifies if direct read is generally enabled.
 - Setting [use_skip_indexes_on_data_read](../../../operations/settings/settings#use_skip_indexes_on_data_read), another prerequisite for direct read. In ClickHouse versions >= 26.1, the setting is enabled by default. In earlier versions, you need to run `SET use_skip_indexes_on_data_read = 1` explicitly.
 
-Also, the text index must be fully materialized to use direct reading (use `ALTER TABLE ... MATERIALIZE INDEX` for that).
-
 **Supported functions**
 
 The direct read optimization supports functions `hasToken`, `hasAllTokens`, and `hasAnyTokens`.
@@ -654,6 +652,37 @@ The text index currently has the following limitations:
 - The materialization of text indexes with a high number of tokens (e.g. 10 billion tokens) can consume significant amounts of memory. Text
   index materialization can happen directly (`ALTER TABLE <table> MATERIALIZE INDEX <index>`) or indirectly in part merges.
 - It is not possible to materialize text indexes on parts with more than 4.294.967.296 (= 2^32 = ca. 4.2 billion) rows. Without a materialized text index, queries fall back to slow brute-force search within the part. As a worst case estimation, assume a part contains a single column of type String and MergeTree setting `max_bytes_to_merge_at_max_space_in_pool` (default: 150 GB) was not changed. In this case, the situation happens if the column contains less than 29.5 characters per row on average. In practice, tables also contain other columns and the threshold is multiples times smaller than that (depending on the number, type and size of the other columns).
+
+## Text Indexes vs Bloom-Filter-Based Indexes {#text-index-vs-bloom-filter-indexes}
+
+String predicates can be sped up using text indexes and bloom-filter-based based indexes (index type `bloom_filter`, `ngrambf_v1`, `tokenbf_v1`, `sparse_grams`), yet both are fundamentally different in their design and intended use cases:
+
+**Bloom filter indexes**
+
+- Are based on probabilistic data structures which may produce false positives.
+- Are only able to answer set membership questions, i.e. the column may contain token X vs. definitely does not contain X.
+- Store granule-level information to enable skipping coarse ranges during query execution.
+- Are hard to tune properly (see [here](mergetree#n-gram-bloom-filter) for an example).
+- Are rather compact (a few kilobytes or megabytes per part).
+
+**Text indexes**
+
+- Build a deterministic inverted index over tokens. No false positives are possible by the index itself.
+- Are specifically optimized for text search workloads.
+- Store row-level information which enables efficient term lookup.
+- Are rather large (dozens to hundreds of megabytes per part).
+
+Bloom-filter-based indexes support full-text search only as a "side effect":
+
+- They do not support advanced tokenization and preprocessing.
+- They do not support multi-token search.
+- They do not provide the performance characteristics expected from an inverted index.
+
+Text indexes, in contrast, are purpose-built for full-text search:
+
+- They provide tokenization and preprocessing
+- They provide efficient support for `hasAllTokens`, `LIKE`, `match`, and similar text-search functions.
+- They have significantly better scalability for large text corpora.
 
 ## Implementation Details {#implementation}
 
