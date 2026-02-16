@@ -585,7 +585,8 @@ private:
     void dropTable(bool staged, bool drop_peer, uint32_t tname);
     void dropDatabase(uint32_t dname, bool all);
 
-    void generateNextTablePartition(RandomGenerator & rg, bool allow_parts, bool detached, const SQLTable & t, PartitionExpr * pexpr);
+    void generateNextTablePartition(
+        RandomGenerator & rg, bool allow_parts, bool detached, bool supports_all, const SQLTable & t, PartitionExpr * pexpr);
 
     void generateNextBackup(RandomGenerator & rg, BackupRestore * br);
     void generateNextRestore(RandomGenerator & rg, BackupRestore * br);
