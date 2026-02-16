@@ -402,25 +402,30 @@ class Shell:
                             print(
                                 f"ERROR: command failed, exit code: {proc.returncode}"
                             )
-                        else:
-                            print(
-                                f"Retry {retry+1}/{retries}: command failed, exit code: {proc.returncode}"
-                                )
-
-                    should_retry = not retry_errors
-                    if retry_errors:
-                        for err in retry_errors:
-                            if any(err in err_line for err_line in err_output):
-                                print(
-                                    f"Retryable error occurred: [{err}], [{retry+1}/{retries}]"
-                                )
-                                should_retry = True
-                                break
-                        if not should_retry:
-                            print(
-                                f"No retryable errors found, stopping retry attempts"
-                            )
                             break
+
+                        print(
+                            f"Retry {retry+1}/{retries}: command failed, exit code: {proc.returncode}"
+                            )
+                        if retry == retries - 1:
+                            print(f"ERROR: Final attempt failed, no more retries left.")
+
+                    if not retry_errors:
+                        continue # No retry errors specified, just retry on any failure
+
+                    should_retry = False
+                    for err in retry_errors:
+                        if any(err in err_line for err_line in err_output):
+                            print(
+                                f"Retryable error occurred: [{err}], [{retry+1}/{retries}]"
+                            )
+                            should_retry = True
+                            break
+                    if not should_retry:
+                        print(
+                            f"No retryable errors found, stopping retry attempts"
+                        )
+                        break
             except Exception as e:
                 if verbose:
                     if retries == 1:
@@ -431,6 +436,9 @@ class Shell:
                         print(
                             f"Retry {retry+1}/{retries}: exception {e}"
                         )
+                        if retry == retries - 1:
+                            print(f"ERROR: Final attempt failed, no more retries left.")
+
                 if proc:
                     proc.kill()
                 if strict and retry == retries - 1:

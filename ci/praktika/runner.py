@@ -323,11 +323,12 @@ class Runner:
                         f"NOTE: Job [{job.name}] use custom workdir - praktika won't control workdir"
                     )
                     workdir = ""
-            Shell.run(
+            if not Shell.check(
                 "if docker ps -a --format '{{.Names}}' | grep -q praktika; then docker rm -f praktika; fi",
                 verbose=True,
                 strict=True,
-            )
+            ):
+                raise RuntimeError("Failed to remove existing docker container 'praktika'")
             if job.enable_gh_auth:
                 # pass gh auth seamlessly into the docker container
                 gh_mount = "--volume ~/.config/gh:/ghconfig -e GH_CONFIG_DIR=/ghconfig"
