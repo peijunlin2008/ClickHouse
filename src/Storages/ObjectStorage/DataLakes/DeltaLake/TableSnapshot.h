@@ -116,7 +116,7 @@ private:
 
     size_t getVersionUnlocked() const TSA_REQUIRES(mutex);
 
-    void initOrUpdateSnapshot(bool recreate = false) const TSA_REQUIRES(mutex);
+    void initOrUpdateSnapshot() const TSA_REQUIRES(mutex);
     void initOrUpdateSchemaIfChanged() const TSA_REQUIRES(mutex);
 
     SnapshotStats getSnapshotStats() const TSA_REQUIRES(mutex);

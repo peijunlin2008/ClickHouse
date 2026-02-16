@@ -157,7 +157,7 @@ DeltaLakeMetadataDeltaKernel::getTableSnapshot(std::optional<SnapshotVersion> ve
     }
     else
     {
-        auto latest_snapshot = snapshot_creator();
+        snapshot = snapshot_creator();
         latest_snapshot_version = snapshot->getVersion();
         snapshots.set(latest_snapshot_version.value(), snapshot);
     }

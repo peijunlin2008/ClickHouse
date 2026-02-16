@@ -638,9 +638,9 @@ std::optional<size_t> TableSnapshot::getTotalBytes() const
     return getSnapshotStats().total_bytes;
 }
 
-void TableSnapshot::initOrUpdateSnapshot(bool recreate) const
+void TableSnapshot::initOrUpdateSnapshot() const
 {
-    if (!recreate && kernel_snapshot_state)
+    if (kernel_snapshot_state)
         return;
 
     LOG_TEST(log, "Initializing snapshot");
