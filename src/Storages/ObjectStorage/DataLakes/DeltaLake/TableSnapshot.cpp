@@ -254,6 +254,7 @@ public:
                         update_stats_func(SnapshotStats{
                             .version = kernel_snapshot_state->snapshot_version,
                             .total_bytes = total_bytes,
+                            /// total_rows is an optional statistic, but total_bytes is obligatory.
                             .total_rows = is_stats_consistent ? total_rows : std::nullopt
                         });
                     }
@@ -623,10 +624,10 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
         visitor.total_rows ? DB::toString(*visitor.total_rows) : "Unknown",
         visitor.total_bytes);
 
-    /// total_rows is an optional statistic, but total_bytes is obligatory.
     return SnapshotStats{
         .version = state->snapshot_version,
         .total_bytes = visitor.total_bytes,
+        /// total_rows is an optional statistic, but total_bytes is obligatory.
         .total_rows = visitor.is_stats_consistent ? visitor.total_rows : std::nullopt,
     };
 }

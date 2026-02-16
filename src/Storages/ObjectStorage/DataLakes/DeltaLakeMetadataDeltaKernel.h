@@ -29,8 +29,7 @@ class DeltaLakeMetadataDeltaKernel final : public IDataLakeMetadata
 {
 public:
     static constexpr auto name = "DeltaLake";
-    /// Signed int, to account for -1 (meaning latest snapshot version)
-    using SnapshotVersion = int64_t;
+    using SnapshotVersion = UInt64;
 
     const char * getName() const override { return name; }
 
@@ -104,6 +103,7 @@ private:
 
     mutable TableSnapshotCache snapshots TSA_GUARDED_BY(snapshots_mutex);
     mutable std::mutex snapshots_mutex;
+    mutable std::optional<size_t> latest_snapshot_version;
 
     void logMetadataFiles(ContextPtr context) const;
 

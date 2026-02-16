@@ -107,11 +107,15 @@ DeltaLakeMetadataDeltaKernel::DeltaLakeMetadataDeltaKernel(
 }
 
 
-static DeltaLakeMetadataDeltaKernel::SnapshotVersion getSnapshotVersion(const Settings & settings)
+static std::optional<DeltaLakeMetadataDeltaKernel::SnapshotVersion>
+getSnapshotVersion(const Settings & settings)
 {
     const auto & value = settings[Setting::delta_lake_snapshot_version].value;
-    if (value == DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION || value >= 0)
-        return value;
+    if (value >= 0)
+        return static_cast<UInt64>(value);
+
+    if (value == DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION)
+        return std::nullopt;
 
     throw Exception(
         ErrorCodes::BAD_ARGUMENTS,
@@ -125,26 +129,39 @@ DeltaLake::TableSnapshotPtr
 DeltaLakeMetadataDeltaKernel::getTableSnapshot(std::optional<SnapshotVersion> version) const
 {
     std::lock_guard lock(snapshots_mutex);
-    const auto cache_version = version.value_or(DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION);
-    auto [snapshot, created] = snapshots.getOrSet(
-        cache_version, [&]()
-        {
-            auto actual_snapshot_version = version.has_value() && version.value() >= 0
-                ? std::optional<size_t>(static_cast<size_t>(version.value()))
-                : std::nullopt;
 
-            return std::make_shared<DeltaLake::TableSnapshot>(
-                actual_snapshot_version,
-                kernel_helper,
-                object_storage,
-                log);
-        });
+    /// Fallback to latest_snapshot_version.
+    /// In case we needed a newer version - update() must
+    /// have been called to reload latest_snapshot_version.
+    std::optional<SnapshotVersion> result_snapshot_version = version.has_value()
+        ? version
+        : latest_snapshot_version;
 
-    if (created && cache_version == DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION)
+    DeltaLake::TableSnapshotPtr snapshot;
+    bool created = false;
+
+    auto snapshot_creator = [&]()
     {
-        /// Put snapshot into cache at its own version.
-        snapshots.getOrSet(snapshot->getVersion(), [&]() { return snapshot; });
+        /// Constructor itself is lightweight.
+        return std::make_shared<DeltaLake::TableSnapshot>(
+            result_snapshot_version,
+            kernel_helper,
+            object_storage,
+            log);
+    };
+
+    if (result_snapshot_version.has_value())
+    {
+        std::tie(snapshot, created) = snapshots.getOrSet(
+            result_snapshot_version.value(), std::move(snapshot_creator));
     }
+    else
+    {
+        auto latest_snapshot = snapshot_creator();
+        latest_snapshot_version = snapshot->getVersion();
+        snapshots.set(latest_snapshot_version.value(), snapshot);
+    }
+
     return snapshot;
 }
 
@@ -211,11 +228,16 @@ void DeltaLakeMetadataDeltaKernel::update(const ContextPtr & context)
                 kernel_helper,
                 object_storage,
                 log);
-        snapshots.set(
-            DeltaLake::TableSnapshot::LATEST_SNAPSHOT_VERSION,
-            latest_snapshot);
-        /// Put snapshot into cache at its own version.
-        snapshots.getOrSet(latest_snapshot->getVersion(), [&]() { return latest_snapshot; });
+
+        size_t version = latest_snapshot->getVersion();
+        if (latest_snapshot_version.has_value() && latest_snapshot_version.value() == version)
+        {
+            /// Snapshot version did not change since the last time we updated it.
+            return;
+        }
+
+        latest_snapshot_version = version;
+        snapshots.getOrSet(version, [&]() { return latest_snapshot; });
     }
 }
 
