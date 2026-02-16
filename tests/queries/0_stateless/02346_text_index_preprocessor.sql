@@ -8,7 +8,6 @@ SET enable_full_text_index = 1;
 DROP TABLE IF EXISTS tab;
 
 SELECT 'Positive tests on preprocessor construction and use.';
-
 SELECT '- Test simple preprocessor expression.';
 
 CREATE TABLE tab
@@ -110,70 +109,6 @@ SELECT count() FROM tab WHERE hasAnyTokens(val, 'Baz');
 
 DROP TABLE tab;
 
-SELECT '- Test simple preprocessor expression with Array(String).';
-CREATE TABLE tab
-(
-    key UInt64,
-    val Array(String),
-    INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(val))
-)
-ENGINE = MergeTree ORDER BY tuple();
-
-INSERT INTO tab VALUES (1, ['foo']), (2, ['BAR']), (3, ['Baz']);
-
--- hasToken doesn't support Array(String) columns
-SELECT count() FROM tab WHERE hasToken(val, 'foo'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'FOO'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'BAR'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'Baz'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'bar'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'baz'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'def'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-
-SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'BAR');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'Baz');
-
-SELECT count() FROM tab WHERE hasAnyTokens(val, 'foo');
-SELECT count() FROM tab WHERE hasAnyTokens(val, 'FOO');
-SELECT count() FROM tab WHERE hasAnyTokens(val, 'BAR');
-SELECT count() FROM tab WHERE hasAnyTokens(val, 'Baz');
-
-DROP TABLE tab;
-
-SELECT '- Test simple preprocessor expression with Array(FixedString).';
-CREATE TABLE tab
-(
-    key UInt64,
-    val Array(FixedString(3)),
-    INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(val))
-)
-ENGINE = MergeTree ORDER BY tuple();
-
-INSERT INTO tab VALUES (1, ['foo']), (2, ['BAR']), (3, ['Baz']);
-
--- hasToken doesn't support Array(String) columns
-SELECT count() FROM tab WHERE hasToken(val, 'foo'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'FOO'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'BAR'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'Baz'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'bar'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'baz'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-SELECT count() FROM tab WHERE hasToken(val, 'def'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
-
-SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'BAR');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'Baz');
-
-SELECT count() FROM tab WHERE hasAnyTokens(val, 'foo');
-SELECT count() FROM tab WHERE hasAnyTokens(val, 'FOO');
-SELECT count() FROM tab WHERE hasAnyTokens(val, 'BAR');
-SELECT count() FROM tab WHERE hasAnyTokens(val, 'Baz');
-
-DROP TABLE tab;
-
 SELECT '- Test preprocessor declaration using column more than once.';
 CREATE TABLE tab
 (
@@ -218,7 +153,6 @@ CREATE TABLE tab
 ENGINE = MergeTree
 ORDER BY tuple();
 
-
 INSERT INTO tab VALUES (1, 'foo'), (2, 'BAR'), (3, 'Baz');
 
 SELECT count() FROM tab WHERE hasToken(val, 'foo');
@@ -241,6 +175,8 @@ SELECT count() FROM tab WHERE hasAnyTokens(val, 'Baz');
 DROP TABLE tab;
 DROP FUNCTION udf_preprocessor;
 
+-- Negative tests in multiple cases  ------------------------------------------------------------------------------------
+
 SELECT 'Negative tests on preprocessor construction validations.';
 
 -- The preprocessor argument must reference the index column
@@ -262,24 +198,6 @@ CREATE TABLE tab
     INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = concat(val, other_str))
 )
 ENGINE = MergeTree ORDER BY tuple();   -- { serverError UNKNOWN_IDENTIFIER }
-
-SELECT '- Index definition may not be and expression when there is preprocessor';
-CREATE TABLE tab
-(
-    key UInt64,
-    val String,
-    INDEX idx(upper(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(val))
-)
-ENGINE = MergeTree ORDER BY tuple();   -- { serverError UNKNOWN_IDENTIFIER }
-
-SELECT '-- Not even the same expression';
-CREATE TABLE tab
-(
-    key UInt64,
-    val String,
-    INDEX idx(lower(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(val))
-)
-ENGINE = MergeTree ORDER BY tuple();   -- { serverError INCORRECT_QUERY }
 
 SELECT '- The preprocessor must be an expression';
 CREATE TABLE tab
@@ -344,5 +262,189 @@ CREATE TABLE tab
 )
 ENGINE = MergeTree ORDER BY tuple();   -- { serverError INCORRECT_QUERY }
 
+-- Expression Index support ------------------------------------------------------------------------------------
+
+SELECT 'Expression support';
+SELECT '- Expression positive tests';
+
+SELECT '-- Index definition must be the an expression used in the preprocessor';
+SELECT '--- Single arguments';
+CREATE TABLE tab
+(
+    key UInt64,
+    val String,
+    INDEX idx(upper(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(upper(val)))
+)
+ENGINE = MergeTree ORDER BY tuple();
+
+INSERT INTO tab VALUES (1, 'foo'), (2, 'BAR'), (3, 'Baz');
+
+SELECT count() FROM tab WHERE hasToken(val, 'foo');
+SELECT count() FROM tab WHERE hasToken(val, 'FOO');
+SELECT count() FROM tab WHERE hasToken(val, 'BAR');
+SELECT count() FROM tab WHERE hasToken(val, 'Baz');
+SELECT count() FROM tab WHERE hasToken(val, 'bar');
+SELECT count() FROM tab WHERE hasToken(val, 'baz');
+SELECT count() FROM tab WHERE hasToken(val, 'def');
+
+SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'BAR');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'Baz');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'foo');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'FOO');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'BAR');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'Baz');
+
+DROP TABLE tab;
+
+SELECT '--- Multiple arguments';
+CREATE TABLE tab
+(
+    key UInt64,
+    val String,
+    INDEX idx(lower(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = concat(lower(val), lower(val)))
+)
+ENGINE = MergeTree ORDER BY tuple();
+
+INSERT INTO tab VALUES (1, 'foo'), (2, 'BAR'), (3, 'Baz');
+
+SELECT count() FROM tab WHERE hasToken(val, 'foo');
+SELECT count() FROM tab WHERE hasToken(val, 'FOO');
+SELECT count() FROM tab WHERE hasToken(val, 'BAR');
+SELECT count() FROM tab WHERE hasToken(val, 'Baz');
+SELECT count() FROM tab WHERE hasToken(val, 'bar');
+SELECT count() FROM tab WHERE hasToken(val, 'baz');
+SELECT count() FROM tab WHERE hasToken(val, 'def');
+
+SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'BAR');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'Baz');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'foo');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'FOO');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'BAR');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'Baz');
+
+DROP TABLE tab;
+
+SELECT '- Expression negative tests';
+SELECT '-- Index definition may not be a different expression than used in the preprocessor';
+CREATE TABLE tab
+(
+    key UInt64,
+    val String,
+    INDEX idx(upper(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(val))
+)
+ENGINE = MergeTree ORDER BY tuple();   -- { serverError UNKNOWN_IDENTIFIER }
+
+-- Array support ------------------------------------------------------------------------------------
+SELECT 'Array support';
+SELECT '- Array positive tests';
+SELECT '-- Test simple preprocessor expression with Array(String).';
+
+CREATE TABLE tab
+(
+    key UInt64,
+    val Array(String),
+    INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(val))
+)
+ENGINE = MergeTree ORDER BY tuple();
+
+INSERT INTO tab VALUES (1, ['foo']), (2, ['BAR']), (3, ['Baz']);
+
+-- hasToken doesn't support Array(String) columns
+SELECT count() FROM tab WHERE hasToken(val, 'foo'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
+
+-- has{All,Any}Token support Array(String) columns
+SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'BAR');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'Baz');
+
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'foo');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'FOO');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'BAR');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'Baz');
+
+DROP TABLE tab;
+
+SELECT '-- Test simple preprocessor expression with Array(FixedString).';
+CREATE TABLE tab
+(
+    key UInt64,
+    val Array(FixedString(3)),
+    INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(val))
+)
+ENGINE = MergeTree ORDER BY tuple();
+
+INSERT INTO tab VALUES (1, ['foo']), (2, ['BAR']), (3, ['Baz']);
+
+-- hasToken doesn't support Array(String) columns
+SELECT count() FROM tab WHERE hasToken(val, 'foo'); -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
+
+-- has{All,Any}Token support Array(String) columns
+SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'BAR');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'Baz');
+
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'foo');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'FOO');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'BAR');
+SELECT count() FROM tab WHERE hasAnyTokens(val, 'Baz');
+
+DROP TABLE tab;
+
+-- Map support --------------------------------------------------------------------------------------
+
+SELECT 'Maps support';
+SELECT '- Map positive tests';
+SELECT '-- Index definition must be an expression';
+
+CREATE TABLE tab
+(
+    key UInt64,
+    val Map(String, String),
+    INDEX idx(mapKeys(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(mapKeys(val)))
+)
+ENGINE = MergeTree ORDER BY key;
+
+INSERT INTO tab VALUES (1, {'foo': 'dummy'}), (2, {'BAR': 'dummy'}), (3, {'Baz': 'dummy'});
+
+-- Map itself should not be passed as argument
+SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');  -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
+
+-- has{All,Any}Token support Array(String) columns
+SELECT count() FROM tab WHERE hasAllTokens(mapKeys(val), 'foo');
+SELECT count() FROM tab WHERE hasAllTokens(mapKeys(val), 'FOO');
+SELECT count() FROM tab WHERE hasAllTokens(mapKeys(val), 'BAR');
+SELECT count() FROM tab WHERE hasAllTokens(mapKeys(val), 'Baz');
+
+SELECT count() FROM tab WHERE hasAnyTokens(mapKeys(val), 'foo');
+SELECT count() FROM tab WHERE hasAnyTokens(mapKeys(val), 'FOO');
+SELECT count() FROM tab WHERE hasAnyTokens(mapKeys(val), 'BAR');
+SELECT count() FROM tab WHERE hasAnyTokens(mapKeys(val), 'Baz');
+
+DROP TABLE tab;
+
+SELECT '- Map negative tests';
+SELECT '-- Index on whole map must fail';
+CREATE TABLE tab
+(
+    key UInt64,
+    val Map(String, String),
+    INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(mapKeys(val)))
+)
+ENGINE = MergeTree ORDER BY key;   -- { serverError BAD_ARGUMENTS }
+
+SELECT '-- Index definition must appear literally in the preprocessor expression';
+CREATE TABLE tab
+(
+    key UInt64,
+    val Map(String, String),
+    INDEX idx(mapKeys(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(val))
+)
+ENGINE = MergeTree ORDER BY key;   -- { serverError ILLEGAL_TYPE_OF_ARGUMENT }
 
 DROP TABLE IF EXISTS tab;
