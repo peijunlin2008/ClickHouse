@@ -254,7 +254,9 @@ def tail(filepath: str, buff_len: int = 1024) -> List[str]:
         return data.decode(errors="replace")
 
 
-def run_pytest_and_collect_results(command: str, env: str, report_name: str) -> Result:
+def run_pytest_and_collect_results(
+    command: str, env: str, report_name: str, timeout: int = None
+) -> Result:
     """
     Does xdist timeout check.
     """
@@ -266,6 +268,7 @@ def run_pytest_and_collect_results(command: str, env: str, report_name: str) -> 
         pytest_report_file=f"{temp_path}/pytest_{report_name}.jsonl",
         pytest_logfile=f"{temp_path}/pytest_{report_name}.log",
         logfile=f"{temp_path}/{report_name}.log",
+        timeout=timeout,
     )
 
     if "!!!!!!! xdist.dsession.Interrupted: session-timeout:" in tail(
@@ -563,6 +566,7 @@ tar -czf ./ci/tmp/logs.tar.gz \
                 command=f"{' '.join(parallel_test_modules)} --report-log-exclude-logs-on-passed-tests -n {workers} --dist=loadfile --tb=short {repeat_option} --session-timeout={session_timeout_parallel}",
                 env=test_env,
                 report_name="parallel",
+                timeout=session_timeout_parallel + 600,
             )
             if is_flaky_check and not test_result_parallel.is_ok():
                 print(
@@ -591,6 +595,7 @@ tar -czf ./ci/tmp/logs.tar.gz \
                 command=f"{' '.join(sequential_test_modules)} --report-log-exclude-logs-on-passed-tests --tb=short {repeat_option} -n 1 --dist=loadfile --session-timeout={session_timeout_sequential}",
                 env=test_env,
                 report_name="sequential",
+                timeout=session_timeout_sequential + 600,
             )
 
             if is_flaky_check and not test_result_sequential.is_ok():
@@ -653,6 +658,7 @@ tar -czf ./ci/tmp/logs.tar.gz \
             command=f"{' '.join(failed_test_cases)} --report-log-exclude-logs-on-passed-tests --tb=short -n 1 --dist=loadfile --session-timeout=1200",
             env=test_env,
             report_name="retries",
+            timeout=1200 + 600,
         )
         successful_retries = [t.name for t in test_result_retries.results if t.is_ok()]
         failed_retries = [t.name for t in test_result_retries.results if t.is_failure()]
