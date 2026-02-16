@@ -42,6 +42,15 @@ public:
         bool oauth_server_use_request_body_,
         DB::ContextPtr context_);
 
+    explicit RestCatalog(
+        const std::string & warehouse_,
+        const std::string & base_url_,
+        const std::string & google_project_id_,
+        const std::string & google_service_account_,
+        const std::string & google_metadata_service_,
+        const std::string & google_adc_path_,
+        DB::ContextPtr context_);
+
     ~RestCatalog() override = default;
 
     bool empty() const override;
@@ -64,9 +73,11 @@ public:
 
     DB::DatabaseDataLakeCatalogType getCatalogType() const override
     {
-        if (tenant_id.empty())
-            return DB::DatabaseDataLakeCatalogType::ICEBERG_REST;
-        return DB::DatabaseDataLakeCatalogType::ICEBERG_ONELAKE;
+        if (!google_project_id.empty() || !google_adc_path.empty())
+            return DB::DatabaseDataLakeCatalogType::ICEBERG_BIGLAKE;
+        if (!tenant_id.empty())
+            return DB::DatabaseDataLakeCatalogType::ICEBERG_ONELAKE;
+        return DB::DatabaseDataLakeCatalogType::ICEBERG_REST;
     }
 
     void createTable(const String & namespace_name, const String & table_name, const String & new_metadata_path, Poco::JSON::Object::Ptr metadata_content) const override;
@@ -117,6 +128,24 @@ private:
     bool oauth_server_use_request_body;
     mutable std::optional<std::string> access_token;
 
+    /// Parameters for Google Cloud OAuth2 (BigLake).
+    std::string google_project_id;
+    std::string google_service_account;
+    std::string google_metadata_service;
+    std::string google_adc_path; /// Path to Application Default Credentials JSON file
+    mutable std::mutex google_token_mutex;
+    mutable std::optional<std::pair<std::string, std::chrono::system_clock::time_point>> google_access_token;
+
+    struct GoogleADCCredentials
+    {
+        std::string type;
+        std::string client_id;
+        std::string client_secret;
+        std::string refresh_token;
+        std::string quota_project_id;
+    };
+    mutable std::optional<GoogleADCCredentials> google_adc_credentials;
+
     Poco::Net::HTTPBasicCredentials credentials{};
 
     DB::ReadWriteBufferFromHTTPPtr createReadBuffer(
@@ -150,6 +179,9 @@ private:
 
     Config loadConfig();
     std::string retrieveAccessToken() const;
+    std::string retrieveGoogleCloudAccessToken() const;
+    GoogleADCCredentials loadGoogleADCCredentials() const;
+    std::string retrieveGoogleCloudAccessTokenFromRefreshToken(const GoogleADCCredentials & adc) const;
     DB::HTTPHeaderEntries getAuthHeaders(bool update_token = false) const;
     static void parseCatalogConfigurationSettings(const Poco::JSON::Object::Ptr & object, Config & result);
 

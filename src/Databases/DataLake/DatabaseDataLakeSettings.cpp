@@ -34,6 +34,10 @@ namespace ErrorCodes
     DECLARE(String, onelake_tenant_id, "", "Tenant id from azure", 0) \
     DECLARE(String, onelake_client_id, "", "Client id from azure", 0) \
     DECLARE(String, onelake_client_secret, "", "Client secret from azure", 0) \
+    DECLARE(String, google_project_id, "", "Google Cloud project ID for BigLake. Required for BigLake catalog. Used in x-goog-user-project header. If not set and google_adc_path is provided, quota_project_id from ADC file will be used", 0) \
+    DECLARE(String, google_service_account, "", "Google Cloud service account email for metadata service authentication. Default: 'default'. Only used when google_adc_path is not set", 0) \
+    DECLARE(String, google_metadata_service, "", "Google Cloud metadata service endpoint for token retrieval. Default: 'metadata.google.internal'. Only used when google_adc_path is not set", 0) \
+    DECLARE(String, google_adc_path, "", "Path to Google Application Default Credentials JSON file. Required for BigLake if not using metadata service. File must contain authorized_user type credentials with client_id, client_secret, refresh_token, and optionally quota_project_id", 0) \
     DECLARE(String, dlf_access_key_id, "", "Access id of DLF token for Paimon REST Catalog", 0) \
     DECLARE(String, dlf_access_key_secret, "", "Access secret of DLF token for Paimon REST Catalog", 0) \
 

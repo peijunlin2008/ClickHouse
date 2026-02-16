@@ -1,9 +1,14 @@
 #include <Poco/JSON/Object.h>
+#include <Poco/JSON/Stringifier.h>
 #include <Poco/Net/HTTPRequest.h>
-#include <Common/Logger.h>
+#include "Common/Exception.h"
+#include "Common/logger_useful.h"
 #include <Common/setThreadName.h>
 #include <Storages/ObjectStorage/DataLakes/Iceberg/IcebergWrites.h>
-#include <Databases/DataLake/Common.h>
+#include <exception>
+#include <mutex>
+#include <chrono>
+#include "Core/SettingsEnums.h"
 #include "config.h"
 
 #if USE_AVRO
@@ -20,9 +25,11 @@
 #include <IO/ConnectionTimeouts.h>
 #include <IO/HTTPCommon.h>
 #include <IO/ReadBuffer.h>
+#include <IO/ReadBufferFromFile.h>
 #include <IO/WriteBufferFromString.h>
 #include <IO/Operators.h>
 #include <Interpreters/Context.h>
+#include <filesystem>
 
 #include <Storages/ObjectStorage/DataLakes/Iceberg/IcebergMetadata.h>
 #include <Server/HTTP/HTMLForm.h>
@@ -176,6 +183,35 @@ RestCatalog::RestCatalog(
     config = loadConfig();
 }
 
+/// Constructor for BigLake catalog with Google Cloud OAuth2 authentication.
+/// Parameters:
+///   - warehouse_: Warehouse name (e.g., "gs://bucket-name")
+///   - base_url_: BigLake REST catalog URL (e.g., "https://biglake.googleapis.com/iceberg/v1/restcatalog")
+///   - google_project_id_: Google Cloud project ID (required, used in x-goog-user-project header)
+///   - google_service_account_: Service account email for metadata service (default: "default", only used if google_adc_path is empty)
+///   - google_metadata_service_: Metadata service endpoint (default: "metadata.google.internal", only used if google_adc_path is empty)
+///   - google_adc_path_: Path to Application Default Credentials JSON file (required if not using metadata service)
+RestCatalog::RestCatalog(
+    const std::string & warehouse_,
+    const std::string & base_url_,
+    const std::string & google_project_id_,
+    const std::string & google_service_account_,
+    const std::string & google_metadata_service_,
+    const std::string & google_adc_path_,
+    DB::ContextPtr context_)
+    : ICatalog(warehouse_)
+    , DB::WithContext(context_)
+    , base_url(correctAPIURI(base_url_))
+    , log(getLogger("RestCatalog(" + warehouse_ + ")"))
+    , google_project_id(google_project_id_)
+    , google_service_account(google_service_account_.empty() ? "default" : google_service_account_)
+    , google_metadata_service(google_metadata_service_.empty() ? "metadata.google.internal" : google_metadata_service_)
+    , google_adc_path(google_adc_path_)
+{
+    update_token_if_expired = true;
+    config = loadConfig();
+}
+
 
 RestCatalog::Config RestCatalog::loadConfig()
 {
@@ -224,7 +260,43 @@ DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool update_token) const
         return DB::HTTPHeaderEntries{auth_header.value()};
     }
 
-    /// Option 2: user provided grant_type, client_id and client_secret.
+    /// Option 2: Google Cloud OAuth2 for BigLake.
+    /// Uses GCP metadata service or Application Default Credentials to get access token.
+    /// Only use Google OAuth if explicitly configured (google_project_id or google_adc_path).
+    if (!google_project_id.empty() || !google_adc_path.empty())
+    {
+        //std::lock_guard lock(google_token_mutex);
+        if (!google_access_token.has_value() || update_token
+            || std::chrono::system_clock::now() >= google_access_token->second)
+        {
+            auto token = retrieveGoogleCloudAccessToken();
+            /// If token wasn't cached in retrieveGoogleCloudAccessToken (e.g., refresh token flow),
+            /// cache it now with default expiration
+            if (!google_access_token.has_value() || google_access_token->first != token)
+            {
+                google_access_token = std::make_pair(token, std::chrono::system_clock::now() + std::chrono::minutes(55));
+            }
+        }
+
+        DB::HTTPHeaderEntries headers;
+        headers.emplace_back("Authorization", "Bearer " + google_access_token->first);
+        
+        /// Use quota_project_id from ADC if google_project_id is not set
+        std::string project_id = google_project_id;
+        if (project_id.empty() && google_adc_credentials.has_value() && !google_adc_credentials->quota_project_id.empty())
+        {
+            project_id = google_adc_credentials->quota_project_id;
+        }
+        
+        if (!project_id.empty())
+        {
+            headers.emplace_back("x-goog-user-project", project_id);
+        }
+        
+        return headers;
+    }
+
+    /// Option 3: user provided grant_type, client_id and client_secret.
     /// We would make OAuthClientCredentialsRequest
     /// https://github.com/apache/iceberg/blob/3badfe0c1fcf0c0adfc7aa4a10f0b50365c48cf9/open-api/rest-catalog-open-api.yaml#L3498C5-L3498C34
     if (!client_id.empty())
@@ -315,6 +387,244 @@ std::string RestCatalog::retrieveAccessToken() const
     const Poco::JSON::Object::Ptr & object = res_json.extract<Poco::JSON::Object::Ptr>();
 
     return object->get("access_token").extract<String>();
+}
+
+RestCatalog::GoogleADCCredentials RestCatalog::loadGoogleADCCredentials() const
+{
+    if (google_adc_credentials.has_value())
+        return google_adc_credentials.value();
+
+    LOG_DEBUG(log, "Loading Google ADC credentials from: {}", google_adc_path);
+
+    DB::ReadBufferFromFile file(google_adc_path);
+    String json_str;
+    readJSONObjectPossiblyInvalid(json_str, file);
+
+    Poco::JSON::Parser parser;
+    auto object = parser.parse(json_str).extract<Poco::JSON::Object::Ptr>();
+
+    GoogleADCCredentials adc;
+    adc.type = object->getValue<String>("type");
+
+    if (adc.type == "authorized_user")
+    {
+        adc.client_id = object->getValue<String>("client_id");
+        adc.client_secret = object->getValue<String>("client_secret");
+        adc.refresh_token = object->getValue<String>("refresh_token");
+        adc.quota_project_id = object->getValue<String>("quota_project_id");
+
+        if (adc.client_id.empty() || adc.client_secret.empty() || adc.refresh_token.empty())
+        {
+            throw DB::Exception(
+                DB::ErrorCodes::BAD_ARGUMENTS,
+                "Invalid ADC file format: missing required fields for authorized_user type");
+        }
+    }
+    else if (adc.type == "service_account")
+    {
+        throw DB::Exception(
+            DB::ErrorCodes::BAD_ARGUMENTS,
+            "Service account credentials are not yet supported. Please use authorized_user credentials or metadata service");
+    }
+    else
+    {
+        throw DB::Exception(
+            DB::ErrorCodes::BAD_ARGUMENTS,
+            "Unsupported ADC credential type: {}. Only 'authorized_user' is supported", adc.type);
+    }
+
+    google_adc_credentials = adc;
+    return adc;
+}
+
+std::string RestCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken(const GoogleADCCredentials & adc) const
+{
+    static constexpr auto GOOGLE_OAUTH2_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
+
+    Poco::URI url(GOOGLE_OAUTH2_TOKEN_ENDPOINT);
+
+    String encoded_refresh_token;
+    String encoded_client_id;
+    String encoded_client_secret;
+    Poco::URI::encode(adc.refresh_token, adc.refresh_token, encoded_refresh_token);
+    Poco::URI::encode(adc.client_id, adc.client_id, encoded_client_id);
+    Poco::URI::encode(adc.client_secret, adc.client_secret, encoded_client_secret);
+    String body = fmt::format(
+        "grant_type=refresh_token&client_id={}&client_secret={}&refresh_token={}",
+        encoded_client_id, encoded_client_secret, encoded_refresh_token
+    );
+
+    LOG_DEBUG(log, "Requesting Google Cloud access token using refresh token {}", body);
+
+    const auto & context = getContext();
+    auto timeouts = DB::ConnectionTimeouts::getHTTPTimeouts(context->getSettingsRef(), context->getServerSettings());
+    DB::HTTPSessionPtr session;
+    for (size_t i = 0; i < 5; ++i)
+    {
+        try
+        {
+            session = makeHTTPSession(DB::HTTPConnectionGroupType::HTTP, url, timeouts, {});
+            break;
+        }
+        catch (...)
+        {
+            DB::tryLogCurrentException(log);
+        }
+    }
+
+    Poco::Net::HTTPRequest request(Poco::Net::HTTPRequest::HTTP_POST, url.getPathAndQuery(),
+                                    Poco::Net::HTTPMessage::HTTP_1_1);
+    request.setContentType("application/x-www-form-urlencoded");
+    request.setContentLength(body.size());
+    request.set("Accept", "application/json");
+
+    LOG_DEBUG(log, "Token endpoint host={} path={}", url.getHost(), url.getPathAndQuery());
+
+    std::ostream & os = session->sendRequest(request);
+    os << body;
+
+    Poco::Net::HTTPResponse response;
+    std::istream & rs = session->receiveResponse(response);
+
+    String token_json_raw;
+    Poco::StreamCopier::copyToString(rs, token_json_raw);
+
+    if (response.getStatus() != Poco::Net::HTTPResponse::HTTP_OK)
+    {
+        throw DB::Exception(
+            DB::ErrorCodes::BAD_ARGUMENTS,
+            "Failed to request Google Cloud access token using refresh token: {} (status: {})",
+            response.getReason(),
+            static_cast<int>(response.getStatus()));
+    }
+
+    LOG_DEBUG(log, "Received Google Cloud token response from refresh token {}", token_json_raw);
+
+    Poco::JSON::Parser parser;
+    auto object = parser.parse(token_json_raw).extract<Poco::JSON::Object::Ptr>();
+
+    if (!object->has("access_token") || !object->has("token_type"))
+    {
+        throw DB::Exception(
+            DB::ErrorCodes::BAD_ARGUMENTS,
+            "Unexpected structure of Google Cloud token response. Response should have fields: 'access_token', 'token_type'");
+    }
+
+    auto token_type = object->getValue<String>("token_type");
+    if (token_type != "Bearer")
+    {
+        throw DB::Exception(
+            DB::ErrorCodes::BAD_ARGUMENTS,
+            "Unexpected token type in Google Cloud response. Expected Bearer token, got {}",
+            token_type);
+    }
+
+    access_token = object->getValue<String>("access_token");
+    
+    /// Cache token expiration if provided (typically 3600 seconds for refresh token flow)
+    if (object->has("expires_in"))
+    {
+        Int64 expires_in = object->getValue<Int64>("expires_in");
+        google_access_token = std::make_pair(
+            *access_token,
+            std::chrono::system_clock::now() + std::chrono::seconds(expires_in - 300)); /// 5 minutes buffer
+    }
+    
+    return *access_token;
+}
+
+std::string RestCatalog::retrieveGoogleCloudAccessToken() const
+{
+    /// Try to use Application Default Credentials (ADC) file first if path is specified
+    if (!google_adc_path.empty())
+    {
+        try
+        {
+            auto adc = loadGoogleADCCredentials();
+            if (adc.type == "authorized_user")
+            {
+                return retrieveGoogleCloudAccessTokenFromRefreshToken(adc);
+            }
+        }
+        catch (const DB::Exception & e)
+        {
+            LOG_DEBUG(log, "Failed to use ADC file, falling back to metadata service: {}", e.what());
+        }
+    }
+
+    /// Fallback to GCP metadata service (works inside GCP infrastructure)
+    /// Similar to PocoHTTPClientGCPOAuth::requestBearerToken()
+    /// https://cloud.google.com/compute/docs/metadata/overview
+    static constexpr auto DEFAULT_REQUEST_TOKEN_PATH = "/computeMetadata/v1/instance/service-accounts";
+
+    Poco::URI url;
+    url.setScheme("http");
+    url.setHost(google_metadata_service);
+    url.setPath(fmt::format("{}/{}/token", DEFAULT_REQUEST_TOKEN_PATH, google_service_account));
+
+    Poco::Net::HTTPRequest request(Poco::Net::HTTPRequest::HTTP_GET, url.toString(), Poco::Net::HTTPRequest::HTTP_1_1);
+    request.add("metadata-flavor", "Google");
+
+    LOG_DEBUG(log, "Requesting Google Cloud access token from metadata service: {}", url.toString());
+
+    const auto & context = getContext();
+    auto timeouts = DB::ConnectionTimeouts::getHTTPTimeouts(context->getSettingsRef(), context->getServerSettings());
+    auto session = makeHTTPSession(DB::HTTPConnectionGroupType::HTTP, url, timeouts, {});
+
+    session->sendRequest(request);
+
+    Poco::Net::HTTPResponse response;
+    auto & in = session->receiveResponse(response);
+
+    if (response.getStatus() != Poco::Net::HTTPResponse::HTTP_OK)
+    {
+        throw DB::Exception(
+            DB::ErrorCodes::BAD_ARGUMENTS,
+            "Failed to request Google Cloud bearer token from metadata service: {} (status: {})",
+            response.getReason(),
+            static_cast<int>(response.getStatus()));
+    }
+
+    String token_json_raw;
+    Poco::StreamCopier::copyToString(in, token_json_raw);
+
+    LOG_DEBUG(log, "Received Google Cloud token response from metadata service");
+
+    Poco::JSON::Parser parser;
+    auto object = parser.parse(token_json_raw).extract<Poco::JSON::Object::Ptr>();
+
+    if (!object->has("access_token") || !object->has("expires_in") || !object->has("token_type"))
+    {
+        throw DB::Exception(
+            DB::ErrorCodes::BAD_ARGUMENTS,
+            "Unexpected structure of Google Cloud token response. Response should have fields: 'access_token', 'expires_in', 'token_type'");
+    }
+
+    auto token_type = object->getValue<String>("token_type");
+    if (token_type != "Bearer")
+    {
+        throw DB::Exception(
+            DB::ErrorCodes::BAD_ARGUMENTS,
+            "Unexpected token type in Google Cloud response. Expected Bearer token, got {}",
+            token_type);
+    }
+
+    access_token = object->getValue<String>("access_token");
+    
+    /// For refresh token flow, tokens typically expire in 1 hour
+    /// We'll cache for 55 minutes to be safe
+    /// For metadata service, expires_in is provided in the response
+    if (object->has("expires_in"))
+    {
+        Int64 expires_in = object->getValue<Int64>("expires_in");
+        /// Update cache expiration time
+        std::lock_guard lock(google_token_mutex);
+        google_access_token = std::make_pair(
+            *access_token,
+            std::chrono::system_clock::now() + std::chrono::seconds(expires_in - 300)); /// 5 minutes buffer
+    }
+    
+    return *access_token;
 }
 
 std::optional<StorageType> RestCatalog::getStorageType() const
@@ -490,7 +800,13 @@ RestCatalog::Namespaces RestCatalog::getNamespaces(const std::string & base_name
             "Code: {}, status: {}, message: {}",
             e.code(), e.getHTTPStatus(), e.displayText());
 
-        throw DB::Exception(DB::ErrorCodes::DATALAKE_DATABASE_ERROR, "{}", message);
+        if (google_project_id.empty())
+            throw DB::Exception(DB::ErrorCodes::DATALAKE_DATABASE_ERROR, "{}", message);
+        else
+        {
+            LOG_DEBUG(log, "{}", message);
+            return {};
+        }
     }
 }
 
@@ -529,6 +845,10 @@ RestCatalog::Namespaces RestCatalog::parseNamespaces(DB::ReadBuffer & buf, const
 
             const int idx = static_cast<int>(current_namespace_array->size()) - 1;
             const auto current_namespace = current_namespace_array->get(idx).extract<String>();
+            if (getCatalogType() == DB::DatabaseDataLakeCatalogType::ICEBERG_BIGLAKE && !base_namespace.empty() && current_namespace == base_namespace)
+            {
+                continue;
+            }
             const auto full_namespace = base_namespace.empty()
                 ? current_namespace
                 : base_namespace + "." + current_namespace;

@@ -356,6 +356,28 @@ public:
                 context);
         }
 
+        if ((*settings)[DataLakeStorageSetting::storage_catalog_type].value == DatabaseDataLakeCatalogType::ICEBERG_BIGLAKE)
+        {
+            if (!(*settings)[DataLakeStorageSetting::storage_auth_header].value.empty())
+            {
+                return std::make_shared<DataLake::RestCatalog>(
+                    (*settings)[DataLakeStorageSetting::storage_warehouse].value,
+                    (*settings)[DataLakeStorageSetting::storage_catalog_url].value,
+                    /*catalog_credential*/"",
+                    /*auth_scope*/"",
+                    (*settings)[DataLakeStorageSetting::storage_auth_header],
+                    /*oauth_server_uri*/"",
+                    /*oauth_server_use_request_body*/ false,
+                    context);
+            }
+            else
+            {
+                throw Exception(ErrorCodes::BAD_ARGUMENTS,
+                    "BigLake catalog requires either google_project_id (for database) or storage_auth_header (for storage)");
+            }
+        }
+
+
 #endif
         return nullptr;
     }
