@@ -105,7 +105,7 @@ CachedOnDiskReadBufferFromFile::CachedOnDiskReadBufferFromFile(
         implementation_buffer_creator_,
         use_external_buffer_,
         settings_,
-        read_until_position_ ? read_until_position_.value() : file_size_)
+        read_until_position_.value_or(file_size_))
 {
     LOG_TEST(
         log, "Cache key: {}, source file path: {}, boundary alignment: {}, "
