@@ -65,7 +65,7 @@ int IProcessor::schedule()
 #ifdef OS_LINUX
 std::pair<int, uint32_t> IProcessor::scheduleForEvent()
 {
-    return {schedule(), EPOLL_EVENTS::EPOLLIN | EPOLL_EVENTS::EPOLLERR};
+    return {schedule(), EPOLLIN | EPOLLERR};
 }
 #endif
 
