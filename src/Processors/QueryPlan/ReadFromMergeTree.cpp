@@ -1562,6 +1562,10 @@ Pipe ReadFromMergeTree::spreadMarkRangesAmongStreamsFinal(
     const Names & column_names,
     std::optional<ActionsDAG> & out_projection)
 {
+    const size_t total_marks_to_read = parts_with_ranges.getMarksCountAllParts();
+    if (total_marks_to_read == 0)
+        return {};
+
     const auto & settings = context->getSettingsRef();
     PartRangesReadInfo info(parts_with_ranges, settings, *data_settings);
 
@@ -1610,7 +1614,6 @@ Pipe ReadFromMergeTree::spreadMarkRangesAmongStreamsFinal(
         restorePrewhereInputs(query_info.row_level_filter.get(), query_info.prewhere_info.get(), sorting_columns);
     }
 
-    const size_t total_marks_to_read = parts_with_ranges.getMarksCountAllParts();
     for (size_t range_index = 0; range_index < parts_to_merge_ranges.size() - 1; ++range_index)
     {
         /// If do_not_merge_across_partitions_select_final is true and there is only one part in partition
