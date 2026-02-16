@@ -313,6 +313,9 @@ protected:
         const auto access = context->getAccess();
         for (const auto & table_detail: table_details)
         {
+            if (!tables.contains(table_detail.name))
+                continue;
+
             size_t src_index = 0;
             size_t res_index = 0;
 
