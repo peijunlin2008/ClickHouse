@@ -408,19 +408,19 @@ class Shell:
                     if not retry_errors:
                         continue # No retry errors specified, just retry on any failure
 
-                    should_retry = False
-                    for err in retry_errors:
-                        if any(err in err_line for err_line in err_output):
-                            print(
-                                f"Retryable error occurred: [{err}], [{retry+1}/{retries}]"
-                            )
-                            should_retry = True
-                            break
-                    if not should_retry:
+                    if not any(
+                        err in err_line
+                        for err_line in err_output
+                        for err in retry_errors
+                    ):
                         print(
                             f"No retryable errors found, stopping retry attempts"
                         )
                         break
+
+                    print(
+                        f"Retryable error occurred"
+                    )
             except Exception as e:
                 if verbose:
                     if retries == 1:
