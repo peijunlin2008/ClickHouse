@@ -174,6 +174,8 @@ ALTER TABLE table DROP INDEX text_idx;
   For example, `tokenizer = sparseGrams(3, 5, 4)` internally generates 3-, 4-, 5-grams from the input string but only the 4- and 5-grams are returned.
 - `array` performs no tokenization, i.e. every row value is a token (see function [array](/sql-reference/functions/array-functions.md/#array)).
 
+All available tokenizers are listed in [system.tokenizers](../../../operations/system-tables/tokenizers.md).
+
 :::note
 The `splitByString` tokenizer applies the split separators left-to-right.
 This can create ambiguities.
