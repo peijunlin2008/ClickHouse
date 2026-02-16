@@ -324,9 +324,8 @@ class Runner:
                     )
                     workdir = ""
             if not Shell.check(
-                "if docker ps -a --format '{{.Names}}' | grep -q praktika; then docker rm -f praktika; fi",
+                "if docker ps -a --format '{{.Names}}' | grep -qx praktika; then docker rm -f praktika; fi",
                 verbose=True,
-                strict=True,
             ):
                 raise RuntimeError("Failed to remove existing docker container 'praktika'")
             if job.enable_gh_auth:
