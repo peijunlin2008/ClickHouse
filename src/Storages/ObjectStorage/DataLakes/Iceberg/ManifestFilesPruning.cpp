@@ -108,8 +108,7 @@ ManifestFilesPruner::ManifestFilesPruner(
 {
     std::unique_ptr<ActionsDAG> transformed_dag;
     std::vector<Int32> used_columns_in_filter;
-    if (manifest_file.hasPartitionKey() || manifest_file.hasBoundsInfoInManifests())
-        transformed_dag = transformFilterDagForManifest(filter_dag, used_columns_in_filter);
+    transformed_dag = transformFilterDagForManifest(filter_dag, used_columns_in_filter);
 
     if (manifest_file.hasPartitionKey())
     {
@@ -121,13 +120,13 @@ ManifestFilesPruner::ManifestFilesPruner(
         }
     }
 
-    if (manifest_file.hasBoundsInfoInManifests() && transformed_dag != nullptr)
+    if (transformed_dag != nullptr)
     {
         {
-            const auto & bounded_columns = manifest_file.getColumnsIDsWithBounds();
+            const auto & bounded_columns = schema_processor_.getColumnIDsForSchemaId(initial_schema_id);
             for (Int32 used_column_id : used_columns_in_filter)
             {
-                if (!bounded_columns.contains(used_column_id))
+                if (std::find(bounded_columns.begin(), bounded_columns.end(), used_column_id) == bounded_columns.end())
                     continue;
 
                 auto name_and_type = schema_processor.tryGetFieldCharacteristics(initial_schema_id, used_column_id);
