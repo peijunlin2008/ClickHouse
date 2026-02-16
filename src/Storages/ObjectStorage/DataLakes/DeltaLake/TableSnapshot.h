@@ -89,8 +89,6 @@ private:
 
     struct SchemaInfo
     {
-        /// Snapshot version
-        size_t version;
         /// Table logical schema
         /// (e.g. actual table schema)
         TableSchema table_schema;
@@ -107,8 +105,6 @@ private:
 
     struct SnapshotStats
     {
-        /// Snapshot version
-        size_t version;
         /// Total number of bytes in table
         std::optional<size_t> total_bytes;
         /// Total number of rows in table
