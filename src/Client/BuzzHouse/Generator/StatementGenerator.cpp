@@ -1635,8 +1635,6 @@ std::optional<String> StatementGenerator::alterSingleTable(
 {
     const bool prev_enforce_final = this->enforce_final;
     const bool prev_allow_not_deterministic = this->allow_not_deterministic;
-    const String dname = t.getDatabaseName();
-    const String tname = t.getTableName();
 
     this->allow_not_deterministic = !t.is_deterministic;
     this->enforce_final = t.is_deterministic;
