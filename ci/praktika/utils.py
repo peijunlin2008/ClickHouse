@@ -394,33 +394,33 @@ class Shell:
 
                     proc.wait()  # Wait for the process to finish
 
-                    if proc.returncode == 0:
-                        return 0
+                if proc.returncode == 0:
+                    return 0
 
-                    if retries == 1:
-                        break
+                if retries == 1:
+                    break
 
-                    if verbose:
-                        print(
-                            f"Retry {retry+1}/{retries}: command failed, exit code: {proc.returncode}"
-                        )
-
-                    if not retry_errors:
-                        continue # No retry errors specified, just retry on any failure
-
-                    if not any(
-                        err in err_line
-                        for err_line in err_output
-                        for err in retry_errors
-                    ):
-                        print(
-                            f"No retryable errors found, stopping retry attempts"
-                        )
-                        break
-
+                if verbose:
                     print(
-                        f"Retryable error occurred"
+                        f"Retry {retry+1}/{retries}: command failed, exit code: {proc.returncode}"
                     )
+
+                if not retry_errors:
+                    continue # No retry errors specified, just retry on any failure
+
+                if not any(
+                    err in err_line
+                    for err_line in err_output
+                    for err in retry_errors
+                ):
+                    print(
+                        f"No retryable errors found, stopping retries"
+                    )
+                    break
+
+                print(
+                    f"Retryable error occurred"
+                )
             except Exception as e:
                 if verbose:
                     if retries == 1:
