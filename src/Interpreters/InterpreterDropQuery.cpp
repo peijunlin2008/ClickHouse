@@ -565,6 +565,15 @@ BlockIO InterpreterDropQuery::executeToDatabaseImpl(const ASTDropQuery & query, 
 
                 std::sort(tables_to_drop.begin(), tables_to_drop.end(), [&](const auto & a, const auto & b)
                 {
+                    /// Inner tables (e.g. `.inner_id.*` for MVs) must be dropped before their parent views.
+                    /// In Replicated databases, if we drop an MV first, its dropInnerTableIfAny() tries to
+                    /// drop the inner table via executeDropQuery which fails because the replicated DDL path
+                    /// rejects secondary queries. Dropping inner tables first makes dropInnerTableIfAny() a no-op.
+                    bool a_is_inner = a.first.table_name.starts_with(".inner_id.") || a.first.table_name.starts_with(".inner.");
+                    bool b_is_inner = b.first.table_name.starts_with(".inner_id.") || b.first.table_name.starts_with(".inner.");
+                    if (a_is_inner != b_is_inner)
+                        return a_is_inner;
+
                     size_t pos_a = 0;
                     size_t pos_b = 0;
                     if (auto it = position.find(a.first.getFullTableName()); it != position.end())
