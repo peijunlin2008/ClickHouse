@@ -202,6 +202,7 @@ const std::vector<CHAggregate> CHAggrs = {
 
 const std::vector<CHFunction> CommonCHFuncs
     = {CHFunction(SQLFunc::FUNCarrayJoin, 0, 0, 1, 1),
+       CHFunction(SQLFunc::FUNCif, 0, 0, 3, 3),
        CHFunction(SQLFunc::FUNCmaterialize, 0, 0, 1, 1),
        CHFunction(SQLFunc::FUNCtoNullable, 0, 0, 1, 1),
        CHFunction(SQLFunc::FUNCtoLowCardinality, 0, 0, 1, 1)};
@@ -384,7 +385,6 @@ const std::vector<CHFunction> CHFuncs = {
     CHFunction(SQLFunc::FUNClessOrEquals, 0, 0, 2, 2),
     CHFunction(SQLFunc::FUNCgreaterOrEquals, 0, 0, 2, 2),
     /// Conditional functions
-    CHFunction(SQLFunc::FUNCif, 0, 0, 3, 3),
     CHFunction(SQLFunc::FUNCmultiIf, 0, 0, 3, ulimited_params),
     CHFunction(SQLFunc::FUNCgreatest, 0, 0, 2, ulimited_params),
     CHFunction(SQLFunc::FUNCleast, 0, 0, 2, ulimited_params),
