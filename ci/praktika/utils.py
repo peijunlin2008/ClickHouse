@@ -435,10 +435,11 @@ class Shell:
                             print(f"ERROR: Final attempt failed, no more retries left.")
                 if proc:
                     proc.kill()
-                if strict and retry == retries - 1:
-                    raise e
-                else:
-                    return 1  # Return non-zero for failure
+                if retry == retries - 1:
+                    if strict:
+                        raise e
+                    else:
+                        return 1  # Return non-zero for failure
 
         if verbose:
             if retries == 1:
