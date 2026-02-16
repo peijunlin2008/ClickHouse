@@ -151,6 +151,11 @@ def started_cluster():
         logging.info("Starting cluster...")
         cluster.start()
 
+        if cluster.instances["node1"].is_built_with_memory_sanitizer():
+            pytest.skip(
+                "Memory Sanitizer cannot work with Rust code which is not instrumented"
+            )
+
         prepare_s3_bucket(cluster)
         logging.info("S3 bucket created")
 
