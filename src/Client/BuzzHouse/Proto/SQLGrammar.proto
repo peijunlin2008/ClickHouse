@@ -1668,10 +1668,11 @@ enum SQLFunc {
     FUNCxxHash32 = 1663;
     FUNCxxHash64 = 1664;
     FUNCxxh3 = 1665;
-    FUNCyandexConsistentHash = 1666;
-    FUNCyearweek = 1667;
-    FUNCyesterday = 1668;
-    FUNCzookeeperSessionUptime = 1669;
+    FUNCxxh3_128 = 1666;
+    FUNCyandexConsistentHash = 1667;
+    FUNCyearweek = 1668;
+    FUNCyesterday = 1669;
+    FUNCzookeeperSessionUptime = 1670;
 }
 
 enum SQLTableFunc {

@@ -647,7 +647,9 @@ static const std::vector<SQLFunc> multicolHash
        SQLFunc::FUNCkafkaMurmurHash,
        SQLFunc::FUNCmurmurHash3_32,
        SQLFunc::FUNCmurmurHash3_64,
-       SQLFunc::FUNCmurmurHash3_128};
+       SQLFunc::FUNCmurmurHash3_128,
+       SQLFunc::FUNCxxh3,
+       SQLFunc::FUNCxxh3_128};
 
 static const std::vector<SQLFunc> datesHash
     = {SQLFunc::FUNCtoYear,

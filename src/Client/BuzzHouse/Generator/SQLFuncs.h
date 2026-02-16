@@ -568,6 +568,7 @@ const std::vector<CHFunction> CHFuncs = {
     CHFunction(SQLFunc::FUNCmurmurHash3_64, 0, 0, 1, ulimited_params),
     CHFunction(SQLFunc::FUNCmurmurHash3_128, 0, 0, 1, ulimited_params),
     CHFunction(SQLFunc::FUNCxxh3, 0, 0, 1, ulimited_params),
+    CHFunction(SQLFunc::FUNCxxh3_128, 0, 0, 1, ulimited_params),
     CHFunction(SQLFunc::FUNCxxHash32, 0, 0, 1, 1),
     CHFunction(SQLFunc::FUNCxxHash64, 0, 0, 1, 1),
     CHFunction(SQLFunc::FUNCngramSimHash, 0, 0, 1, 2),
