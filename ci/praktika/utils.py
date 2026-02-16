@@ -340,7 +340,8 @@ class Shell:
 
             if retry > 0:
                 delay = min(2 * delay, 60)
-                print(f"Retrying in {delay}s...")
+                if verbose:
+                    print(f"Retrying in {delay}s...")
                 time.sleep(delay)
 
             try:
@@ -413,14 +414,14 @@ class Shell:
                     for err_line in err_output
                     for err in retry_errors
                 ):
-                    print(
-                        f"No retryable errors found, stopping retries"
-                    )
+                    if verbose
+                        print(
+                            f"No retryable errors found, stopping retries"
+                        )
                     break
 
-                print(
-                    f"Retryable error occurred"
-                )
+                if verbose:
+                    print(f"Retryable error occurred")
             except Exception as e:
                 if verbose:
                     if retries == 1:
