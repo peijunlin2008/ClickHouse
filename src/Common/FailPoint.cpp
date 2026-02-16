@@ -307,14 +307,13 @@ void FailPointInjection::waitForResume(const String & fail_point_name)
 std::vector<FailPointInjection::FailPointInfo> FailPointInjection::getFailPoints()
 {
     std::vector<FailPointInfo> result;
-    std::lock_guard lock(mu);
 
-#define SUB_M(NAME, TP)                                                     \
-    result.push_back(                                                       \
-        FailPointInfo{                                                      \
-            .name = FailPoints::NAME,                                       \
-            .type = FailPointType::TP,                                      \
-            .enabled = fail_point_wait_channels.contains(FailPoints::NAME), \
+#define SUB_M(NAME, TP)                                 \
+    result.push_back(                                   \
+        FailPointInfo{                                  \
+            .name = FailPoints::NAME,                   \
+            .type = FailPointType::TP,                  \
+            .enabled = fiu_fail(FailPoints::NAME) != 0, \
         });
 #define ADD_ONCE(NAME) SUB_M(NAME, Once)
 #define ADD_REGULAR(NAME) SUB_M(NAME, Regular)
