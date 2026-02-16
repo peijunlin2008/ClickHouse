@@ -397,18 +397,13 @@ class Shell:
                     if proc.returncode == 0:
                         return 0
 
-                    if verbose:
-                        if retries == 1:
-                            print(
-                                f"ERROR: command failed, exit code: {proc.returncode}"
-                            )
-                            break
+                    if retries == 1:
+                        break
 
+                    if verbose:
                         print(
                             f"Retry {retry+1}/{retries}: command failed, exit code: {proc.returncode}"
-                            )
-                        if retry == retries - 1:
-                            print(f"ERROR: Final attempt failed, no more retries left.")
+                        )
 
                     if not retry_errors:
                         continue # No retry errors specified, just retry on any failure
@@ -438,19 +433,30 @@ class Shell:
                         )
                         if retry == retries - 1:
                             print(f"ERROR: Final attempt failed, no more retries left.")
-
                 if proc:
                     proc.kill()
                 if strict and retry == retries - 1:
                     raise e
+                else:
+                    return 1  # Return non-zero for failure
 
-        if strict and (not proc or proc.returncode != 0):
+        if verbose:
+            if retries == 1:
+                print(
+                    f"ERROR: command failed, exit code: {proc.returncode}"
+                )
+            else:
+                print(
+                    f"ERROR: Final attempt failed, no more retries left."
+                )
+
+        if strict:
             err = "\n   ".join(err_output).strip()
             raise RuntimeError(
                 f"command failed, exit code {proc.returncode},\nstderr:\n>>>\n{err}\n<<<"
             )
 
-        return proc.returncode if proc else 1  # Return 1 if the process never started
+        return proc.returncode
 
     @classmethod
     def run_async(
