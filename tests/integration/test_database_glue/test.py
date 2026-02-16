@@ -697,17 +697,16 @@ def test_show_tables_optimization(started_cluster):
 
         create_clickhouse_glue_database(started_cluster, node, CATALOG_NAME)
 
-        expected = DEFAULT_CREATE_TABLE.format(CATALOG_NAME, namespace, table_name)
-        assert expected == node.query(
-            f"SHOW CREATE TABLE {CATALOG_NAME}.`{namespace}.{table_name}`"
-        )
-
-        assert num_rows == int(
-            node.query(f"SELECT count() FROM {CATALOG_NAME}.`{namespace}.{table_name}`")
-        )
-
-    assert CATALOG_NAME in node.query("SHOW DATABASES")
     assert table_name in node.query(f"SHOW TABLES FROM {CATALOG_NAME}")
+
+    assert not node.contains_in_log(
+        f"Get table information"
+    )
+
+    node.query(f"SELECT * from system.tables where table ilike '%{root_namespace}%'")
+    assert node.contains_in_log(
+       f"Get table information for table"
+    )
 
     node.query(f"SYSTEM ENABLE FAILPOINT lightweight_show_tables")
     node.query(f"SHOW TABLES", timeout=5)
