@@ -76,7 +76,6 @@ ColumnMapperPtr createColumnMapper(Poco::JSON::Object::Ptr schema_object);
 class IcebergSchemaProcessor
 {
     static std::string default_link;
-    static std::vector<String> complex_type_names;
 
     using Node = ActionsDAG::Node;
 
@@ -101,8 +100,6 @@ public:
 
     ColumnMapperPtr getColumnMapperById(Int32 id) const;
 
-    const std::vector<Int32> & getColumnIDsForSchemaId(Int32 schema_id) const;
-
 private:
     std::unordered_map<Int32, Poco::JSON::Object::Ptr> iceberg_table_schemas_by_ids TSA_GUARDED_BY(mutex);
     std::unordered_map<Int32, std::shared_ptr<NamesAndTypesList>> clickhouse_table_schemas_by_ids TSA_GUARDED_BY(mutex);
@@ -111,17 +108,13 @@ private:
     mutable std::map<std::pair<Int32, std::string>, Int32> clickhouse_ids_by_source_names TSA_GUARDED_BY(mutex);
     std::optional<Int32> current_schema_id TSA_GUARDED_BY(mutex) = 0;
     std::unordered_map<Int64, Int32> schema_id_by_snapshot TSA_GUARDED_BY(mutex);
-    std::unordered_map<Int32, std::vector<Int32>> column_ids TSA_GUARDED_BY(mutex);
 
     NamesAndTypesList getSchemaType(const Poco::JSON::Object::Ptr & schema);
-    DataTypePtr getComplexTypeFromObject(
-        const Poco::JSON::Object::Ptr & type, std::vector<Int32> * column_ids_out, String & current_full_name, bool is_subfield_of_root);
-
+    DataTypePtr getComplexTypeFromObject(const Poco::JSON::Object::Ptr & type, String & current_full_name, bool is_subfield_of_root);
     DataTypePtr getFieldType(
         const Poco::JSON::Object::Ptr & field,
         const String & type_key,
         bool required,
-        std::vector<Int32> * column_ids_out,
         String & current_full_name = default_link,
         bool is_subfield_of_root = false);
 
