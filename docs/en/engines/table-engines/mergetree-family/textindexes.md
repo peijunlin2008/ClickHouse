@@ -324,7 +324,7 @@ Result:
 ```
 
 The huge index granularity ensures that the text index is created for the entire part.
-Explicitly specified index granularity is ignored.
+An explicitly specified index granularity is ignored.
 
 ## Using a Text Index {#using-a-text-index}
 
