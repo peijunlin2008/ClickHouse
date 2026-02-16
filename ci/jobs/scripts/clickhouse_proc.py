@@ -688,7 +688,7 @@ clickhouse-client --query "SELECT count() FROM test.visits"
         ):
             if proc and pid:
                 if not Shell.check(
-                    f"cd {run_path} && clickhouse stop --pid-path {Path(pid_file).parent} --max-tries 5 --do-not-kill >/dev/null",
+                    f"cd {run_path} && clickhouse stop --pid-path {Path(pid_file).parent} --max-tries 300 --do-not-kill >/dev/null",
                     verbose=True,
                 ):
                     print(
