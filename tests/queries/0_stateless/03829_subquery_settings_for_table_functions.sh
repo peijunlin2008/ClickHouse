@@ -13,6 +13,7 @@ CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 comma_csv="${CLICKHOUSE_TMP}/test_comma_${CLICKHOUSE_DATABASE}.csv"
 pipe_csv="${CLICKHOUSE_TMP}/test_pipe_${CLICKHOUSE_DATABASE}.csv"
 cache_csv="${CLICKHOUSE_TMP}/test_cache_${CLICKHOUSE_DATABASE}.csv"
+delim_csv="${CLICKHOUSE_TMP}/test_delim_${CLICKHOUSE_DATABASE}.csv"
 
 echo 'a,1' > "$comma_csv"
 echo 'b,2' >> "$comma_csv"
@@ -21,6 +22,9 @@ echo 'c|3' > "$pipe_csv"
 echo 'd|4' >> "$pipe_csv"
 
 printf '1\n2\n3\n' > "$cache_csv"
+
+# A file whose content can be parsed with either comma or pipe delimiter.
+echo '1,2|3' > "$delim_csv"
 
 # Test 1: SETTINGS on the immediate subquery level (CTE).
 $CLICKHOUSE_LOCAL --query "
@@ -87,7 +91,25 @@ $CLICKHOUSE_LOCAL --query "
     ) ORDER BY name
 "
 
-# Test 7: Verify table function caching with file() — same table function with
+# Test 7: SETTINGS applied to file('-') reading from stdin.
+echo 'e|5' | $CLICKHOUSE_LOCAL --query "
+    SELECT * FROM (SELECT * FROM file('-', CSV, 'name String, value UInt32') SETTINGS format_csv_delimiter = '|')
+"
+
+# Test 8: Same file with different format_csv_delimiter in the same query.
+# Each branch of the UNION ALL uses its own delimiter on the same file.
+# This verifies that different per-subquery settings produce correct results
+# within a single query (i.e. the table function results are not incorrectly
+# shared across subqueries with different settings).
+$CLICKHOUSE_LOCAL --query "
+    SELECT a, b FROM (
+        SELECT * FROM (SELECT * FROM file('${delim_csv}', CSV, 'a String, b String') SETTINGS format_csv_delimiter = ',')
+        UNION ALL
+        SELECT * FROM (SELECT * FROM file('${delim_csv}', CSV, 'a String, b String') SETTINGS format_csv_delimiter = '|')
+    ) ORDER BY a
+"
+
+# Test 9: Verify table function caching — same table function with
 # same SETTINGS should be executed only once (cached).
 $CLICKHOUSE_LOCAL --query "
     SELECT count() FROM (
@@ -98,7 +120,7 @@ $CLICKHOUSE_LOCAL --query "
     SELECT value FROM system.events WHERE event = 'TableFunctionExecute';
 "
 
-# Test 8: Different SETTINGS should NOT be cached — each file() table function
+# Test 10: Different SETTINGS should NOT be cached — each file() table function
 # gets a separate execution despite having the same path and schema.
 $CLICKHOUSE_LOCAL --query "
     SELECT count() FROM (
@@ -110,4 +132,4 @@ $CLICKHOUSE_LOCAL --query "
 "
 
 # Cleanup.
-rm -f "$comma_csv" "$pipe_csv" "$cache_csv"
+rm -f "$comma_csv" "$pipe_csv" "$cache_csv" "$delim_csv"
