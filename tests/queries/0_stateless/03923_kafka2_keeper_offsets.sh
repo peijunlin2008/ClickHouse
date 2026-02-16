@@ -48,9 +48,9 @@ $CLICKHOUSE_CLIENT -q "
     SELECT * FROM ${CLICKHOUSE_TEST_UNIQUE_NAME}_kafka;
 "
 
-# Wait for first batch
-for i in $(seq 1 60); do
-    count=$($CLICKHOUSE_CLIENT -q "SELECT count() FROM ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst")
+# Wait for first batch (Kafka2 with keeper path needs extra startup time for Keeper coordination)
+for i in $(seq 1 120); do
+    count=$($CLICKHOUSE_CLIENT -q "SELECT count() FROM ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst SETTINGS max_execution_time=5" 2>/dev/null || echo 0)
     if [ "$count" -ge 3 ]; then
         break
     fi
@@ -67,8 +67,8 @@ done | timeout 30 kafka-console-producer.sh --bootstrap-server $KAFKA_BROKER --t
     $KAFKA_PRODUCER_OPTS 2>/dev/null
 
 # Wait for second batch
-for i in $(seq 1 60); do
-    count=$($CLICKHOUSE_CLIENT -q "SELECT count() FROM ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst")
+for i in $(seq 1 120); do
+    count=$($CLICKHOUSE_CLIENT -q "SELECT count() FROM ${CLICKHOUSE_TEST_UNIQUE_NAME}_dst SETTINGS max_execution_time=5" 2>/dev/null || echo 0)
     if [ "$count" -ge 6 ]; then
         break
     fi
