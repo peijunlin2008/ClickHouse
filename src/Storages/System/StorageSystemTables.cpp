@@ -495,9 +495,9 @@ protected:
 
             bool needs_two_columns = (needed_columns.size() == 2 &&
                         ((needed_columns[0].name == "name" && needed_columns[1].name == "database") ||
-                            (needed_columns[0].name == "database" && needed_columns[1].name == "name"));
+                            (needed_columns[0].name == "database" && needed_columns[1].name == "name")));
 
-            if ((needs_one_columns || needs_two_columns) && !need_to_check_access_for_tables)
+            if ((needs_one_column || needs_two_columns) && !need_to_check_access_for_tables)
             {
                 size_t rows_added = fillTableNamesOnly(res_columns);
                 rows_count += rows_added;
