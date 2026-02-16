@@ -2410,7 +2410,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
             AttachPartitionFrom * apf = ati->mutable_attach_partition_from();
             const SQLTable & t2 = rg.pickRandomly(filterCollection<SQLTable>(attached_tables));
 
-            generateNextTablePartition(rg, true, rg.nextSmallNumber() < 3, t2, apf->mutable_single_partition()->mutable_partition());
+            generateNextTablePartition(rg, false, rg.nextSmallNumber() < 3, t2, apf->mutable_single_partition()->mutable_partition());
             t2.setName(apf->mutable_est(), false);
         }
         else if (
