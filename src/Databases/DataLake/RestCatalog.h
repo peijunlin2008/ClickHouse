@@ -48,7 +48,10 @@ public:
         const std::string & google_project_id_,
         const std::string & google_service_account_,
         const std::string & google_metadata_service_,
-        const std::string & google_adc_path_,
+        const std::string & google_adc_client_id_,
+        const std::string & google_adc_client_secret_,
+        const std::string & google_adc_refresh_token_,
+        const std::string & google_adc_quota_project_id_,
         DB::ContextPtr context_);
 
     ~RestCatalog() override = default;
@@ -73,7 +76,7 @@ public:
 
     DB::DatabaseDataLakeCatalogType getCatalogType() const override
     {
-        if (!google_project_id.empty() || !google_adc_path.empty())
+        if (!google_project_id.empty() || !google_adc_client_id.empty())
             return DB::DatabaseDataLakeCatalogType::ICEBERG_BIGLAKE;
         if (!tenant_id.empty())
             return DB::DatabaseDataLakeCatalogType::ICEBERG_ONELAKE;
@@ -132,7 +135,10 @@ private:
     std::string google_project_id;
     std::string google_service_account;
     std::string google_metadata_service;
-    std::string google_adc_path; /// Path to Application Default Credentials JSON file
+    std::string google_adc_client_id;
+    std::string google_adc_client_secret;
+    std::string google_adc_refresh_token;
+    std::string google_adc_quota_project_id;
     mutable std::mutex google_token_mutex;
     mutable std::optional<std::pair<std::string, std::chrono::system_clock::time_point>> google_access_token;
 
@@ -180,7 +186,7 @@ private:
     Config loadConfig();
     std::string retrieveAccessToken() const;
     std::string retrieveGoogleCloudAccessToken() const;
-    GoogleADCCredentials loadGoogleADCCredentials() const;
+    GoogleADCCredentials getGoogleADCCredentials() const;
     std::string retrieveGoogleCloudAccessTokenFromRefreshToken(const GoogleADCCredentials & adc) const;
     DB::HTTPHeaderEntries getAuthHeaders(bool update_token = false) const;
     static void parseCatalogConfigurationSettings(const Poco::JSON::Object::Ptr & object, Config & result);

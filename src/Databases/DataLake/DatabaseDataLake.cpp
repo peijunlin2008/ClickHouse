@@ -68,7 +68,10 @@ namespace DatabaseDataLakeSetting
     extern const DatabaseDataLakeSettingsString google_project_id;
     extern const DatabaseDataLakeSettingsString google_service_account;
     extern const DatabaseDataLakeSettingsString google_metadata_service;
-    extern const DatabaseDataLakeSettingsString google_adc_path;
+    extern const DatabaseDataLakeSettingsString google_adc_client_id;
+    extern const DatabaseDataLakeSettingsString google_adc_client_secret;
+    extern const DatabaseDataLakeSettingsString google_adc_refresh_token;
+    extern const DatabaseDataLakeSettingsString google_adc_quota_project_id;
 }
 
 namespace Setting
@@ -189,7 +192,10 @@ std::shared_ptr<DataLake::ICatalog> DatabaseDataLake::getCatalog() const
                 settings[DatabaseDataLakeSetting::google_project_id].value,
                 settings[DatabaseDataLakeSetting::google_service_account].value,
                 settings[DatabaseDataLakeSetting::google_metadata_service].value,
-                settings[DatabaseDataLakeSetting::google_adc_path].value,
+                settings[DatabaseDataLakeSetting::google_adc_client_id].value,
+                settings[DatabaseDataLakeSetting::google_adc_client_secret].value,
+                settings[DatabaseDataLakeSetting::google_adc_refresh_token].value,
+                settings[DatabaseDataLakeSetting::google_adc_quota_project_id].value,
                 Context::getGlobalContextInstance());
             break;
         }

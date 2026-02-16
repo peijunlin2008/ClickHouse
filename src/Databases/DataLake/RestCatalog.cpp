@@ -187,17 +187,23 @@ RestCatalog::RestCatalog(
 /// Parameters:
 ///   - warehouse_: Warehouse name (e.g., "gs://bucket-name")
 ///   - base_url_: BigLake REST catalog URL (e.g., "https://biglake.googleapis.com/iceberg/v1/restcatalog")
-///   - google_project_id_: Google Cloud project ID (required, used in x-goog-user-project header)
-///   - google_service_account_: Service account email for metadata service (default: "default", only used if google_adc_path is empty)
-///   - google_metadata_service_: Metadata service endpoint (default: "metadata.google.internal", only used if google_adc_path is empty)
-///   - google_adc_path_: Path to Application Default Credentials JSON file (required if not using metadata service)
+///   - google_project_id_: Google Cloud project ID (used in x-goog-user-project header, optional if google_adc_quota_project_id is provided)
+///   - google_service_account_: Service account email for metadata service (default: "default", only used if ADC credentials are not provided)
+///   - google_metadata_service_: Metadata service endpoint (default: "metadata.google.internal", only used if ADC credentials are not provided)
+///   - google_adc_client_id_: ADC client_id (required if using ADC authentication instead of metadata service)
+///   - google_adc_client_secret_: ADC client_secret (required if using ADC authentication instead of metadata service)
+///   - google_adc_refresh_token_: ADC refresh_token (required if using ADC authentication instead of metadata service)
+///   - google_adc_quota_project_id_: ADC quota_project_id (optional, used if google_project_id is not set)
 RestCatalog::RestCatalog(
     const std::string & warehouse_,
     const std::string & base_url_,
     const std::string & google_project_id_,
     const std::string & google_service_account_,
     const std::string & google_metadata_service_,
-    const std::string & google_adc_path_,
+    const std::string & google_adc_client_id_,
+    const std::string & google_adc_client_secret_,
+    const std::string & google_adc_refresh_token_,
+    const std::string & google_adc_quota_project_id_,
     DB::ContextPtr context_)
     : ICatalog(warehouse_)
     , DB::WithContext(context_)
@@ -206,7 +212,10 @@ RestCatalog::RestCatalog(
     , google_project_id(google_project_id_)
     , google_service_account(google_service_account_.empty() ? "default" : google_service_account_)
     , google_metadata_service(google_metadata_service_.empty() ? "metadata.google.internal" : google_metadata_service_)
-    , google_adc_path(google_adc_path_)
+    , google_adc_client_id(google_adc_client_id_)
+    , google_adc_client_secret(google_adc_client_secret_)
+    , google_adc_refresh_token(google_adc_refresh_token_)
+    , google_adc_quota_project_id(google_adc_quota_project_id_)
 {
     update_token_if_expired = true;
     config = loadConfig();
@@ -262,8 +271,8 @@ DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool update_token) const
 
     /// Option 2: Google Cloud OAuth2 for BigLake.
     /// Uses GCP metadata service or Application Default Credentials to get access token.
-    /// Only use Google OAuth if explicitly configured (google_project_id or google_adc_path).
-    if (!google_project_id.empty() || !google_adc_path.empty())
+    /// Only use Google OAuth if explicitly configured (google_project_id or google_adc_client_id).
+    if (!google_project_id.empty() || !google_adc_client_id.empty())
     {
         //std::lock_guard lock(google_token_mutex);
         if (!google_access_token.has_value() || update_token
@@ -283,7 +292,11 @@ DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool update_token) const
         
         /// Use quota_project_id from ADC if google_project_id is not set
         std::string project_id = google_project_id;
-        if (project_id.empty() && google_adc_credentials.has_value() && !google_adc_credentials->quota_project_id.empty())
+        if (project_id.empty() && !google_adc_quota_project_id.empty())
+        {
+            project_id = google_adc_quota_project_id;
+        }
+        else if (project_id.empty() && google_adc_credentials.has_value() && !google_adc_credentials->quota_project_id.empty())
         {
             project_id = google_adc_credentials->quota_project_id;
         }
@@ -389,49 +402,24 @@ std::string RestCatalog::retrieveAccessToken() const
     return object->get("access_token").extract<String>();
 }
 
-RestCatalog::GoogleADCCredentials RestCatalog::loadGoogleADCCredentials() const
+RestCatalog::GoogleADCCredentials RestCatalog::getGoogleADCCredentials() const
 {
     if (google_adc_credentials.has_value())
         return google_adc_credentials.value();
 
-    LOG_DEBUG(log, "Loading Google ADC credentials from: {}", google_adc_path);
-
-    DB::ReadBufferFromFile file(google_adc_path);
-    String json_str;
-    readJSONObjectPossiblyInvalid(json_str, file);
-
-    Poco::JSON::Parser parser;
-    auto object = parser.parse(json_str).extract<Poco::JSON::Object::Ptr>();
+    if (google_adc_client_id.empty() || google_adc_client_secret.empty() || google_adc_refresh_token.empty())
+    {
+        throw DB::Exception(
+            DB::ErrorCodes::BAD_ARGUMENTS,
+            "Invalid ADC credentials: client_id, client_secret, and refresh_token are required");
+    }
 
     GoogleADCCredentials adc;
-    adc.type = object->getValue<String>("type");
-
-    if (adc.type == "authorized_user")
-    {
-        adc.client_id = object->getValue<String>("client_id");
-        adc.client_secret = object->getValue<String>("client_secret");
-        adc.refresh_token = object->getValue<String>("refresh_token");
-        adc.quota_project_id = object->getValue<String>("quota_project_id");
-
-        if (adc.client_id.empty() || adc.client_secret.empty() || adc.refresh_token.empty())
-        {
-            throw DB::Exception(
-                DB::ErrorCodes::BAD_ARGUMENTS,
-                "Invalid ADC file format: missing required fields for authorized_user type");
-        }
-    }
-    else if (adc.type == "service_account")
-    {
-        throw DB::Exception(
-            DB::ErrorCodes::BAD_ARGUMENTS,
-            "Service account credentials are not yet supported. Please use authorized_user credentials or metadata service");
-    }
-    else
-    {
-        throw DB::Exception(
-            DB::ErrorCodes::BAD_ARGUMENTS,
-            "Unsupported ADC credential type: {}. Only 'authorized_user' is supported", adc.type);
-    }
+    adc.type = "authorized_user";
+    adc.client_id = google_adc_client_id;
+    adc.client_secret = google_adc_client_secret;
+    adc.refresh_token = google_adc_refresh_token;
+    adc.quota_project_id = google_adc_quota_project_id;
 
     google_adc_credentials = adc;
     return adc;
@@ -535,12 +523,12 @@ std::string RestCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken(const Go
 
 std::string RestCatalog::retrieveGoogleCloudAccessToken() const
 {
-    /// Try to use Application Default Credentials (ADC) file first if path is specified
-    if (!google_adc_path.empty())
+    /// Try to use Application Default Credentials (ADC) first if credentials are provided
+    if (!google_adc_client_id.empty() && !google_adc_client_secret.empty() && !google_adc_refresh_token.empty())
     {
         try
         {
-            auto adc = loadGoogleADCCredentials();
+            auto adc = getGoogleADCCredentials();
             if (adc.type == "authorized_user")
             {
                 return retrieveGoogleCloudAccessTokenFromRefreshToken(adc);
@@ -548,7 +536,7 @@ std::string RestCatalog::retrieveGoogleCloudAccessToken() const
         }
         catch (const DB::Exception & e)
         {
-            LOG_DEBUG(log, "Failed to use ADC file, falling back to metadata service: {}", e.what());
+            LOG_DEBUG(log, "Failed to use ADC credentials, falling back to metadata service: {}", e.what());
         }
     }
 
