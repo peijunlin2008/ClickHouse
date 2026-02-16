@@ -1082,9 +1082,6 @@ static void processStatisticsChanges(
     const IMergeTreeDataPart & source_part,
     StorageMetadataPtr metadata_snapshot)
 {
-    if (all_statistics.empty())
-        return;
-
     auto storage_settings = source_part.storage.getSettings();
     String statistics_file_name(ColumnsStatistics::FILENAME);
 
@@ -1137,6 +1134,7 @@ static void processStatisticsChanges(
     /// Remove old statistics files.
     if (isFullPartStorage(source_part.getDataPartStorage()))
     {
+        /// File with statistics is always written during mutation.bgf
         files_to_skip.emplace(statistics_file_name);
         const auto & source_checksums = source_part.checksums;
 
