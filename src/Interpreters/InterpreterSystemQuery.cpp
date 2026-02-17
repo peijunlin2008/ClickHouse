@@ -139,6 +139,7 @@ namespace ErrorCodes
     extern const int SUPPORT_IS_DISABLED;
     extern const int TOO_DEEP_RECURSION;
     extern const int UNSUPPORTED_METHOD;
+    extern const int DELTA_KERNEL_ERROR;
 }
 
 namespace ActionLocks
@@ -736,9 +737,10 @@ BlockIO InterpreterSystemQuery::execute()
             bool success = ffi::enable_event_tracing(tracingCallback, level);
 
             if (success)
-                LOG_INFO(getLogger("InterpreterSystemQuery"), "Delta kernel tracing level reloaded to {}", level_str);
+                LOG_INFO(log, "Delta kernel tracing level reloaded to {}", level_str);
             else
-                LOG_WARNING(getLogger("InterpreterSystemQuery"), "Failed to reload delta kernel tracing level to {}", level_str);
+                throw Exception(ErrorCodes::DELTA_KERNEL_ERROR, "Failed to reload delta kernel tracing level to {}", level_str);
+
             break;
 #else
             throw Exception(ErrorCodes::SUPPORT_IS_DISABLED, "Delta Kernel support is not enabled");
