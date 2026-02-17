@@ -22,13 +22,13 @@ def _is_sanitizer_build():
                 binary,
                 "local",
                 "--query",
-                "SELECT hasAddressSanitizer() OR hasThreadSanitizer() OR hasMemorySanitizer()",
+                "SELECT value FROM system.build_options WHERE name = 'CXX_FLAGS'",
             ],
             capture_output=True,
             text=True,
             timeout=30,
         )
-        return result.stdout.strip() == "1"
+        return "-fsanitize=" in result.stdout
     except Exception:
         return False
 
@@ -194,65 +194,69 @@ def test_size_adjustment(started_cluster):
 
     node = cluster.instances["node_smol"]
 
+    # Clean up from a possible previous failed run.
+    node.query("drop table if exists a;" "system drop page cache;")
+
     # A few GB, see configs/smol.xml
     memory_limit = int(node.query("select value from system.server_settings where name='max_server_memory_usage'"))
 
-    # Insert more data than max_server_memory_usage.
-    node.query(
-        "create table a (k Int64 CODEC(NONE)) engine MergeTree order by k settings storage_policy = 's3';"
-        "system stop merges a;"
-        f"insert into a select * from numbers({int(memory_limit * 1.1 // 8)});"
-    )
+    try:
+        # Insert more data than max_server_memory_usage.
+        node.query(
+            "create table a (k Int64 CODEC(NONE)) engine MergeTree order by k settings storage_policy = 's3';"
+            "system stop merges a;"
+            f"insert into a select * from numbers({int(memory_limit * 1.1 // 8)});"
+        )
 
-    # Make sure asynchronous metrics update.
-    time.sleep(3)
+        # Make sure asynchronous metrics update.
+        time.sleep(3)
 
-    def get_metrics():
-        tsv = node.query("select metric, toInt64(value) as value from system.asynchronous_metrics where metric in ('CGroupMemoryTotal', 'CGroupMemoryUsed', 'OSMemoryTotal', 'MemoryResident', 'PageCacheMaxBytes') UNION ALL select metric, value from system.metrics where metric in ('PageCacheBytes', 'PageCacheCells')")
-        pairs = map(lambda p: p.split('\t'), tsv.strip().split('\n'))
-        return {k: int(v) for [k, v] in pairs}
+        def get_metrics():
+            tsv = node.query("select metric, toInt64(value) as value from system.asynchronous_metrics where metric in ('CGroupMemoryTotal', 'CGroupMemoryUsed', 'OSMemoryTotal', 'MemoryResident', 'PageCacheMaxBytes') UNION ALL select metric, value from system.metrics where metric in ('PageCacheBytes', 'PageCacheCells')")
+            pairs = map(lambda p: p.split('\t'), tsv.strip().split('\n'))
+            return {k: int(v) for [k, v] in pairs}
 
-    metrics = get_metrics()
-    logging.info(f"server metrics before reads: {metrics}")
-    memory_used = metrics['MemoryResident']
-    os_memory_limit = metrics['OSMemoryTotal']
-    if 'CGroupMemoryUsed' in metrics:
-        memory_used = max(memory_used, metrics['CGroupMemoryUsed'])
-    if 'CGroupMemoryTotal' in metrics:
-        os_memory_limit = min(os_memory_limit, metrics['CGroupMemoryTotal'])
+        metrics = get_metrics()
+        logging.info(f"server metrics before reads: {metrics}")
+        memory_used = metrics['MemoryResident']
+        os_memory_limit = metrics['OSMemoryTotal']
+        if 'CGroupMemoryUsed' in metrics:
+            memory_used = max(memory_used, metrics['CGroupMemoryUsed'])
+        if 'CGroupMemoryTotal' in metrics:
+            os_memory_limit = min(os_memory_limit, metrics['CGroupMemoryTotal'])
 
-    # Check that the test is run with a high enough memory limit in cgroups.
-    assert os_memory_limit >= memory_limit
+        # Check that the test is run with a high enough memory limit in cgroups.
+        assert os_memory_limit >= memory_limit
 
-    # Check there's at least some free memory for page cache. If this fails, maybe server's memory
-    # usage bloated enough that max_server_memory_usage needs to be increased in configs/smol.xml
-    memory_free = min(os_memory_limit, memory_limit) - memory_used
-    assert memory_free > 100e6
+        # Check there's at least some free memory for page cache. If this fails, maybe server's memory
+        # usage bloated enough that max_server_memory_usage needs to be increased in configs/smol.xml
+        memory_free = min(os_memory_limit, memory_limit) - memory_used
+        assert memory_free > 100e6
 
-    assert metrics['PageCacheMaxBytes'] > 60e6
-    assert metrics['PageCacheBytes'] < 10e6
+        assert metrics['PageCacheMaxBytes'] > 60e6
+        assert metrics['PageCacheBytes'] < 10e6
 
-    # Read with cache enabled.
-    node.query(
-        "select sum(k) from a settings use_page_cache_for_disks_without_file_cache=1;"
-    )
+        # Read with cache enabled.
+        node.query(
+            "select sum(k) from a settings use_page_cache_for_disks_without_file_cache=1;"
+        )
 
-    metrics = get_metrics()
-    logging.info(f"server metrics after first read: {metrics}")
+        metrics = get_metrics()
+        logging.info(f"server metrics after first read: {metrics}")
 
-    assert metrics['PageCacheBytes'] > 50e6
+        assert metrics['PageCacheBytes'] > 50e6
 
-    # Do a query that uses lots of memory (and fails), check that the cache was shrunk to ~page_cache_min_size.
-    err = node.query_and_get_error(
-        "select groupArray(number) from numbers(10000000000)"
-    )
-    assert "MEMORY_LIMIT_EXCEEDED" in err
+        # Do a query that uses lots of memory (and fails), check that the cache was shrunk to ~page_cache_min_size.
+        err = node.query_and_get_error(
+            "select groupArray(number) from numbers(10000000000)"
+        )
+        assert "MEMORY_LIMIT_EXCEEDED" in err
 
-    # (There used to be a check here that system.query_log shows high enough memory usage for the previous
-    #  query, but it was flaky because log flush sometimes hits memory limit and fails.)
+        # (There used to be a check here that system.query_log shows high enough memory usage for the previous
+        #  query, but it was flaky because log flush sometimes hits memory limit and fails.)
 
-    metrics = get_metrics()
-    logging.info(f"server metrics after second read: {metrics}")
-    assert metrics['PageCacheBytes'] < 50e6
-
-    node.query("drop table a;" "system drop page cache;")
+        metrics = get_metrics()
+        logging.info(f"server metrics after second read: {metrics}")
+        assert metrics['PageCacheBytes'] < 50e6
+    finally:
+        node.query("drop table if exists a;" "system drop page cache;")
