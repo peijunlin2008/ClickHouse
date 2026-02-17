@@ -45,6 +45,7 @@ namespace ErrorCodes
     extern const int READONLY;
 }
 
+
 // clang-format off
 
 /** These settings represent fine tunes for internal details of MergeTree storages
@@ -1628,7 +1629,7 @@ namespace ErrorCodes
     )", 0) \
     DECLARE(Bool, table_disk, false, R"(
     This is table disk, the path/endpoint should point to the table data, not to
-    the database data. Can be set only for read-only disks (s3_plain/web).
+    the database data. Can be set only for s3_plain/s3_plain_rewritable/web.
     )", 0) \
     DECLARE(Bool, allow_nullable_key, false, R"(
     Allow Nullable types as primary keys.
@@ -2145,8 +2146,8 @@ static void validateTableDisk(const DiskPtr & disk)
     const auto * disk_object_storage = dynamic_cast<const DiskObjectStorage *>(disk.get());
     if (!disk_object_storage)
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "MergeTree settings `table_disk` is not supported for non-ObjectStorage disks");
-    if (!disk_object_storage->isReadOnly())
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "MergeTree settings `table_disk` is only supported for read-only disks");
+    if (!(disk_object_storage->isReadOnly() || disk_object_storage->isPlain()))
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "MergeTree settings `table_disk` is not supported for {}", disk_object_storage->getStructure());
 }
 
 IMPLEMENT_SETTINGS_TRAITS(MergeTreeSettingsTraits, LIST_OF_MERGE_TREE_SETTINGS)

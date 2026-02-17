@@ -4,7 +4,7 @@
 
 DROP TABLE IF EXISTS uk_price_paid;
 
--- table_disk is supported only by s3_plain/web
+-- table_disk is supported only by s3_plain/s3_plain_rewritable/web
 CREATE TABLE test_table_disk_requires_disk (key Int) ENGINE=MergeTree ORDER BY () SETTINGS table_disk=1; -- { serverError BAD_ARGUMENTS }
 CREATE TABLE test_table_disk_requires_proper_disk (key Int) ENGINE=MergeTree ORDER BY () SETTINGS disk='default', table_disk=1; -- { serverError BAD_ARGUMENTS }
 

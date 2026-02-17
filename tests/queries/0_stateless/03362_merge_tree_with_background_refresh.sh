@@ -10,13 +10,16 @@ CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ${CLICKHOUSE_CLIENT} --query "DROP TABLE IF EXISTS writer SYNC"
 ${CLICKHOUSE_CLIENT} --query "DROP TABLE IF EXISTS reader SYNC"
 
-${CLICKHOUSE_CLIENT} --query "CREATE TABLE writer (s String) ORDER BY ()"
-
-WRITER_DATA_PATH=$(${CLICKHOUSE_CLIENT} --query "
-    SELECT data_paths[1]
-    FROM system.tables
-    WHERE database = currentDatabase() AND name = 'writer'
-")
+${CLICKHOUSE_CLIENT} --query "
+CREATE TABLE writer (s String) ORDER BY ()
+SETTINGS table_disk = true,
+  disk = disk(
+      name = 03362_writer_${CLICKHOUSE_DATABASE},
+      type = object_storage,
+      object_storage_type = local,
+      metadata_type = plain_rewritable,
+      path = 'disks/03362/${CLICKHOUSE_DATABASE}/')
+"
 
 ${CLICKHOUSE_CLIENT} --query "
 CREATE TABLE reader (s String) ORDER BY ()
@@ -26,11 +29,11 @@ SETTINGS table_disk = true, refresh_parts_interval = 1,
       name = 03362_reader_${CLICKHOUSE_DATABASE},
       type = object_storage,
       object_storage_type = local,
-      metadata_type = plain,
-      path = '${WRITER_DATA_PATH}')
+      metadata_type = plain_rewritable,
+      path = 'disks/03362/${CLICKHOUSE_DATABASE}/')
 "
 
-${CLICKHOUSE_CLIENT} --query "INSERT INTO writer SELECT 'Hello'";
+${CLICKHOUSE_CLIENT} --query "INSERT INTO writer VALUES ('Hello')";
 
 while true
 do
