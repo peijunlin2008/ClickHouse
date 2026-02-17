@@ -20,7 +20,7 @@
             --table-header-bg: #f8f9fa;
             --table-hover-bg: #f1f1f1;
             --btn-primary-bg: black;
-            --btn-primary-color: #FCFF74;
+            --btn-primary-color: white;
         }
         [data-theme="dark"] {
             --color: white;
@@ -57,6 +57,9 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 2px 4px var(--shadow-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
         .header h1 {
             margin: 0;
@@ -173,6 +176,10 @@
             top: 0;
         }
         tbody tr:hover {
+            background: var(--table-hover-bg);
+        }
+        tbody tr:hover .sticky-cell-100,
+        tbody tr:hover .sticky-cell-80 {
             background: var(--table-hover-bg);
         }
         .number {
@@ -384,6 +391,8 @@
                 <button class="tab active" onclick="switchTab('summary')">Summary</button>
                 <button class="tab" onclick="switchTab('bins')">Allocations</button>
                 <button class="tab" onclick="switchTab('arenas')">Arenas</button>
+                <button class="tab" onclick="switchTab('operations')">Operations</button>
+                <button class="tab" onclick="switchTab('profile')">Heap Profile</button>
                 <button class="tab" onclick="switchTab('raw')">Raw Output</button>
             </div>
             <div id="tab-summary" class="tab-content active">
@@ -404,9 +413,24 @@
                     <div id="arena-stats"></div>
                 </div>
             </div>
+            <div id="tab-operations" class="tab-content">
+                <div class="section">
+                    <div class="section-title">Background Thread Operations</div>
+                    <div id="operations-stats"></div>
+                </div>
+            </div>
+            <div id="tab-profile" class="tab-content">
+                <div class="section">
+                    <div class="section-title">Heap Profile</div>
+                    <div id="profile-stats"></div>
+                </div>
+            </div>
             <div id="tab-raw" class="tab-content">
                 <div class="section">
-                    <div class="section-title">Raw Statistics</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <div class="section-title" style="margin-bottom: 0;">Raw Statistics</div>
+                        <button class="btn btn-secondary" onclick="copyRawStats()">Copy All</button>
+                    </div>
                     <pre id="raw-stats"></pre>
                 </div>
             </div>
@@ -698,6 +722,43 @@
             event.target.classList.add('active');
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
+        function copyRawStats() {
+            const rawStatsEl = document.getElementById('raw-stats');
+            const text = rawStatsEl.textContent;
+            const button = event.target;
+            const originalText = button.textContent;
+
+            // Create a temporary textarea
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-999999px';
+            textarea.style.top = '-999999px';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    button.textContent = 'Copied!';
+                    button.style.background = 'var(--success-color)';
+                    button.style.color = 'white';
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.style.background = '';
+                        button.style.color = '';
+                    }, 2000);
+                } else {
+                    throw new Error('Copy command failed');
+                }
+            } catch (error) {
+                console.error('Failed to copy:', error);
+                alert('Failed to copy to clipboard. Please try selecting the text manually.');
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        }
         function parseJemallocStats(statsText) {
             const stats = {
                 overview: {},
@@ -758,6 +819,13 @@
                             stats: {}
                         };
                         stats.arenas.push(currentArena);
+                    }
+                }
+                // Parse assigned threads
+                if (currentArena && line.match(/^\s*assigned threads:/)) {
+                    const threadsMatch = line.match(/^\s*assigned threads:\s+(\d+)/);
+                    if (threadsMatch) {
+                        currentArena.stats.assigned_threads = parseInt(threadsMatch[1]);
                     }
                 }
                 // Parse arena total allocated (from total: line)
@@ -1024,10 +1092,15 @@
                     });
                 }
             }
-            // Always update the load balancing heatmap
+            // Always update the load balancing and thread distribution heatmaps
             const loadBalancingDiv = container.querySelector('#arena-load-balancing');
             if (loadBalancingDiv) {
-                loadBalancingDiv.innerHTML = renderArenaLoadBalancing(arenas, arenaAllocations);
+                loadBalancingDiv.innerHTML = `
+                    <div class="heatmap-split-view">
+                        ${renderArenaThreadDistribution(arenas)}
+                        ${renderArenaLoadBalancing(arenas, arenaAllocations)}
+                    </div>
+                `;
             }
             // Update selected arena in dropdown
             const select = container.querySelector('select');
@@ -1350,6 +1423,46 @@
             }
             return arenaExtents;
         }
+        function renderArenaThreadDistribution(arenas) {
+            if (!arenas || arenas.length === 0) {
+                return '';
+            }
+            // Calculate thread distribution for each arena
+            const arenaThreads = arenas.map(arena => {
+                return {
+                    id: arena.id,
+                    assigned_threads: arena.stats.assigned_threads || 0
+                };
+            });
+            // Sort by assigned threads descending
+            const sortedArenas = [...arenaThreads].sort((a, b) => b.assigned_threads - a.assigned_threads);
+            const maxThreads = sortedArenas[0]?.assigned_threads || 1;
+            const totalThreads = arenaThreads.reduce((sum, arena) => sum + arena.assigned_threads, 0);
+            return `
+                <div class="heatmap-container">
+                    <div class="heatmap-title">Arena Thread Distribution</div>
+                    <div class="heatmap-scrollable">
+                        ${sortedArenas.map(arena => {
+                            const percentage = totalThreads > 0 ? (arena.assigned_threads / totalThreads * 100).toFixed(1) : 0;
+                            const width = maxThreads > 0 ? Math.max((arena.assigned_threads / maxThreads * 100), 5) : 5;
+                            let colorClass = 'cool';
+                            if (percentage > 66 / arenas.length) colorClass = 'hot';
+                            else if (percentage > 33 / arenas.length) colorClass = 'warm';
+                            return renderHeatmapBar(
+                                `Arena ${arena.id}`,
+                                colorClass,
+                                width,
+                                `${arena.assigned_threads} (${percentage}%)`,
+                                `${arena.assigned_threads} threads assigned`
+                            );
+                        }).join('')}
+                    </div>
+                    <div style="margin-top: 1rem; font-size: 0.85rem; opacity: 0.8;">
+                        💡 Total threads: ${totalThreads} · Balanced distribution: ${(100 / arenas.length).toFixed(1)}% per arena
+                    </div>
+                </div>
+            `;
+        }
         function renderArenaLoadBalancing(arenas, arenaAllocations) {
             if (!arenas || arenas.length === 0) {
                 return '';
@@ -1373,7 +1486,7 @@
             const sortedArenas = [...arenaLoads].sort((a, b) => b.score - a.score);
             const maxLoad = sortedArenas[0]?.score || 1;
             return `
-                <div class="heatmap-container standalone">
+                <div class="heatmap-container">
                     <div class="heatmap-title">Arena Load Balancing (by Request Rate)</div>
                     <div class="heatmap-scrollable">
                         ${sortedArenas.map(arena => {
@@ -1599,6 +1712,225 @@
                 { name: 'extents' }
             ]);
         }
+        function parseOperationsStats(rawStats) {
+            const operations = {
+                backgroundThreads: null,
+                numRuns: null,
+                runInterval: null,
+                mutexStats: []
+            };
+            const lines = rawStats.replace(/\\n/g, '\n').split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                // Parse background threads info
+                if (line.includes('Background threads:')) {
+                    const match = line.match(/Background threads:\s*(\d+),\s*num_runs:\s*(\d+),\s*run_interval:\s*(\d+)\s*ns/);
+                    if (match) {
+                        operations.backgroundThreads = parseInt(match[1]);
+                        operations.numRuns = parseInt(match[2]);
+                        operations.runInterval = parseInt(match[3]);
+                    }
+                }
+                // Parse mutex statistics
+                // Format: mutex_name    n_lock_ops  (#/sec)  n_waiting  (#/sec)  n_spin_acq  (#/sec)  n_owner_switch  (#/sec)  total_wait_ns  (#/sec)  max_wait_ns  max_n_thds
+                const mutexMatch = line.match(/^\s*(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/);
+                if (mutexMatch && !line.includes('n_lock_ops') && !line.includes('bins:')) {
+                    const name = mutexMatch[1];
+                    // Filter known mutex names
+                    if (['background_thread', 'max_per_bg_thd', 'ctl', 'prof', 'prof_thds_data', 'prof_dump', 'prof_recent_alloc', 'prof_recent_dump', 'prof_stats'].includes(name)) {
+                        operations.mutexStats.push({
+                            name: name,
+                            n_lock_ops: parseInt(mutexMatch[2]),
+                            n_lock_ops_ps: parseInt(mutexMatch[3]),
+                            n_waiting: parseInt(mutexMatch[4]),
+                            n_waiting_ps: parseInt(mutexMatch[5]),
+                            n_spin_acq: parseInt(mutexMatch[6]),
+                            n_spin_acq_ps: parseInt(mutexMatch[7]),
+                            n_owner_switch: parseInt(mutexMatch[8]),
+                            n_owner_switch_ps: parseInt(mutexMatch[9]),
+                            total_wait_ns: parseInt(mutexMatch[10]),
+                            total_wait_ns_ps: parseInt(mutexMatch[11]),
+                            max_wait_ns: parseInt(mutexMatch[12]),
+                            max_n_thds: parseInt(mutexMatch[13])
+                        });
+                    }
+                }
+            }
+            return operations;
+        }
+        function renderOperationsStats(rawStats) {
+            const container = document.getElementById('operations-stats');
+            const operations = parseOperationsStats(rawStats);
+            if (!operations.backgroundThreads && operations.mutexStats.length === 0) {
+                container.innerHTML = '<p>No operations statistics available</p>';
+                return;
+            }
+            // Background thread info section
+            let backgroundInfo = '';
+            if (operations.backgroundThreads !== null) {
+                backgroundInfo = `
+                    <div style="margin-bottom: 2rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                            <div class="metric-card">
+                                <div class="metric-label">Background Threads</div>
+                                <div class="metric-value">${operations.backgroundThreads}</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">Num Runs</div>
+                                <div class="metric-value">${formatNumber(operations.numRuns)}</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">Run Interval</div>
+                                <div class="metric-value">${formatNumber(operations.runInterval)}<span class="metric-unit">ns</span></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            // Mutex statistics table
+            let mutexTable = '';
+            if (operations.mutexStats.length > 0) {
+                mutexTable = `
+                    <h3 style="margin: 1rem 0 0.5rem 0;">Mutex Statistics</h3>
+                    <div style="max-height: 500px; overflow-x: auto; overflow-y: auto;">
+                        <table>
+                            <thead style="position: sticky; top: 0; background: var(--table-header-bg); z-index: 10;">
+                                <tr>
+                                    <th class="sticky-header-100">Mutex</th>
+                                    <th class="number">Lock Ops</th>
+                                    <th class="number">Lock Ops/s</th>
+                                    <th class="number">Waiting</th>
+                                    <th class="number">Waiting/s</th>
+                                    <th class="number">Spin Acq</th>
+                                    <th class="number">Spin Acq/s</th>
+                                    <th class="number">Owner Switch</th>
+                                    <th class="number">Owner Switch/s</th>
+                                    <th class="number">Total Wait (ns)</th>
+                                    <th class="number">Total Wait/s</th>
+                                    <th class="number">Max Wait (ns)</th>
+                                    <th class="number">Max Threads</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${operations.mutexStats.map(mutex => `
+                                    <tr>
+                                        <td class="sticky-cell-100">${mutex.name}</td>
+                                        <td class="number">${formatNumber(mutex.n_lock_ops)}</td>
+                                        <td class="number">${formatNumber(mutex.n_lock_ops_ps)}</td>
+                                        <td class="number">${formatNumber(mutex.n_waiting)}</td>
+                                        <td class="number">${formatNumber(mutex.n_waiting_ps)}</td>
+                                        <td class="number">${formatNumber(mutex.n_spin_acq)}</td>
+                                        <td class="number">${formatNumber(mutex.n_spin_acq_ps)}</td>
+                                        <td class="number">${formatNumber(mutex.n_owner_switch)}</td>
+                                        <td class="number">${formatNumber(mutex.n_owner_switch_ps)}</td>
+                                        <td class="number">${formatNumber(mutex.total_wait_ns)}</td>
+                                        <td class="number">${formatNumber(mutex.total_wait_ns_ps)}</td>
+                                        <td class="number">${formatNumber(mutex.max_wait_ns)}</td>
+                                        <td class="number">${formatNumber(mutex.max_n_thds)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            container.innerHTML = backgroundInfo + mutexTable;
+        }
+        async function checkProfilingEnabled() {
+            try {
+                const query = "SELECT value FROM system.asynchronous_metrics WHERE name = 'jemalloc.prof.thread_active_init'";
+                let url = `${host}?default_format=TabSeparated&query=${encodeURIComponent(query)}`;
+                if (user) {
+                    url += `&user=${encodeURIComponent(user)}`;
+                }
+                if (password) {
+                    url += `&password=${encodeURIComponent(password)}`;
+                }
+                const response = await fetch(url, { method: 'POST' });
+                if (!response.ok) {
+                    return null;
+                }
+                const text = await response.text();
+                return text.trim() === '1';
+            } catch (error) {
+                console.error('Error checking profiling status:', error);
+                return null;
+            }
+        }
+        async function flushProfile() {
+            const button = document.getElementById('flush-profile-btn');
+            const resultDiv = document.getElementById('profile-result');
+            button.disabled = true;
+            button.textContent = 'Flushing...';
+            resultDiv.innerHTML = '<p>Generating profile...</p>';
+            try {
+                const query = "SYSTEM JEMALLOC FLUSH PROFILE";
+                let url = `${host}?default_format=TabSeparated&query=${encodeURIComponent(query)}`;
+                if (user) {
+                    url += `&user=${encodeURIComponent(user)}`;
+                }
+                if (password) {
+                    url += `&password=${encodeURIComponent(password)}`;
+                }
+                const response = await fetch(url, { method: 'POST' });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const result = await response.text();
+                const timestamp = new Date().toLocaleString();
+                resultDiv.innerHTML = `
+                    <div class="metric-card" style="margin-top: 1rem;">
+                        <div class="metric-label">Last Generated Profile</div>
+                        <div style="margin-top: 0.5rem; font-family: Monaco, Consolas, monospace; font-size: 0.9rem; word-break: break-all;">
+                            ${result || 'Profile flushed successfully'}
+                        </div>
+                        <div style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.7;">
+                            Generated at: ${timestamp}
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error flushing profile:', error);
+                resultDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Flush Profile';
+            }
+        }
+        async function renderProfileStats() {
+            const container = document.getElementById('profile-stats');
+            container.innerHTML = '<p>Checking profiling status...</p>';
+            const isEnabled = await checkProfilingEnabled();
+            if (isEnabled === null) {
+                container.innerHTML = `
+                    <div class="metric-card" style="border-left: 4px solid var(--warning-color);">
+                        <div class="metric-label">Profiling Status</div>
+                        <div class="metric-value">Unknown</div>
+                        <p style="margin-top: 1rem; font-size: 0.9rem;">
+                            Unable to determine profiling status. Make sure the query has access to system.asynchronous_metrics.
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+            const statusColor = isEnabled ? 'var(--success-color)' : 'var(--error-color)';
+            const statusText = isEnabled ? 'Enabled' : 'Disabled';
+            const statusIcon = isEnabled ? '✓' : '✗';
+            container.innerHTML = `
+                <div class="metric-card" style="border-left: 4px solid ${statusColor};">
+                    <div class="metric-label">Global Profiler Status</div>
+                    <div class="metric-value">${statusIcon} ${statusText}</div>
+                    ${isEnabled ? '<p style="margin-top: 1rem; font-size: 0.9rem;">Global heap profiling is active. Note that per-query profiling can still be enabled independently.</p>' : '<p style="margin-top: 1rem; font-size: 0.9rem;">Global heap profiling is not enabled. To enable it, set <code style="background: var(--table-header-bg); padding: 0.2rem 0.4rem; border-radius: 3px;">jemalloc_enable_global_profiler</code> in server config and restart the instance. Note that per-query profiling can still be used independently.</p>'}
+                </div>
+                <div style="margin-top: 2rem;">
+                    <button id="flush-profile-btn" class="btn btn-primary" onclick="flushProfile()">Flush Profile</button>
+                    <p style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.8;">
+                        Generates a new heap profile dump. The profile will be saved to the directory configured in jemalloc settings. Works with both global and per-query profiling.
+                    </p>
+                </div>
+                <div id="profile-result"></div>
+            `;
+        }
         async function loadStats(isManualRefresh = false) {
             const loading = document.getElementById('loading');
             const content = document.getElementById('content');
@@ -1635,6 +1967,11 @@
                 renderMemoryOverview(stats.overview);
                 renderBinStats(stats.raw, stats.arenas);
                 renderArenaStats(stats.arenas, stats.raw);
+                renderOperationsStats(stats.raw);
+                // Only check profile status on first load or manual refresh
+                if (isFirstLoad || isManualRefresh) {
+                    renderProfileStats();
+                }
                 // Only update raw stats on manual refresh or first load
                 const rawStatsEl = document.getElementById('raw-stats');
                 rawStatsEl.textContent = stats.raw.replace(/\\n/g, '\n');
