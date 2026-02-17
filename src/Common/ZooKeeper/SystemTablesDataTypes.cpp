@@ -21,6 +21,7 @@ DB::DataTypePtr SystemTablesDataTypes::errorCodeEnum()
             {"ZOPERATIONTIMEOUT",           static_cast<Int8>(Error::ZOPERATIONTIMEOUT)},
             {"ZBADARGUMENTS",               static_cast<Int8>(Error::ZBADARGUMENTS)},
             {"ZINVALIDSTATE",               static_cast<Int8>(Error::ZINVALIDSTATE)},
+            {"ZOUTOFMEMORY",                static_cast<Int8>(Error::ZOUTOFMEMORY)},
             {"ZAPIERROR",                   static_cast<Int8>(Error::ZAPIERROR)},
             {"ZNONODE",                     static_cast<Int8>(Error::ZNONODE)},
             {"ZNOAUTH",                     static_cast<Int8>(Error::ZNOAUTH)},
@@ -36,6 +37,7 @@ DB::DataTypePtr SystemTablesDataTypes::errorCodeEnum()
             {"ZNOTHING",                    static_cast<Int8>(Error::ZNOTHING)},
             {"ZSESSIONMOVED",               static_cast<Int8>(Error::ZSESSIONMOVED)},
             {"ZNOTREADONLY",                static_cast<Int8>(Error::ZNOTREADONLY)},
+            {"ZNOWATCHER",                  static_cast<Int8>(Error::ZNOWATCHER)},
         });
     return result;
 }
