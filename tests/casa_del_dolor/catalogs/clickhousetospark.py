@@ -346,7 +346,7 @@ class ClickHouseTypeMapper:
                     inner_str, _, inner_tp = self.clickhouse_to_spark(
                         elem, True, mapping
                     )
-                    field_name = f"v{i}_{elem.split('(')[0]}"
+                    field_name = f"v{i}_{re.split(r'[^a-zA-Z0-9_]', elem)[0]}"
                     spark_elements.append(f"{field_name}: {inner_str}")
                     struct_fields.append(
                         it.NestedField(
@@ -607,10 +607,11 @@ class ClickHouseTypeMapper:
                 member_type = self.generate_random_spark_sql_type(
                     max_depth=max_depth,
                     current_depth=current_depth + 1,
-                    allow_complex=True,
+                    allow_complex=False,
                 )
                 members.add(member_type)
-            return f"STRUCT<{','.join(f'v{i}_{m.split(chr(40))[0]}:{m}' for i, m in enumerate(members))}>"
+            inside = ','.join(f'v{i}_{re.split(r"[^a-zA-Z0-9_]", m)[0]}:{m}' for i, m in enumerate(members))
+            return f"STRUCT<{inside}>"
 
     def generate_random_spark_type(
         self, allow_variant=True, max_depth=3, current_depth=0
