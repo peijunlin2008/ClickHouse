@@ -296,7 +296,8 @@ catch (...) // NOLINT(bugprone-empty-catch)
 {
 }
 
-static void tryLogCurrentExceptionImpl(Poco::Logger * logger, const std::string & start_of_message, LogsLevel level)
+template <class Logger>
+static void tryLogCurrentExceptionImpl(Logger logger, const std::string & start_of_message, LogsLevel level)
 {
     try
     {
@@ -306,13 +307,13 @@ static void tryLogCurrentExceptionImpl(Poco::Logger * logger, const std::string 
             switch (level)
             {
                 case LogsLevel::none: break;
-                case LogsLevel::test: LOG_TEST(logger, message); break;
-                case LogsLevel::trace: LOG_TRACE(logger, message); break;
-                case LogsLevel::debug: LOG_DEBUG(logger, message); break;
-                case LogsLevel::information: LOG_INFO(logger, message); break;
-                case LogsLevel::warning: LOG_WARNING(logger, message); break;
-                case LogsLevel::error: LOG_ERROR(logger, message); break;
-                case LogsLevel::fatal: LOG_FATAL(logger, message); break;
+                case LogsLevel::test: LOG_TEST(std::move(logger), message); break;
+                case LogsLevel::trace: LOG_TRACE(std::move(logger), message); break;
+                case LogsLevel::debug: LOG_DEBUG(std::move(logger), message); break;
+                case LogsLevel::information: LOG_INFO(std::move(logger), message); break;
+                case LogsLevel::warning: LOG_WARNING(std::move(logger), message); break;
+                case LogsLevel::error: LOG_ERROR(std::move(logger), message); break;
+                case LogsLevel::fatal: LOG_FATAL(std::move(logger), message); break;
             }
         }
         else
@@ -320,13 +321,13 @@ static void tryLogCurrentExceptionImpl(Poco::Logger * logger, const std::string 
             switch (level)
             {
                 case LogsLevel::none: break;
-                case LogsLevel::test: LOG_TEST(logger, "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::trace: LOG_TRACE(logger, "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::debug: LOG_DEBUG(logger, "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::information: LOG_INFO(logger, "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::warning: LOG_WARNING(logger, "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::error: LOG_ERROR(logger, "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::fatal: LOG_FATAL(logger, "{}: {}", start_of_message, message.text); break;
+                case LogsLevel::test: LOG_TEST(std::move(logger), "{}: {}", start_of_message, message.text); break;
+                case LogsLevel::trace: LOG_TRACE(std::move(logger), "{}: {}", start_of_message, message.text); break;
+                case LogsLevel::debug: LOG_DEBUG(std::move(logger), "{}: {}", start_of_message, message.text); break;
+                case LogsLevel::information: LOG_INFO(std::move(logger), "{}: {}", start_of_message, message.text); break;
+                case LogsLevel::warning: LOG_WARNING(std::move(logger), "{}: {}", start_of_message, message.text); break;
+                case LogsLevel::error: LOG_ERROR(std::move(logger), "{}: {}", start_of_message, message.text); break;
+                case LogsLevel::fatal: LOG_FATAL(std::move(logger), "{}: {}", start_of_message, message.text); break;
             }
         }
     }
@@ -374,6 +375,14 @@ void tryLogCurrentException(LoggerPtr logger, const std::string & start_of_messa
 void tryLogCurrentException(const AtomicLogger & logger, const std::string & start_of_message, LogsLevel level)
 {
     tryLogCurrentException(logger.load(), start_of_message, level);
+}
+
+void tryLogCurrentException(LogFrequencyLimiterImpl && logger, const std::string & start_of_message, LogsLevel level)
+{
+    /// Explicitly block MEMORY_LIMIT_EXCEEDED
+    LockMemoryExceptionInThread lock_memory_tracker(VariableContext::Global);
+
+    tryLogCurrentExceptionImpl(std::move(logger), start_of_message, level);
 }
 
 static void getNoSpaceLeftInfoMessage(std::filesystem::path path, String & msg)
