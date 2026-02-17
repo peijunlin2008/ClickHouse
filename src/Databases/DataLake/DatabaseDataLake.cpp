@@ -718,6 +718,7 @@ DatabaseTablesIteratorPtr DatabaseDataLake::getLightweightTablesIterator(
     const FilterByNameFunction & filter_by_table_name,
     bool skip_not_loaded) const
 {
+    Tables tables;
     DB::Names iceberg_tables;
 
     /// Do not throw here, because this might be, for example, a query to system.tables.
