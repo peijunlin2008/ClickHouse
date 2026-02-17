@@ -8,6 +8,7 @@ endif()
 set(S2_SOURCE_DIR "${ClickHouse_SOURCE_DIR}/contrib/s2geometry/src")
 
 set(S2_SRCS
+    "${S2_SOURCE_DIR}/s2/base/malloc_extension.cc"
     "${S2_SOURCE_DIR}/s2/encoded_s2cell_id_vector.cc"
     "${S2_SOURCE_DIR}/s2/encoded_s2point_vector.cc"
     "${S2_SOURCE_DIR}/s2/encoded_s2shape_index.cc"
