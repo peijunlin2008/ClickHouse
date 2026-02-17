@@ -110,15 +110,37 @@ class LakeTableGenerator:
         Args:
             table_name: Name of the table
         """
-        self.write_format = FileFormat.file_from_str(file_format)
+        self.write_format = (
+            FileFormat.file_from_str(random.choice(["parquet", "orc", "avro"]))
+            if not deterministic and random.randint(1, 11) == 1
+            else FileFormat.file_from_str(file_format)
+        )
+        first = True
 
         ddl = f"CREATE TABLE IF NOT EXISTS {catalog_name}.test.{table_name} ("
         columns_def = []
         columns_spark = {}
         self.type_mapper.reset()
+
+        # Add a random column with a complex type to increase variety, but only for non-deterministic tables to avoid issues with schema inference in tests
+        if not deterministic and random.randint(1, 11) == 1:
+            for i in range(1, random.randint(1, 3)):
+                columns.append(
+                    {
+                        "name": f"c4{i}",
+                        "type": self.type_mapper.generate_random_clickhouse_type(
+                            True, True, random.randint(1, 4), 0
+                        ),
+                    }
+                )
+
         for val in columns:
+            # Sometimes skip columns to create more variety in partitioning and properties
+            if not first and not deterministic and random.randint(1, 11) == 1:
+                continue
             # Convert columns
             next_ch_type = val["type"]
+            # Sometimes use something random
             if not deterministic and random.randint(1, 5) == 1:
                 next_ch_type = self.type_mapper.generate_random_clickhouse_type(
                     True, True, random.randint(1, 4), 0
@@ -135,6 +157,7 @@ class LakeTableGenerator:
             columns_spark[val["name"]] = SparkColumn(
                 val["name"], spark_type, nullable, len(generated) > 0
             )
+            first = False
         ddl += ",".join(columns_def)
         ddl += ")"
 
@@ -299,9 +322,25 @@ class IcebergTableGenerator(LakeTableGenerator):
     ) -> str:
         nproperties = self.set_basic_properties()
         fields = []
+        first = True
+
+        # Add a random column with a complex type to increase variety, but only for non-deterministic tables to avoid issues with schema inference in tests
+        if not table.deterministic and random.randint(1, 11) == 1:
+            for i in range(1, random.randint(1, 3)):
+                columns.append(
+                    {
+                        "name": f"c4{i}",
+                        "type": self.type_mapper.generate_random_clickhouse_type(
+                            True, True, random.randint(1, 4), 0
+                        ),
+                    }
+                )
 
         self.type_mapper.reset()
         for val in columns:
+            # Sometimes skip columns to create more variety in partitioning and properties
+            if not first and not table.deterministic and random.randint(1, 11) == 1:
+                continue
             # Convert columns
             next_field_id = self.type_mapper.field_id
             next_ch_type = val["type"]
@@ -322,6 +361,7 @@ class IcebergTableGenerator(LakeTableGenerator):
                 )
             )
             self.type_mapper.increment()
+            first = False
         nschema = Schema(*fields)
 
         if random.randint(1, 2) == 1:
