@@ -346,11 +346,10 @@ public:
 
         if (scan_item.transform_handle.has_value())
         {
-            const ffi::Expression * transform_expr = reinterpret_cast<const ffi::Expression *>(scan_item.transform_handle->get());
             if (!partition_columns.empty())
             {
                 metadata->schema_transform = visitScanCallbackExpression(
-                    transform_expr,
+                    scan_item.transform_handle->get(),
                     read_schema,
                     expression_schema,
                     enable_expression_visitor_logging);
