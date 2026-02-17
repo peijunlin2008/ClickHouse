@@ -1,3 +1,6 @@
+-- Tags: long
+-- long: times out in private
+
 DROP TABLE IF EXISTS t;
 
 -- The number of partition (50) as well as parts is much larger than the allowed number of streams. Let's check that we won't produce too many streams:
