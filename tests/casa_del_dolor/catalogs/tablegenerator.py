@@ -118,9 +118,15 @@ class LakeTableGenerator:
         self.type_mapper.reset()
         for val in columns:
             # Convert columns
+            next_ch_type = val["type"]
+            if not deterministic and random.randint(1, 5) == 1:
+                next_ch_type = self.type_mapper.generate_random_clickhouse_type(
+                    True, True, random.randint(1, 4), 0
+                )
+
             self.type_mapper.increment()
             str_type, nullable, spark_type = self.type_mapper.clickhouse_to_spark(
-                val["type"], False, ClickHouseMapping.Spark
+                next_ch_type, False, ClickHouseMapping.Spark
             )
             generated = self.add_generated_col(columns_spark, spark_type)
             columns_def.append(
@@ -298,8 +304,14 @@ class IcebergTableGenerator(LakeTableGenerator):
         for val in columns:
             # Convert columns
             next_field_id = self.type_mapper.field_id
+            next_ch_type = val["type"]
+            if not table.deterministic and random.randint(1, 5) == 1:
+                next_ch_type = self.type_mapper.generate_random_clickhouse_type(
+                    True, True, random.randint(1, 4), 0
+                )
+
             _, nullable, iceberg_type = self.type_mapper.clickhouse_to_spark(
-                val["type"], False, ClickHouseMapping.Iceberg
+                next_ch_type, False, ClickHouseMapping.Iceberg
             )
             fields.append(
                 it.NestedField(
