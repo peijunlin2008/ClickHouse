@@ -173,6 +173,7 @@ def main():
                     command=(
                         f"ninja -C {STAGE1_BUILD_DIR}"
                         f" install-clang install-clang-resource-headers install-lld"
+                        f" install-compiler-rt-headers"
                     ),
                 )
             )
