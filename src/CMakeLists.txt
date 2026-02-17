@@ -314,25 +314,6 @@ if (ENABLE_CLICKHOUSE_DISTRIBUTED_CACHE)
     add_object_library(clickhouse_server_distributed_cache Server/DistributedCache)
 endif()
 
-# Generate embedded ClickStack resources at build time
-set(CLICKSTACK_RESOURCES_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/Server/ClickStackResources.generated.h")
-file(GLOB_RECURSE CLICKSTACK_FILES
-    CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/contrib/clickstack/out/*"
-)
-add_custom_command(
-    OUTPUT "${CLICKSTACK_RESOURCES_GENERATED}"
-    COMMAND ${CMAKE_COMMAND} -P "${CMAKE_SOURCE_DIR}/cmake/embed_clickstack_resources.cmake"
-    DEPENDS
-        "${CMAKE_SOURCE_DIR}/cmake/embed_clickstack_resources.cmake"
-        ${CLICKSTACK_FILES}
-    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-)
-set_source_files_properties(
-    Server/WebUIRequestHandler.cpp
-    PROPERTIES OBJECT_DEPENDS "${CLICKSTACK_RESOURCES_GENERATED}"
-)
-
 add_object_library(clickhouse_server Server)
 add_object_library(clickhouse_server_http Server/HTTP)
 if (ENABLE_SSL)
@@ -376,6 +357,7 @@ endif()
 
 add_library (dbms STATIC ${dbms_headers} ${dbms_sources})
 target_link_libraries (dbms PRIVATE ch_contrib::libdivide daemon)
+target_link_libraries (dbms PRIVATE ch_contrib::clickstack_resources)
 if (TARGET ch_contrib::jemalloc)
     target_link_libraries (dbms PRIVATE ch_contrib::jemalloc)
 endif()

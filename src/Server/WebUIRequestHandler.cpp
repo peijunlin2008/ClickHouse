@@ -7,7 +7,7 @@
 #include <IO/Operators.h>
 #include <Interpreters/Context.h>
 #include <Server/HTTP/WriteBufferFromHTTPServerResponse.h>
-#include <Server/ClickStackResources.generated.h>
+#include <ClickStackResources.generated.h>
 
 #include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/Util/LayeredConfiguration.h>

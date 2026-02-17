@@ -8,22 +8,33 @@
 #
 # This script scans the contrib/clickstack/out/ directory, gzips all files,
 # and generates C++ code with #embed directives for all files
+#
+# Expected variables (passed via -D):
+#   CLICKSTACK_SOURCE_DIR - Source directory with uncompressed files
+#   CLICKSTACK_DIR - Build directory for gzipped files
+#   GENERATED_FILE - Output path for generated header
 
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 3.25)
 
-# Determine paths automatically
-# CMAKE_CURRENT_BINARY_DIR is where cmake -P is executed from (build/src)
-# Set clickstack source directory (uncompressed files)
-set(CLICKSTACK_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../contrib/clickstack/out")
-get_filename_component(CLICKSTACK_SOURCE_DIR "${CLICKSTACK_SOURCE_DIR}" ABSOLUTE)
+# Validate required variables
+if(NOT DEFINED CLICKSTACK_SOURCE_DIR)
+    message(FATAL_ERROR "CLICKSTACK_SOURCE_DIR not defined")
+endif()
+
+if(NOT DEFINED CLICKSTACK_DIR)
+    message(FATAL_ERROR "CLICKSTACK_DIR not defined")
+endif()
+
+if(NOT DEFINED GENERATED_FILE)
+    message(FATAL_ERROR "GENERATED_FILE not defined")
+endif()
 
 # Check if directory exists
 if(NOT EXISTS "${CLICKSTACK_SOURCE_DIR}")
     message(FATAL_ERROR "ClickStack source directory not found at ${CLICKSTACK_SOURCE_DIR}")
 endif()
 
-# Set clickstack directory for gzipped files in build directory
-set(CLICKSTACK_DIR "${CMAKE_CURRENT_BINARY_DIR}/clickstack_compressed")
+# Create gzipped directory if it doesn't exist
 file(MAKE_DIRECTORY "${CLICKSTACK_DIR}")
 
 # Gzip all files from source directory to gzipped directory
@@ -53,8 +64,7 @@ foreach(file ${source_files})
     endif()
 endforeach()
 
-# Generated file goes in build/src/Server/
-set(GENERATED_FILE "${CMAKE_CURRENT_BINARY_DIR}/Server/ClickStackResources.generated.h")
+# GENERATED_FILE is passed as a parameter
 
 # Compute relative path from generated file location to clickstack dir for #embed directives
 get_filename_component(generated_dir "${GENERATED_FILE}" DIRECTORY)
@@ -184,4 +194,4 @@ string(APPEND output_content "};\n\n")
 string(APPEND output_content "}\n")
 
 # Write the generated file
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/Server/ClickStackResources.generated.h" "${output_content}")
+file(WRITE "${GENERATED_FILE}" "${output_content}")
