@@ -3,7 +3,8 @@ CREATE TABLE t (c UInt64) ENGINE=MergeTree;
 INSERT INTO t SELECT * FROM numbers(999);
 
 SET enable_analyzer = 1,
-    query_plan_join_swap_table = 0;
+    query_plan_join_swap_table = 0,
+    enable_parallel_replicas = 0;
 
 
 SELECT '-------------- Limit < table size -------------';
