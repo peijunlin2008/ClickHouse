@@ -151,7 +151,7 @@ ReturnType readFloatTextPreciseImpl(T & x, ReadBuffer & buf)
     if (likely(!buf.eof() && (buf_from_memory || buf.position() + MAX_LENGTH <= buf.buffer().end())))
     {
         auto * initial_position = buf.position();
-        auto res = fast_float::from_chars(initial_position, buf.buffer().end(), x);
+        auto res = fast_float::from_chars(initial_position, buf.buffer().end(), x, fast_float::chars_format::general | fast_float::chars_format::allow_leading_plus);
 
         if (unlikely(res.ec != std::errc()))
         {
