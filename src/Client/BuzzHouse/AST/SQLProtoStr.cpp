@@ -5140,10 +5140,6 @@ CONV_FN(SystemCommand, cmd)
             ret += "RESET DDL WORKER";
             can_set_cluster = true;
             break;
-        case CmdType::kDropParquetMetadataCache:
-            ret += "DROP PARQUET METADATA CACHE";
-            can_set_cluster = true;
-            break;
         case CmdType::kWaitFailpoint:
             ret += "WAIT FAILPOINT ";
             ret += cmd.wait_failpoint();

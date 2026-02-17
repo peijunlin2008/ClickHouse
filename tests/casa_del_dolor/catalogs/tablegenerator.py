@@ -124,7 +124,7 @@ class LakeTableGenerator:
 
         # Add a random column with a complex type to increase variety, but only for non-deterministic tables to avoid issues with schema inference in tests
         if not deterministic and random.randint(1, 11) == 1:
-            for i in range(1, random.randint(1, 3)):
+            for i in range(0, random.randint(1, 3)):
                 columns.append(
                     {
                         "name": f"c4{i}",
@@ -326,7 +326,7 @@ class IcebergTableGenerator(LakeTableGenerator):
 
         # Add a random column with a complex type to increase variety, but only for non-deterministic tables to avoid issues with schema inference in tests
         if not table.deterministic and random.randint(1, 11) == 1:
-            for i in range(1, random.randint(1, 3)):
+            for i in range(0, random.randint(1, 3)):
                 columns.append(
                     {
                         "name": f"c4{i}",
