@@ -102,6 +102,13 @@ def should_skip_job(job_name):
         return True, f"Skipped, not labeled with '{Labels.CI_MACOS}'"
 
     if (
+        JobNames.BUILD_TOOLCHAIN in job_name
+        and _info_cache.pr_number
+        and Labels.CI_TOOLCHAIN not in _info_cache.pr_labels
+    ):
+        return True, f"Skipped, not labeled with '{Labels.CI_TOOLCHAIN}'"
+
+    if (
         Labels.CI_INTEGRATION_FLAKY in _info_cache.pr_labels
         and job_name not in INTEGRATION_TEST_FLAKY_CHECK_JOBS
     ):
@@ -190,10 +197,8 @@ def should_skip_job(job_name):
         and Labels.CI_PERFORMANCE not in _info_cache.pr_labels
         and JobNames.PERFORMANCE in job_name
         and "arm" in job_name
+        and _info_cache.pr_number  # run all performance jobs on master
     ):
-        if "release_base" in job_name and not _info_cache.pr_number:
-            # comparison with the latest release merge base - do not skip on master
-            return False, ""
         return True, "Skipped, not labeled with 'pr-performance'"
 
     # If only the functional tests script changed, run only the first batch of stateless tests
