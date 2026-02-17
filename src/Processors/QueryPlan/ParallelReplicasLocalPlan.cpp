@@ -23,12 +23,13 @@ namespace FailPoints
     extern const char slowdown_parallel_replicas_local_plan_read[];
 }
 
-ReadFromTableStep * findReadFromTableStep(QueryPlan::Node * node)
+template<class ReadingStep>
+ReadingStep * findReadingStep(const QueryPlan::Node * node)
 {
-    ReadFromTableStep * read_step = nullptr;
+    ReadingStep * read_step = nullptr;
     while (node)
     {
-        read_step = typeid_cast<ReadFromTableStep *>(node->step.get());
+        read_step = typeid_cast<ReadingStep *>(node->step.get());
         if (read_step)
             break;
 
@@ -76,7 +77,7 @@ std::shared_ptr<const QueryPlan> createRemotePlanForParallelReplicas(
     auto query_plan = std::make_shared<QueryPlan>(std::move(interpreter).extractQueryPlan());
     addConvertingActions(*query_plan, header, context);
 
-    auto * parallel_replica_read_step = findReadFromTableStep(query_plan->getRootNode());
+    auto * parallel_replica_read_step = findReadingStep<ReadFromTableStep>(query_plan->getRootNode());
     if (parallel_replica_read_step)
         parallel_replica_read_step->useParallelReplicas() = true;
 
@@ -114,28 +115,7 @@ std::pair<QueryPlanPtr, bool> createLocalPlanForParallelReplicas(
     auto query_plan = std::make_unique<QueryPlan>(std::move(interpreter).extractQueryPlan());
 
     QueryPlan::Node * node = query_plan->getRootNode();
-    ReadFromMergeTree * reading = nullptr;
-    while (node)
-    {
-        reading = typeid_cast<ReadFromMergeTree *>(node->step.get());
-        if (reading)
-            break;
-
-        if (!node->children.empty())
-        {
-            // in case of RIGHT JOIN, - reading from right table is parallelized among replicas
-            const JoinStep * join = typeid_cast<JoinStep *>(node->step.get());
-            const JoinStepLogical * join_logical = typeid_cast<JoinStepLogical *>(node->step.get());
-            if ((join && join->getJoin()->getTableJoin().kind() == JoinKind::Right)
-             || (join_logical && join_logical->getJoinOperator().kind == JoinKind::Right))
-                node = node->children.at(1);
-            else
-                node = node->children.at(0);
-        }
-        else
-            node = nullptr;
-    }
-
+    ReadFromMergeTree * reading = findReadingStep<ReadFromMergeTree>(node);
     if (!reading)
         /// it can happened if merge tree table is empty, - it'll be replaced with ReadFromPreparedSource
         return {std::move(query_plan), false};

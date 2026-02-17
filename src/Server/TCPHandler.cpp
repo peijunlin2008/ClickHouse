@@ -40,7 +40,6 @@
 #include <base/scope_guard.h>
 #include <Poco/Net/SocketAddress.h>
 #include <Poco/Util/LayeredConfiguration.h>
-#include <Common/StackTrace.h>
 #include <Common/OpenTelemetryTraceContext.h>
 #include <Common/CurrentMetrics.h>
 #include <Common/CurrentThread.h>
@@ -1544,8 +1543,6 @@ void TCPHandler::sendReadTaskRequest()
 
 void TCPHandler::sendMergeTreeAllRangesAnnouncement(QueryState &, InitialAllRangesAnnouncement announcement)
 {
-    LOG_DEBUG(getLogger(__func__), "replica={}\n{}", announcement.replica_num, StackTrace().toString());
-
     writeVarUInt(Protocol::Server::MergeTreeAllRangesAnnouncement, *out);
     announcement.serialize(*out, client_parallel_replicas_protocol_version);
 

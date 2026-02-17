@@ -4,9 +4,6 @@
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
 
-#include <Common/logger_useful.h>
-#include <Common/StackTrace.h>
-
 namespace DB
 {
 
@@ -25,7 +22,6 @@ ReadFromTableStep::ReadFromTableStep(
     , table_expression_modifiers(std::move(table_expression_modifiers_))
     , use_parallel_replicas(use_parallel_replicas_)
 {
-    LOG_DEBUG(getLogger(__func__), "\n{}", StackTrace().toString());
 }
 
 void ReadFromTableStep::initializePipeline(QueryPipelineBuilder &, const BuildQueryPipelineSettings &)
