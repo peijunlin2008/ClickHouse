@@ -533,7 +533,7 @@ void FuzzConfig::loadServerConfigurations()
         this->failpoints,
         "failpoints",
         "SELECT \"name\" FROM \"system\".\"fail_points\""
-        " WHERE \"name\" NOT IN ('keeper_leader_sets_invalid_digest', 'terminate_with_exception', 'terminate_with_std_exception'))");
+        " WHERE \"name\" NOT IN ('keeper_leader_sets_invalid_digest', 'terminate_with_exception', 'terminate_with_std_exception')");
 }
 
 String FuzzConfig::getConnectionHostAndPort(const bool secure) const

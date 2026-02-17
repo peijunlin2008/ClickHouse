@@ -2829,7 +2829,7 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
         + reload_dictionary + flush_distributed + stop_distributed_sends + start_distributed_sends + drop_query_condition_cache
         + enable_failpoint + disable_failpoint + reconnect_keeper + drop_text_index_dictionary_cache + drop_text_index_header_cache
         + drop_text_index_postings_cache + drop_text_index_caches + iceberg_metadata_cache + reset_ddl_worker + drop_parquet_metadata_cache
-        + wait_failpoint + notify_failpoint + 1;
+        + wait_failpoint + notify_failpoint;
     std::uniform_int_distribution<uint32_t> next_dist(1, prob_space);
     const uint32_t nopt = next_dist(rg.generator);
     std::optional<String> cluster;
