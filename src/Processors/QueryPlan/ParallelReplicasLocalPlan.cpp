@@ -23,14 +23,15 @@ namespace FailPoints
     extern const char slowdown_parallel_replicas_local_plan_read[];
 }
 
-template<class ReadingStep>
-ReadingStep * findReadingStep(const QueryPlan::Node * node)
+/// Finds and returns the QueryPlan node containing the specified ReadingStep type or nullptr
+template <class ReadingStep>
+static QueryPlan::Node * findReadingStep(QueryPlan::Node * node)
 {
-    ReadingStep * read_step = nullptr;
+    ReadingStep * reading_step = nullptr;
     while (node)
     {
-        read_step = typeid_cast<ReadingStep *>(node->step.get());
-        if (read_step)
+        reading_step = typeid_cast<ReadingStep *>(node->step.get());
+        if (reading_step)
             break;
 
         if (!node->children.empty())
@@ -48,7 +49,7 @@ ReadingStep * findReadingStep(const QueryPlan::Node * node)
             node = nullptr;
     }
 
-    return read_step;
+    return node;
 }
 
 std::shared_ptr<const QueryPlan> createRemotePlanForParallelReplicas(
@@ -77,9 +78,9 @@ std::shared_ptr<const QueryPlan> createRemotePlanForParallelReplicas(
     auto query_plan = std::make_shared<QueryPlan>(std::move(interpreter).extractQueryPlan());
     addConvertingActions(*query_plan, header, context);
 
-    auto * parallel_replica_read_step = findReadingStep<ReadFromTableStep>(query_plan->getRootNode());
-    if (parallel_replica_read_step)
-        parallel_replica_read_step->useParallelReplicas() = true;
+    auto * node = findReadingStep<ReadFromTableStep>(query_plan->getRootNode());
+    if (node)
+        typeid_cast<ReadFromTableStep*>(node->step.get())->useParallelReplicas() = true;
 
     return query_plan;
 }
@@ -114,11 +115,12 @@ std::pair<QueryPlanPtr, bool> createLocalPlanForParallelReplicas(
     auto interpreter = InterpreterSelectQueryAnalyzer(query_ast, new_context, select_query_options);
     auto query_plan = std::make_unique<QueryPlan>(std::move(interpreter).extractQueryPlan());
 
-    QueryPlan::Node * node = query_plan->getRootNode();
-    ReadFromMergeTree * reading = findReadingStep<ReadFromMergeTree>(node);
-    if (!reading)
+    auto * node = findReadingStep<ReadFromMergeTree>(query_plan->getRootNode());
+    if (!node)
         /// it can happened if merge tree table is empty, - it'll be replaced with ReadFromPreparedSource
         return {std::move(query_plan), false};
+
+    auto * reading = typeid_cast<ReadFromMergeTree*>(node->step.get());
 
     ReadFromMergeTree::AnalysisResultPtr analyzed_result_ptr;
     if (analyzed_read_from_merge_tree.get())
