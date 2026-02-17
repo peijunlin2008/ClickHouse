@@ -10,6 +10,15 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
 }
 
+static bool isPathRelative(const std::filesystem::path & path)
+{
+    for (const auto & step : path)
+        if (step.string() == "..")
+            return true;
+
+    return false;
+}
+
 NormalizedPath NormalizedPath::parent_path() const
 {
     return NormalizedPath{std::filesystem::path::parent_path()};
@@ -18,20 +27,14 @@ NormalizedPath NormalizedPath::parent_path() const
 NormalizedPath normalizePath(std::string path)
 {
     auto lexically_normal = std::filesystem::path(path).lexically_normal();
-    auto filtered_path = lexically_normal.string();
 
 #ifndef NDEBUG
-    /// Check that paths do not use .. anytime
-    bool is_valid_path = true;
-    for (const auto & step : lexically_normal)
-        if (step.string() == "..")
-            is_valid_path = false;
-
-    if (!is_valid_path)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Path '{}' should not be used in disks", lexically_normal.string());
+    if (isPathRelative(lexically_normal))
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Path '{}' should not be used in disks", lexically_normal);
 #endif
 
     /// Remove leftovers from the ends
+    auto filtered_path = lexically_normal.string();
     std::string_view normalized_path = filtered_path;
     while (normalized_path.ends_with('/') || normalized_path.ends_with('.'))
         normalized_path.remove_suffix(1);
