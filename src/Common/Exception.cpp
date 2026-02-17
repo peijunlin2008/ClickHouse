@@ -5,9 +5,11 @@
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
 #include <base/demangle.h>
+#include <Core/LogsLevel.h>
 #include <Common/AtomicLogger.h>
 #include <Common/ErrorCodes.h>
 #include <Common/Exception.h>
+#include <Common/ExceptionExt.h>
 #include <Common/LockMemoryExceptionInThread.h>
 #include <Common/Logger.h>
 #include <Common/SensitiveDataMasker.h>
@@ -296,59 +298,6 @@ catch (...) // NOLINT(bugprone-empty-catch)
 {
 }
 
-template <class Logger>
-static void tryLogCurrentExceptionImpl(Logger logger, const std::string & start_of_message, LogsLevel level)
-{
-    try
-    {
-        PreformattedMessage message = getCurrentExceptionMessageAndPattern(true);
-        if (start_of_message.empty())
-        {
-            switch (level)
-            {
-                case LogsLevel::none: break;
-                case LogsLevel::test: LOG_TEST(std::move(logger), message); break;
-                case LogsLevel::trace: LOG_TRACE(std::move(logger), message); break;
-                case LogsLevel::debug: LOG_DEBUG(std::move(logger), message); break;
-                case LogsLevel::information: LOG_INFO(std::move(logger), message); break;
-                case LogsLevel::warning: LOG_WARNING(std::move(logger), message); break;
-                case LogsLevel::error: LOG_ERROR(std::move(logger), message); break;
-                case LogsLevel::fatal: LOG_FATAL(std::move(logger), message); break;
-            }
-        }
-        else
-        {
-            switch (level)
-            {
-                case LogsLevel::none: break;
-                case LogsLevel::test: LOG_TEST(std::move(logger), "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::trace: LOG_TRACE(std::move(logger), "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::debug: LOG_DEBUG(std::move(logger), "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::information: LOG_INFO(std::move(logger), "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::warning: LOG_WARNING(std::move(logger), "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::error: LOG_ERROR(std::move(logger), "{}: {}", start_of_message, message.text); break;
-                case LogsLevel::fatal: LOG_FATAL(std::move(logger), "{}: {}", start_of_message, message.text); break;
-            }
-        }
-    }
-    catch (...) // NOLINT(bugprone-empty-catch)
-    {
-    }
-
-    /// Mark the exception as logged.
-    try
-    {
-        throw;
-    }
-    catch (Exception & e)
-    {
-        e.markAsLogged();
-    }
-    catch (...) // NOLINT(bugprone-empty-catch)
-    {
-    }
-}
-
 void tryLogCurrentException(const char * log_name, const std::string & start_of_message, LogsLevel level)
 {
     /// Explicitly block MEMORY_LIMIT_EXCEEDED
@@ -375,14 +324,6 @@ void tryLogCurrentException(LoggerPtr logger, const std::string & start_of_messa
 void tryLogCurrentException(const AtomicLogger & logger, const std::string & start_of_message, LogsLevel level)
 {
     tryLogCurrentException(logger.load(), start_of_message, level);
-}
-
-void tryLogCurrentException(LogFrequencyLimiterImpl && logger, const std::string & start_of_message, LogsLevel level)
-{
-    /// Explicitly block MEMORY_LIMIT_EXCEEDED
-    LockMemoryExceptionInThread lock_memory_tracker(VariableContext::Global);
-
-    tryLogCurrentExceptionImpl(std::move(logger), start_of_message, level);
 }
 
 static void getNoSpaceLeftInfoMessage(std::filesystem::path path, String & msg)
