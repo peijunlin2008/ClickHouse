@@ -58,7 +58,6 @@ set(S2_SRCS
     "${S2_SOURCE_DIR}/s2/s2fractal.cc"
     "${S2_SOURCE_DIR}/s2/s2furthest_edge_query.cc"
     "${S2_SOURCE_DIR}/s2/s2hausdorff_distance_query.cc"
-    "${S2_SOURCE_DIR}/s2/s2index_cell_data.cc"
     "${S2_SOURCE_DIR}/s2/s2latlng.cc"
     "${S2_SOURCE_DIR}/s2/s2latlng_rect.cc"
     "${S2_SOURCE_DIR}/s2/s2latlng_rect_bounder.cc"
@@ -130,25 +129,15 @@ target_link_libraries(_s2 PRIVATE
     absl::check
     absl::config
     absl::core_headers
-    absl::dynamic_annotations
-    absl::endian
-    absl::fixed_array
     absl::flags
-    absl::flat_hash_map
-    absl::flat_hash_set
-    absl::hash
-    absl::inlined_vector
-    absl::int128
+    absl::flags_reflection
     absl::log
-    absl::log_severity
     absl::memory
+    absl::random_random
     absl::span
     absl::status
-    absl::str_format
     absl::strings
-    absl::type_traits
-    absl::utility
-    absl::vlog_is_on
+    absl::synchronization
 )
 
 target_include_directories(_s2 SYSTEM BEFORE PUBLIC "${S2_SOURCE_DIR}/")
