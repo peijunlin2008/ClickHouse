@@ -355,7 +355,7 @@ Features:
 
 Key differentiators include:
 
-- **Enterprise-Grade Security** - Server-side credential encryption, detailed audit logging, and row/column-level access rules.
+- **Enterprise-Grade Security** - Server-side credential encryption, detailed audit logging, and access rules.
 - **Team Collaboration** - Define custom roles (e.g., specific table access for Analysts) and share queries securely.
 - **AI-Powered Insights** - Integrated LLM support for query optimization and visual explanation.
 - **complete Toolkit** - Features a robust SQL editor, monitoring dashboard, schema explorer, and seamless data import/export.
