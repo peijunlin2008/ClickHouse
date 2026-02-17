@@ -7653,27 +7653,38 @@ void MergeTreeData::optimizeDryRun(
     if (part_names.empty())
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "OPTIMIZE DRY RUN requires at least one part name");
 
+    auto table_lock = lockForShare(local_context->getCurrentQueryId(), local_context->getSettingsRef()[Setting::lock_acquire_timeout]);
     MergeSelectorChoice choice;
     choice.merge_type = MergeType::Regular;
 
+    time_t current_time = time(nullptr);
+    auto storage_policy = getStoragePolicy();
+
     std::set<MergeTreePartInfo> part_infos;
-    for (const auto & name : part_names)
+    for (const auto & part_name : part_names)
     {
-        part_infos.insert(MergeTreePartInfo::fromPartName(name, format_version));
+        part_infos.insert(MergeTreePartInfo::fromPartName(part_name, format_version));
     }
 
     for (const auto & part_info : part_infos)
     {
-        auto part_name = part_info.getPartNameAndCheckFormat(format_version);
+        auto part = getPartIfExists(part_info, {MergeTreeDataPartState::Active});
 
-        if (part_info.getPartitionId() != part_infos.begin()->getPartitionId())
+        if (!part)
+        {
+            throw Exception(ErrorCodes::NO_SUCH_DATA_PART,
+                "Part {} not found in table {}",
+                part_info.getPartNameForLogs(), getStorageID().getNameForLogs());
+        }
+
+        if (!choice.range.empty() && part->info.getPartitionId() != choice.range.front().info.getPartitionId())
         {
             throw Exception(ErrorCodes::BAD_ARGUMENTS,
                 "All parts for OPTIMIZE DRY RUN must belong to the same partition, but part {} belongs to partition {} while part {} belongs to partition {}",
-                part_name, part_info.getPartitionId(), part_infos.begin()->getPartNameAndCheckFormat(format_version), part_infos.begin()->getPartitionId());
+                part->name, part->info.getPartitionId(), choice.range.front().name, choice.range.front().info.getPartitionId());
         }
 
-        choice.range.push_back(PartProperties{.name = std::move(part_name), .info = part_info});
+        choice.range.push_back(buildPartProperties(part, metadata_snapshot, storage_policy, current_time));
     }
 
     if ((*getSettings())[MergeTreeSetting::apply_patches_on_merge])
@@ -7703,7 +7714,6 @@ void MergeTreeData::optimizeDryRun(
     ReservationSharedPtr reservation = getStoragePolicy()->reserveAndCheck(disk_space);
     future_part->updatePath(*this, reservation.get());
 
-    auto table_lock = lockForShare(local_context->getCurrentQueryId(), local_context->getSettingsRef()[Setting::lock_acquire_timeout]);
     MergeTreeDataMergerMutator merger_mutator(*this);
     auto task_context = Context::createCopy(local_context);
     task_context->makeQueryContextForMerge(*getSettings());
@@ -7728,8 +7738,7 @@ void MergeTreeData::optimizeDryRun(
         merging_params,
         nullptr /* txn */);
 
-    while (merge_task->execute()) {}
-    auto new_part = merge_task->getFuture().get();
+    auto new_part = executeHere(merge_task);
 
     LOG_INFO(log,
         "OPTIMIZE DRY RUN: successfully merged {} parts into temporary part {} ({} rows, {} bytes)",
