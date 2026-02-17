@@ -1,12 +1,5 @@
 set(CLICKSTACK_SOURCE_DIR "${ClickHouse_SOURCE_DIR}/contrib/clickstack/out")
 
-# Check if directory exists
-if(NOT EXISTS "${CLICKSTACK_SOURCE_DIR}")
-    message(STATUS "ClickStack source directory not found at ${CLICKSTACK_SOURCE_DIR}")
-    message(STATUS "    git submodule update --init")
-    return()
-endif()
-
 # Set clickstack directory for gzipped files in build directory
 set(CLICKSTACK_DIR "${CMAKE_CURRENT_BINARY_DIR}/clickstack_compressed")
 file(MAKE_DIRECTORY "${CLICKSTACK_DIR}")

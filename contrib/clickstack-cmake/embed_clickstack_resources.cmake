@@ -43,7 +43,7 @@ file(GLOB_RECURSE source_files RELATIVE "${CLICKSTACK_SOURCE_DIR}" "${CLICKSTACK
 foreach(file ${source_files})
     if(NOT IS_DIRECTORY "${CLICKSTACK_SOURCE_DIR}/${file}")
         # Create parent directory structure
-        get_filename_component(file_dir "${file}" DIRECTORY)
+        cmake_path(GET file PARENT_PATH file_dir)
         if(file_dir)
             file(MAKE_DIRECTORY "${CLICKSTACK_DIR}/${file_dir}")
         endif()
@@ -67,7 +67,7 @@ endforeach()
 # GENERATED_FILE is passed as a parameter
 
 # Compute relative path from generated file location to clickstack dir for #embed directives
-get_filename_component(generated_dir "${GENERATED_FILE}" DIRECTORY)
+cmake_path(GET GENERATED_FILE PARENT_PATH generated_dir)
 file(RELATIVE_PATH CLICKSTACK_DIR_RELATIVE "${generated_dir}" "${CLICKSTACK_DIR}")
 
 # Function to determine MIME type from file extension
