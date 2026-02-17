@@ -6165,6 +6165,9 @@ Check that DDL query (such as DROP TABLE or RENAME) will not break dependencies
     DECLARE(Bool, check_referential_table_dependencies, false, R"(
 Check that DDL query (such as DROP TABLE or RENAME) will not break referential dependencies
 )", 0) \
+    DECLARE(Bool, check_named_collection_dependencies, true, R"(
+Check that DROP NAMED COLLECTION will not break tables that depend on it
+)", 0) \
     \
     DECLARE(Bool, allow_unrestricted_reads_from_keeper, false, R"(
 Allow unrestricted (without condition on path) reads from system.zookeeper table, can be handy, but is not safe for zookeeper
