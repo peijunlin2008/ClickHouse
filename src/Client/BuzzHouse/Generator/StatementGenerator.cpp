@@ -2804,8 +2804,8 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
     const uint32_t stop_distributed_sends = 8 * has_distributed_table;
     const uint32_t start_distributed_sends = 8 * has_distributed_table;
     const uint32_t drop_query_condition_cache = 3;
-    const uint32_t enable_failpoint = 20;
-    const uint32_t disable_failpoint = 5;
+    const uint32_t enable_failpoint = 20 * static_cast<uint32_t>(!fc.failpoints.empty());
+    const uint32_t disable_failpoint = 5 * static_cast<uint32_t>(!fc.failpoints.empty());
     const uint32_t reconnect_keeper = 5;
     const uint32_t drop_text_index_dictionary_cache = 3;
     const uint32_t drop_text_index_header_cache = 3;
@@ -2814,6 +2814,8 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
     const uint32_t iceberg_metadata_cache = 3;
     const uint32_t reset_ddl_worker = 3;
     const uint32_t drop_parquet_metadata_cache = 3;
+    const uint32_t wait_failpoint = 5 * static_cast<uint32_t>(!fc.failpoints.empty());
+    const uint32_t notify_failpoint = 5 * static_cast<uint32_t>(!fc.failpoints.empty());
     const uint32_t prob_space = reload_embedded_dictionaries + reload_dictionaries + reload_models + reload_functions + reload_function
         + reload_asynchronous_metrics + drop_dns_cache + drop_mark_cache + drop_uncompressed_cache + drop_compiled_expression_cache
         + drop_query_cache + drop_format_schema_cache + flush_logs + reload_config + reload_users + stop_merges + start_merges
@@ -2826,7 +2828,8 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
         + drop_schema_cache + drop_s3_client_cache + flush_async_insert_queue + sync_filesystem_cache + drop_vector_similarity_index_cache
         + reload_dictionary + flush_distributed + stop_distributed_sends + start_distributed_sends + drop_query_condition_cache
         + enable_failpoint + disable_failpoint + reconnect_keeper + drop_text_index_dictionary_cache + drop_text_index_header_cache
-        + drop_text_index_postings_cache + drop_text_index_caches + iceberg_metadata_cache + reset_ddl_worker + drop_parquet_metadata_cache;
+        + drop_text_index_postings_cache + drop_text_index_caches + iceberg_metadata_cache + reset_ddl_worker + drop_parquet_metadata_cache
+        + wait_failpoint + notify_failpoint + 1;
     std::uniform_int_distribution<uint32_t> next_dist(1, prob_space);
     const uint32_t nopt = next_dist(rg.generator);
     std::optional<String> cluster;
@@ -3655,9 +3658,7 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
                + flush_async_insert_queue + sync_filesystem_cache + drop_vector_similarity_index_cache + reload_dictionary
                + flush_distributed + stop_distributed_sends + start_distributed_sends + drop_query_condition_cache + enable_failpoint + 1))
     {
-        std::uniform_int_distribution<uint32_t> fail_range(1, static_cast<uint32_t>(FailPoint_MAX));
-
-        sc->set_enable_failpoint(static_cast<FailPoint>(fail_range(rg.generator)));
+        sc->set_enable_failpoint(rg.pickRandomly(fc.failpoints));
     }
     else if (
         disable_failpoint
@@ -3676,9 +3677,7 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
                + flush_distributed + stop_distributed_sends + start_distributed_sends + drop_query_condition_cache + enable_failpoint
                + disable_failpoint + 1))
     {
-        std::uniform_int_distribution<uint32_t> fail_range(1, static_cast<uint32_t>(FailPoint_MAX));
-
-        sc->set_disable_failpoint(static_cast<FailPoint>(fail_range(rg.generator)));
+        sc->set_disable_failpoint(rg.pickRandomly(fc.failpoints));
     }
     else if (
         reconnect_keeper
@@ -3837,6 +3836,48 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
                + drop_parquet_metadata_cache + 1))
     {
         sc->set_drop_parquet_metadata_cache(true);
+    }
+    else if (
+        wait_failpoint
+        && nopt
+            < (reload_embedded_dictionaries + reload_dictionaries + reload_models + reload_functions + reload_function
+               + reload_asynchronous_metrics + drop_dns_cache + drop_mark_cache + drop_uncompressed_cache + drop_compiled_expression_cache
+               + drop_query_cache + drop_format_schema_cache + flush_logs + reload_config + reload_users + stop_merges + start_merges
+               + stop_ttl_merges + start_ttl_merges + stop_moves + start_moves + wait_loading_parts + stop_fetches + start_fetches
+               + stop_replicated_sends + start_replicated_sends + stop_replication_queues + start_replication_queues
+               + stop_pulling_replication_log + start_pulling_replication_log + sync_replica + sync_replicated_database + restart_replica
+               + restore_replica + restart_replicas + sync_file_cache + drop_filesystem_cache + load_pks + load_pk + unload_pks + unload_pk
+               + refresh_view + stop_views + stop_view + start_views + start_view + cancel_view + wait_view + prewarm_cache
+               + prewarm_primary_index_cache + drop_connections_cache + drop_primary_index_cache + drop_index_mark_cache
+               + drop_index_uncompressed_cache + drop_mmap_cache + drop_page_cache + drop_schema_cache + drop_s3_client_cache
+               + flush_async_insert_queue + sync_filesystem_cache + drop_vector_similarity_index_cache + reload_dictionary
+               + flush_distributed + stop_distributed_sends + start_distributed_sends + drop_query_condition_cache + enable_failpoint
+               + disable_failpoint + reconnect_keeper + drop_text_index_dictionary_cache + drop_text_index_header_cache
+               + drop_text_index_postings_cache + drop_text_index_caches + iceberg_metadata_cache + reset_ddl_worker
+               + drop_parquet_metadata_cache + wait_failpoint + 1))
+    {
+        sc->set_wait_failpoint(rg.pickRandomly(fc.failpoints));
+    }
+    else if (
+        notify_failpoint
+        && nopt
+            < (reload_embedded_dictionaries + reload_dictionaries + reload_models + reload_functions + reload_function
+               + reload_asynchronous_metrics + drop_dns_cache + drop_mark_cache + drop_uncompressed_cache + drop_compiled_expression_cache
+               + drop_query_cache + drop_format_schema_cache + flush_logs + reload_config + reload_users + stop_merges + start_merges
+               + stop_ttl_merges + start_ttl_merges + stop_moves + start_moves + wait_loading_parts + stop_fetches + start_fetches
+               + stop_replicated_sends + start_replicated_sends + stop_replication_queues + start_replication_queues
+               + stop_pulling_replication_log + start_pulling_replication_log + sync_replica + sync_replicated_database + restart_replica
+               + restore_replica + restart_replicas + sync_file_cache + drop_filesystem_cache + load_pks + load_pk + unload_pks + unload_pk
+               + refresh_view + stop_views + stop_view + start_views + start_view + cancel_view + wait_view + prewarm_cache
+               + prewarm_primary_index_cache + drop_connections_cache + drop_primary_index_cache + drop_index_mark_cache
+               + drop_index_uncompressed_cache + drop_mmap_cache + drop_page_cache + drop_schema_cache + drop_s3_client_cache
+               + flush_async_insert_queue + sync_filesystem_cache + drop_vector_similarity_index_cache + reload_dictionary
+               + flush_distributed + stop_distributed_sends + start_distributed_sends + drop_query_condition_cache + enable_failpoint
+               + disable_failpoint + reconnect_keeper + drop_text_index_dictionary_cache + drop_text_index_header_cache
+               + drop_text_index_postings_cache + drop_text_index_caches + iceberg_metadata_cache + reset_ddl_worker
+               + drop_parquet_metadata_cache + wait_failpoint + notify_failpoint + 1))
+    {
+        sc->set_notify_failpoint(rg.pickRandomly(fc.failpoints));
     }
     else
     {
