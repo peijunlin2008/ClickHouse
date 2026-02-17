@@ -22,7 +22,7 @@ endif()
 # which fails to compile due to __m128i vs __m128i_u type mismatch in the PPC SSE wrappers.
 # Disable it since simdjson already has proper AltiVec/VMX support on ppc64.
 if(ARCH_PPC64LE)
-    target_compile_definitions(_simdjson PRIVATE SIMDJSON_EXPERIMENTAL_HAS_SSE2=0)
+    target_compile_definitions(_simdjson PUBLIC SIMDJSON_EXPERIMENTAL_HAS_SSE2=0)
 endif()
 
 # We allow fallback implementations because binaries are built with all
