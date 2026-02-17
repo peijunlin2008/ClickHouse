@@ -1729,13 +1729,13 @@ void StatementGenerator::addTableColumn(
     auto & to_add = staged ? t.staged_cols : t.cols;
     const uint64_t type_mask_backup = this->next_type_mask;
 
-    if ((t.isMySQLEngine() && (t.is_deterministic || rg.nextSmallNumber() < 4)) || t.hasMySQLPeer())
+    if ((t.isMySQLEngine() && (t.is_deterministic || rg.nextSmallNumber() < 8)) || t.hasMySQLPeer())
     {
         this->next_type_mask &= ~(
             allow_int128 | allow_dynamic | allow_JSON | allow_array | allow_map | allow_tuple | allow_variant | allow_nested | allow_geo
             | set_no_decimal_limit | allow_qbit | allow_aggregate | allow_simple_aggregate);
     }
-    if ((t.isPostgreSQLEngine() && (t.is_deterministic || rg.nextSmallNumber() < 4)) || t.hasPostgreSQLPeer())
+    if ((t.isPostgreSQLEngine() && (t.is_deterministic || rg.nextSmallNumber() < 8)) || t.hasPostgreSQLPeer())
     {
         this->next_type_mask &= ~(
             allow_int128 | allow_unsigned_int | allow_dynamic | allow_JSON | allow_map | allow_tuple | allow_variant | allow_nested
@@ -1746,7 +1746,7 @@ void StatementGenerator::addTableColumn(
             this->next_type_mask &= ~(set_any_datetime_precision);
         }
     }
-    if ((t.isSQLiteEngine() && (t.is_deterministic || rg.nextSmallNumber() < 4)) || t.hasSQLitePeer())
+    if ((t.isSQLiteEngine() && (t.is_deterministic || rg.nextSmallNumber() < 8)) || t.hasSQLitePeer())
     {
         this->next_type_mask &= ~(
             allow_int128 | allow_unsigned_int | allow_dynamic | allow_JSON | allow_array | allow_map | allow_tuple | allow_variant
@@ -1758,7 +1758,7 @@ void StatementGenerator::addTableColumn(
             this->next_type_mask &= ~(allow_bool | allow_decimals);
         }
     }
-    if ((t.isMongoDBEngine() && (t.is_deterministic || rg.nextSmallNumber() < 4)))
+    if ((t.isMongoDBEngine() && (t.is_deterministic || rg.nextSmallNumber() < 8)))
     {
         this->next_type_mask &= ~(
             allow_dynamic | allow_map | allow_tuple | allow_variant | allow_nested | allow_qbit | allow_aggregate | allow_simple_aggregate);

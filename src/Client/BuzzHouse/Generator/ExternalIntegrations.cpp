@@ -1368,7 +1368,8 @@ void MongoDBIntegration::documentAppendAnyValue(
     }
     else
     {
-        UNREACHABLE();
+        /// Workaround for unknown types, insert null
+        document << cname << bsoncxx::types::b_null{};
     }
 }
 
