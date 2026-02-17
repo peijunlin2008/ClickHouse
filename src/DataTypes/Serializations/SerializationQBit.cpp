@@ -454,6 +454,9 @@ DECLARE_X86_64_V4_SPECIFIC_CODE(
 
         const __m512i bmask = _mm512_set1_epi64(bit_mask);
 
+        /// By default clang-21 with X86_64_V4 unrolls this loop (it didn't with AVX512F) and that makes it slower.
+        /// Prevent unrolling to achieve better performance.
+        _Pragma("nounroll")
         for (size_t b = 0; b < bytes_per_fs; ++b, row_base -= 8)
         {
             uint8_t v = src[b];
@@ -523,7 +526,13 @@ DECLARE_X86_64_V4_SPECIFIC_CODE(
         }
     })
 
-DECLARE_X86_64_V4_SPECIFIC_CODE(
+/// Use explicit AVX512BW target instead of x86-64-v4 for better performance
+/// The generic x86-64-v4 arch seems to generate slower code for this specific workload
+_Pragma("clang attribute push(__attribute__((target(\"sse,sse2,sse3,ssse3,sse4.1,sse4.2,popcnt,avx,avx2,fma,f16c,bmi,bmi2,avx512f,avx512cd,avx512bw,avx512dq,avx512vl\"))),apply_to=function)")
+namespace TargetSpecific::x86_64_v4
+{
+    using namespace DB::TargetSpecific::x86_64_v4;
+
     void untransposeBitPlaneBFloat16Impl(const UInt8 * __restrict src, UInt16 * __restrict dst, size_t stride_len, UInt16 bit_mask)
     {
         const size_t bytes_per_fs = stride_len / 8;
@@ -567,7 +576,9 @@ DECLARE_X86_64_V4_SPECIFIC_CODE(
             cur = _mm_mask_mov_epi16(cur, k8, upd);
             _mm_storeu_si128(reinterpret_cast<__m128i *>(rp), cur);
         }
-    })
+    }
+}
+_Pragma("clang attribute pop")
 
 template <typename T>
 void SerializationQBit::untransposeBitPlane(const UInt8 * __restrict src, T * __restrict dst, size_t stride_len, T bit_mask)
