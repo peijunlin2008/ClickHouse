@@ -103,13 +103,15 @@ private:
 
     mutable TableSnapshotCache snapshots TSA_GUARDED_BY(snapshots_mutex);
     mutable std::mutex snapshots_mutex;
-    mutable std::optional<size_t> latest_snapshot_version;
+    mutable std::optional<SnapshotVersion> latest_snapshot_version;
 
     void logMetadataFiles(ContextPtr context) const;
 
     /// No version means latest version.
     DeltaLake::TableSnapshotPtr getTableSnapshot(
         std::optional<SnapshotVersion> version = std::nullopt) const;
+
+    std::string latestSnapshotVersionToStr() const TSA_REQUIRES(snapshots_mutex);
 };
 
 }
