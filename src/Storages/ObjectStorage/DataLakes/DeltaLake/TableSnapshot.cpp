@@ -379,7 +379,7 @@ public:
 
             if (row_indexes.len > 0)
             {
-                LOG_TEST(log, "Row indexes size for file {}: {}", object->getPath(), row_indexes.len);
+                LOG_TEST(log, "Row indexes size {} for file {}", row_indexes.len, object->getPath());
 
                 auto bitmap = std::make_shared<DB::DataLakeObjectMetadata::ExcludedRows>();
                 for (size_t i = 0; i < row_indexes.len; ++i)

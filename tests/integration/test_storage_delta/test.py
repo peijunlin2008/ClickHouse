@@ -3973,7 +3973,7 @@ deltaLake{suffix}({cluster}
     )
     # check rows indexes size is 2
     # (not 3 because third deleted row is inside a different partition and represents a single row inside it)
-    assert node.contains_in_log("Row indexes size for file") and node.contains_in_log(": 2")
+    assert node.contains_in_log("Row indexes size 2 for file")
 
 
 @pytest.mark.parametrize("cluster", [False, True])
