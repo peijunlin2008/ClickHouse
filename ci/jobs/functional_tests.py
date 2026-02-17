@@ -15,6 +15,12 @@ from ci.praktika.utils import MetaClasses, Shell, Utils
 
 temp_dir = f"{Utils.cwd()}/ci/tmp"
 
+assert not Shell.check("false", retries=3, verbose=True)
+assert Shell.run("true") == 0
+assert Shell.run("ls -l /nosuchdir", retry_errors="No such file or directory") == 2
+assert Shell.run("false", retries=3, strict=True)
+
+
 class JobStages(metaclass=MetaClasses.WithIter):
     INSTALL_CLICKHOUSE = "install"
     START = "start"

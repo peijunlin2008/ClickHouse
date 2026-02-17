@@ -414,7 +414,7 @@ class Shell:
                     for err_line in err_output
                     for err in retry_errors
                 ):
-                    if verbose
+                    if verbose:
                         print(
                             f"No retryable errors found, stopping retries"
                         )
