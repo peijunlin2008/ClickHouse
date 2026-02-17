@@ -645,9 +645,6 @@ def test_system_tables(started_cluster):
     assert CATALOG_NAME in node.query("SHOW DATABASES")
     assert table_name in node.query(f"SHOW TABLES FROM {CATALOG_NAME}")
 
-    node.query(f"SYSTEM ENABLE FAILPOINT lightweight_show_tables")
-    node.query(f"SHOW TABLES", timeout=5)
-
     # system.tables
     assert int(node.query(f"SELECT count() FROM system.tables WHERE database = '{CATALOG_NAME}' and table ilike '%{root_namespace}%' SETTINGS show_data_lake_catalogs_in_system_tables = true").strip()) == 4
     assert int(node.query(f"SELECT count() FROM system.tables WHERE database = '{CATALOG_NAME}' and table ilike '%{root_namespace}%'").strip()) == 0
@@ -671,7 +668,7 @@ def test_system_tables(started_cluster):
 def test_show_tables_optimization(started_cluster):
     node = started_cluster.instances["node1"]
 
-    test_ref = f"test_system_tables_{uuid.uuid4()}"
+    test_ref = f"test_show_tables_{uuid.uuid4()}"
     table_name = f"{test_ref}_table"
     root_namespace = f"{test_ref}_namespace"
 
@@ -700,16 +697,16 @@ def test_show_tables_optimization(started_cluster):
     assert table_name in node.query(f"SHOW TABLES FROM {CATALOG_NAME}")
 
     assert not node.contains_in_log(
-        f"Get table information"
+        f"Get table information for table {root_namespace}.{table_name}"
     )
 
-    node.query(f"SELECT * from system.tables where table ilike '%{root_namespace}%'")
+    node.query(f"SELECT * from system.tables where table ilike '%{root_namespace}%' SETTINGS show_data_lake_catalogs_in_system_tables = true")
     assert node.contains_in_log(
-       f"Get table information"
+        f"Get table information for table {root_namespace}.{table_name}"
     )
 
     node.query(f"SYSTEM ENABLE FAILPOINT lightweight_show_tables")
-    node.query(f"SHOW TABLES", timeout=5)
+    node.query(f"SHOW TABLES FROM {CATALOG_NAME}", timeout=5)
 
 def test_table_without_metadata_location(started_cluster):
     """

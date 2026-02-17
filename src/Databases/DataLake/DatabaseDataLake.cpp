@@ -675,8 +675,6 @@ DatabaseTablesIteratorPtr DatabaseDataLake::getTablesIterator(
 
     auto & pool = Context::getGlobalContextInstance()->getIcebergCatalogThreadpool();
 
-    LOG_INFO(log, "Get table information");
-
     std::vector<std::shared_ptr<std::promise<StoragePtr>>> promises;
     std::vector<std::future<StoragePtr>> futures;
     for (const auto & table_name : iceberg_tables)
@@ -695,6 +693,7 @@ DatabaseTablesIteratorPtr DatabaseDataLake::getTablesIterator(
                     StoragePtr storage = nullptr;
                     try
                     {
+                        LOG_INFO(log, "Get table information for table {}", table_name);
                         storage = tryGetTableImpl(table_name, context_, false, skip_not_loaded);
                     }
                     catch (...)
