@@ -485,15 +485,12 @@ class IcebergTableGenerator(LakeTableGenerator):
             "write.metadata.metrics.default": lambda: random.choice(
                 ["none", "counts", "truncate(16)", "full"]
             ),
-            # Column statistics
-            f"write.metadata.metrics.column.{random.choice(list(table.columns.keys()))}": lambda: random.choice(
-                ["none", "counts", "truncate(8)", "truncate(16)", "full"]
-            ),
             # Distribution mode
             "write.distribution-mode": lambda: random.choice(["none", "hash", "range"]),
             "write.delete.distribution-mode": lambda: random.choice(
                 ["none", "hash", "range"]
             ),
+            "write.object-storage.enabled": true_false_lambda,
             # Write parallelism
             "write.tasks.max": lambda: str(
                 random.choice([1, 2, 8, 100, 500, 1000, 2000])
@@ -503,8 +500,14 @@ class IcebergTableGenerator(LakeTableGenerator):
             "write.sort.enabled": true_false_lambda,
             "write.sort.order": lambda: self.random_ordered_columns(table, True),
             # Write modes
+            "write.update.isolation-level": lambda: random.choice(
+                ["serializable", "snapshot"]
+            ),
             "write.update.mode": lambda: random.choice(
                 ["copy-on-write", "merge-on-read"]
+            ),
+            "write.delete.isolation-level": lambda: random.choice(
+                ["serializable", "snapshot"]
             ),
             "write.delete.mode": lambda: random.choice(
                 ["copy-on-write", "merge-on-read"]
@@ -512,6 +515,11 @@ class IcebergTableGenerator(LakeTableGenerator):
             "write.merge.mode": lambda: random.choice(
                 ["copy-on-write", "merge-on-read"]
             ),
+            "write.metadata.compression-codec": lambda: random.choice(
+                ["gzip", "zstd", "none"]
+            ),
+            "write.wap.enabled": true_false_lambda,
+            "read.manifest.cache.enabled": true_false_lambda,
             # Split size
             "read.split.target-size": lambda: str(
                 random.choice(
@@ -548,10 +556,30 @@ class IcebergTableGenerator(LakeTableGenerator):
             # Data locality
             "write.data.locality.enabled": true_false_lambda,
         }
+        # Column statistics
+        next_properties.update(
+            {
+                f"write.metadata.metrics.column.{val}": lambda: random.choice(
+                    ["none", "counts", "truncate(8)", "truncate(16)", "full"]
+                )
+                for val in list(table.columns.keys())
+            }
+        )
         # Parquet specific properties
         if self.write_format == FileFormat.Parquet:
             next_properties.update(
                 {
+                    f"write.parquet.bloom-filter-enabled.column.{val}": true_false_lambda
+                    for val in list(table.columns.keys())
+                }
+            )
+            next_properties.update(
+                {
+                    "write.parquet.bloom-filter-max-bytes": lambda: str(
+                        random.choice(
+                            [1048576, 2097152, 4194304, 8388608]
+                        )  # 1MB, 2MB, 4MB, 8MB
+                    ),
                     "write.parquet.compression-codec": lambda: random.choice(
                         ["snappy", "gzip", "zstd", "lz4", "uncompressed"]
                     ),
@@ -884,26 +912,9 @@ class DeltaLakePropertiesGenerator(LakeTableGenerator):
                     "interval 1 hour",
                 ]
             ),
-            # Sample ratio for stats collection
-            "delta.dataSkippingNumIndexedCols": lambda: str(
-                random.choice([1, 8, 16, 32, 64, 128, 256])
-            ),
             # Auto optimize
             "delta.autoOptimize.optimizeWrite": true_false_lambda,
             "delta.autoOptimize.autoCompact": true_false_lambda,
-            # Optimize write
-            "spark.databricks.delta.autoCompact.enabled": true_false_lambda,
-            # Adaptive shuffle
-            "spark.databricks.delta.optimizeWrite.enabled": true_false_lambda,
-            # Delta cache
-            "spark.databricks.io.cache.enabled": true_false_lambda,
-            "spark.databricks.io.cache.maxDiskUsage": lambda: random.choice(
-                ["10g", "20g", "50g", "100g"]
-            ),
-            "spark.databricks.io.cache.maxMetaDataCache": lambda: random.choice(
-                ["1g", "2g", "5g", "10g"]
-            ),
-            "spark.databricks.io.cache.compression.enabled": true_false_lambda,
             # Column mapping mode
             "delta.columnMapping.mode": lambda: random.choice(["none", "name", "id"]),
             # Set minimum versions for readers and writers
@@ -913,19 +924,10 @@ class DeltaLakePropertiesGenerator(LakeTableGenerator):
             "delta.minWriterVersion": lambda: random.choice(
                 [f"{i}" for i in range(1, 8)]
             ),
-            # Target file size
-            "spark.databricks.delta.optimize.maxFileSize": lambda: random.choice(
-                ["1mb", "2mb", "8mb", "64mb", "128mb", "256mb", "512mb", "1gb"]
-            ),
+            "delta.checkpointPolicy": lambda: random.choice(["classic", "v2"]),
             # Parquet compression
             "spark.sql.parquet.compression.codec": lambda: random.choice(
                 ["snappy", "gzip", "lzo", "lz4", "zstd", "uncompressed"]
-            ),
-            # Parquet file size
-            "spark.databricks.delta.parquet.blockSize": lambda: str(
-                random.choice(
-                    [134217728, 268435456, 536870912]
-                )  # 128MB  # 256MB  # 512MB
             ),
             # Statistics columns
             "delta.dataSkippingNumIndexedCols": lambda: str(
@@ -934,9 +936,8 @@ class DeltaLakePropertiesGenerator(LakeTableGenerator):
             # Statistics collection
             "delta.checkpoint.writeStatsAsJson": true_false_lambda,
             "delta.checkpoint.writeStatsAsStruct": true_false_lambda,
-            # Sampling for stats
-            "spark.databricks.delta.stats.skipping": true_false_lambda,
             "delta.enableChangeDataFeed": true_false_lambda,  # FIXME later requires specific writer version
+            "delta.enableExpiredLogCleanup": true_false_lambda,
             # Append-only table
             "delta.appendOnly": true_false_lambda,
             # Isolation level
@@ -957,6 +958,13 @@ class DeltaLakePropertiesGenerator(LakeTableGenerator):
                     "interval 1 day",
                 ]
             ),
+            "delta.setTransactionRetentionDuration": lambda: random.choice(
+                [
+                    "interval 1 second",
+                    "interval 1 minute",
+                    "interval 1 day",
+                ]
+            ),
             # Compatibility
             "delta.compatibility.symlinkFormatManifest.enabled": true_false_lambda,
             # Enable deletion vectors (Delta 3.0+)
@@ -969,6 +977,36 @@ class DeltaLakePropertiesGenerator(LakeTableGenerator):
             "delta.feature.timestampNtz": lambda: random.choice(
                 ["supported", "enabled"]
             ),
+            # Variant type support
+            "delta.feature.variantType-preview": lambda: random.choice(
+                ["supported", "enabled"]
+            ),
+            # Not available on OSS Spark
+            # Optimize write
+            "spark.databricks.delta.autoCompact.enabled": true_false_lambda,
+            # Adaptive shuffle
+            "spark.databricks.delta.optimizeWrite.enabled": true_false_lambda,
+            # Delta cache
+            "spark.databricks.io.cache.enabled": true_false_lambda,
+            "spark.databricks.io.cache.maxDiskUsage": lambda: random.choice(
+                ["10g", "20g", "50g", "100g"]
+            ),
+            "spark.databricks.io.cache.maxMetaDataCache": lambda: random.choice(
+                ["1g", "2g", "5g", "10g"]
+            ),
+            "spark.databricks.io.cache.compression.enabled": true_false_lambda,
+            # Target file size
+            "spark.databricks.delta.optimize.maxFileSize": lambda: random.choice(
+                ["1mb", "2mb", "8mb", "64mb", "128mb", "256mb", "512mb", "1gb"]
+            ),
+            # Parquet file size
+            "spark.databricks.delta.parquet.blockSize": lambda: str(
+                random.choice(
+                    [134217728, 268435456, 536870912]
+                )  # 128MB  # 256MB  # 512MB
+            ),
+            # Sampling for stats
+            "spark.databricks.delta.stats.skipping": true_false_lambda,
         }
 
     def generate_extra_statement(
