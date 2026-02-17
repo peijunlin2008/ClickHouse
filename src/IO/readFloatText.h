@@ -153,7 +153,7 @@ ReturnType readFloatTextPreciseImpl(T & x, ReadBuffer & buf)
     if (likely(!buf.eof() && (buf_from_memory || buf.position() + MAX_LENGTH <= buf.buffer().end())))
     {
         auto * initial_position = buf.position();
-        auto res = fast_float::from_chars(initial_position, buf.buffer().end(), x, fast_float::chars_format::general | fast_float::chars_format::allow_leading_plus); // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult,clang-analyzer-optin.core.EnumCastOutOfRange)
+        auto res = fast_float::from_chars(initial_position, buf.buffer().end(), x, fast_float::chars_format::general | fast_float::chars_format::allow_leading_plus);
 
         if (unlikely(res.ec != std::errc()))
         {
@@ -240,11 +240,11 @@ ReturnType readFloatTextPreciseImpl(T & x, ReadBuffer & buf)
 
         fast_float::from_chars_result res;
         if constexpr (std::endian::native == std::endian::little)
-            res = fast_float::from_chars(tmp_buf, tmp_buf + num_copied_chars, x); // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult,clang-analyzer-optin.core.EnumCastOutOfRange)
+            res = fast_float::from_chars(tmp_buf, tmp_buf + num_copied_chars, x);
         else
         {
             Float64 x64 = 0.0;
-            res = fast_float::from_chars(tmp_buf, tmp_buf + num_copied_chars, x64); // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult,clang-analyzer-optin.core.EnumCastOutOfRange)
+            res = fast_float::from_chars(tmp_buf, tmp_buf + num_copied_chars, x64);
             x = static_cast<T>(x64);
         }
         if (unlikely(res.ec != std::errc() || res.ptr - tmp_buf != num_copied_chars))
