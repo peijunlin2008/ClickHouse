@@ -1,13 +1,14 @@
 #include <Disks/DiskObjectStorage/MetadataStorages/NormalizedPath.h>
 
-#include <base/defines.h>
-
-#include <algorithm>
-#include <ranges>
-#include <vector>
+#include <Common/Exception.h>
 
 namespace DB
 {
+
+namespace ErrorCodes
+{
+    extern const int LOGICAL_ERROR;
+}
 
 NormalizedPath NormalizedPath::parent_path() const
 {
@@ -19,8 +20,16 @@ NormalizedPath normalizePath(std::string path)
     auto lexically_normal = std::filesystem::path(path).lexically_normal();
     auto filtered_path = lexically_normal.string();
 
+#ifndef NDEBUG
     /// Check that paths do not use .. anytime
-    chassert(std::ranges::contains(lexically_normal | std::views::transform([](const auto & step) { return step.string(); }) | std::ranges::to<std::vector<std::string>>(), "..") == false);
+    bool is_valid_path = true;
+    for (const auto & step : lexically_normal)
+        if (step.string() == "..")
+            is_valid_path = false;
+
+    if (!is_valid_path)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Path '{}' should not be used in disks", lexically_normal.string());
+#endif
 
     /// Remove leftovers from the ends
     std::string_view normalized_path = filtered_path;
