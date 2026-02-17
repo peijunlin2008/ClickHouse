@@ -1,5 +1,3 @@
--- Tags: no-random-settings
-
 -- The partial filter pushdown optimization (tryToExtractPartialPredicate) could
 -- push a filter containing ARRAY_JOIN nodes below a JOIN. removeUnusedActions
 -- unconditionally keeps ARRAY_JOIN nodes (they change row count), which pulls
