@@ -13,6 +13,7 @@ from ci.jobs.scripts.integration_tests_configs import (
     LLVM_COVERAGE_SKIP_PREFIXES,
     get_optimal_test_batch,
 )
+from ci.jobs.scripts.workflow_hooks.pr_labels_and_category import Labels
 from ci.praktika.info import Info
 from ci.praktika.result import Result
 from ci.praktika.utils import Shell, Utils
@@ -415,16 +416,22 @@ tar -czf ./ci/tmp/logs.tar.gz \
                 args.test
             ), "--test must be provided for flaky or bugfix job flavor with local run"
         else:
-            # TODO: reduce scope to modified test cases instead of entire modules
-            changed_files = info.get_changed_files()
-            for file in changed_files:
-                if (
-                    file.startswith("tests/integration/test")
-                    and Path(file).name.startswith("test")
-                    and file.endswith(".py")
-                    and Path(file).is_file()
-                ):
-                    changed_test_modules.append(file.removeprefix("tests/integration/"))
+            if is_bugfix_validation and Labels.PR_BUGFIX not in info.pr_labels:
+                # Not a bugfix PR - run a simple sanity test
+                changed_test_modules = ["test_accept_invalid_certificate/test.py"]
+            else:
+                # TODO: reduce scope to modified test cases instead of entire modules
+                changed_files = info.get_changed_files()
+                for file in changed_files:
+                    if (
+                        file.startswith("tests/integration/test")
+                        and Path(file).name.startswith("test")
+                        and file.endswith(".py")
+                        and Path(file).is_file()
+                    ):
+                        changed_test_modules.append(
+                            file.removeprefix("tests/integration/")
+                        )
 
     if is_bugfix_validation:
         if Utils.is_arm():
@@ -719,7 +726,7 @@ tar -czf ./ci/tmp/logs.tar.gz \
     if has_error:
         R.set_error().set_info("\n".join(error_info))
 
-    if is_bugfix_validation:
+    if is_bugfix_validation and Labels.PR_BUGFIX in info.pr_labels:
         assert (
             is_llvm_coverage is False
         ), "Bugfix validation with LLVM coverage is not supported"
