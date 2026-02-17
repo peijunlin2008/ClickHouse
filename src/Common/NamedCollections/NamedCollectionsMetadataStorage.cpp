@@ -211,7 +211,7 @@ class NamedCollectionsMetadataStorage::ZooKeeperStorage : public INamedCollectio
 private:
     std::string root_path;
     mutable zkutil::ZooKeeperPtr zookeeper_client{nullptr};
-    mutable zkutil::EventPtr wait_event;
+    mutable Coordination::EventPtr wait_event;
     mutable Int32 collections_node_cversion = 0;
 
 public:
@@ -384,7 +384,6 @@ public:
     std::string readHook(const std::string & data) const override
     {
         ReadBufferFromString in(data);
-        Memory<> encrypted_buffer(data.length());
 
         FileEncryption::Header header;
         try
@@ -397,6 +396,7 @@ public:
             throw;
         }
 
+        Memory<> encrypted_buffer(in.available());
         size_t bytes_read = 0;
         while (bytes_read < encrypted_buffer.size() && !in.eof())
         {
@@ -470,7 +470,22 @@ NamedCollectionsMap NamedCollectionsMetadataStorage::getAll() const
                 "Found duplicate named collection `{}`",
                 collection_name);
         }
-        result.emplace(collection_name, get(collection_name));
+        try
+        {
+            result.emplace(collection_name, get(collection_name));
+        }
+        catch (const Coordination::Exception & e)
+        {
+            /// A concurrent update may have removed the collection between listing and reading.
+            /// This is expected in a replicated setup - the next refresh cycle will handle it.
+            if (e.code == Coordination::Error::ZNONODE)
+            {
+                LOG_DEBUG(getLogger("NamedCollectionsMetadataStorage"),
+                    "Collection '{}' was removed while reading, skipping", collection_name);
+                continue;
+            }
+            throw;
+        }
     }
     return result;
 }

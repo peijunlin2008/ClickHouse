@@ -32,13 +32,14 @@ from helpers.s3_tools import (
     upload_directory,
 )
 from helpers.test_tools import TSV
+from helpers.spark_tools import ResilientSparkSession
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
 def get_spark():
     builder = (
-        pyspark.sql.SparkSession.builder.appName("spark_test")
+        pyspark.sql.SparkSession.builder.appName("test_storage_hudi")
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
         .config(
             "spark.sql.catalog.local", "org.apache.spark.sql.hudi.catalog.HoodieCatalog"
@@ -66,7 +67,7 @@ def started_cluster():
         prepare_s3_bucket(cluster)
         logging.info("S3 bucket created")
 
-        cluster.spark_session = get_spark()
+        cluster.spark_session = ResilientSparkSession(get_spark)
 
         yield cluster
 
@@ -319,7 +320,7 @@ def test_types(started_cluster):
             ["a", "Nullable(Int32)"],
             ["b", "Nullable(String)"],
             ["c", "Nullable(Date32)"],
-            ["d", "Array(Nullable(String))"],
+            ["d", "Array(String)"],
             ["e", "Nullable(Bool)"],
         ]
     )

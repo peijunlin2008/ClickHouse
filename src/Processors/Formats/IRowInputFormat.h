@@ -2,6 +2,7 @@
 
 #include <string>
 #include <Columns/IColumn_fwd.h>
+#include <Core/BlockMissingValues.h>
 #include <Processors/Formats/IInputFormat.h>
 #include <QueryPipeline/SizeLimits.h>
 #include <Poco/Timespan.h>
@@ -23,8 +24,10 @@ struct RowReadExtension
 /// Common parameters for generating blocks.
 struct RowInputFormatParams
 {
-    size_t max_block_size = 0;
+    size_t max_block_size_rows = 0;
     size_t max_block_size_bytes = 0;
+    size_t min_block_size_rows = 0;
+    size_t min_block_size_bytes = 0;
 
     UInt64 allow_errors_num = 0;
     Float64 allow_errors_ratio = 0;
@@ -42,7 +45,7 @@ class IRowInputFormat : public IInputFormat
 public:
     using Params = RowInputFormatParams;
 
-    IRowInputFormat(Block header, ReadBuffer & in_, Params params_);
+    IRowInputFormat(SharedHeader header, ReadBuffer & in_, Params params_);
 
     Chunk read() override;
 

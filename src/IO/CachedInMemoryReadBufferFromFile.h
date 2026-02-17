@@ -20,6 +20,7 @@ public:
     String getFileName() const override;
     String getInfoForLog() override;
     bool isSeekCheap() override;
+
     bool isContentCached(size_t offset, size_t size) override;
 
     off_t seek(off_t off, int whence) override;

@@ -22,6 +22,7 @@
 #include <Analyzer/TableNode.h>
 #include <Analyzer/JoinNode.h>
 #include <Analyzer/QueryTreeBuilder.h>
+#include <Analyzer/QueryTreePassManager.h>
 #include <Planner/Utils.h>
 
 using namespace DB;
@@ -204,7 +205,7 @@ static void check(
         checkOld(state, table_num, query, expected);
     }
     {
-        SCOPED_TRACE("New analyzer");
+        SCOPED_TRACE("Analyzer");
         checkNewAnalyzer(state, column_names, query, expected_new.empty() ? expected : expected_new);
     }
 }

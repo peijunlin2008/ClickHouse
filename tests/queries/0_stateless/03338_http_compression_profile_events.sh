@@ -7,8 +7,8 @@ CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 options=(
     compress=0
     compress=1
-    wait_end_of_query=0
-    wait_end_of_query=1
+    http_wait_end_of_query=0
+    http_wait_end_of_query=1
 )
 for option in "${options[@]}"; do
     # We are sending two queries, to make sure that when the second finished,
@@ -21,8 +21,15 @@ for option in "${options[@]}"; do
     ${CLICKHOUSE_CURL} -sS "${urls[@]}" > /dev/null
 done
 
-${CLICKHOUSE_CURL} -sS "${CLICKHOUSE_URL}" -d @- <<< "SYSTEM FLUSH LOGS system.query_log"
-${CLICKHOUSE_CURL} -sS "${CLICKHOUSE_URL}" -d @- <<< "
+# Wait for all HTTP queries to appear in query_log.
+# There is a race between HTTP response being sent and the query_log entry being written.
+for _ in $(seq 1 60); do
+    $CLICKHOUSE_CLIENT -q "SYSTEM FLUSH LOGS system.query_log"
+    count=$($CLICKHOUSE_CLIENT -q "SELECT count() FROM system.query_log WHERE current_database = '$CLICKHOUSE_DATABASE' AND query_id LIKE '$CLICKHOUSE_TEST_UNIQUE_NAME%' AND type != 'QueryStart'")
+    [ "$count" -ge 4 ] && break
+    sleep 0.5
+done
+$CLICKHOUSE_CLIENT -q "
     SELECT formatQuerySingleLine(query), replace(query_id, '$CLICKHOUSE_TEST_UNIQUE_NAME-', ''), ProfileEvents['NetworkSendBytes'] > 0
     FROM system.query_log
     WHERE current_database = '$CLICKHOUSE_DATABASE' AND query_id LIKE '$CLICKHOUSE_TEST_UNIQUE_NAME%' AND type != 'QueryStart'

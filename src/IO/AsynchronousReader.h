@@ -59,6 +59,7 @@ public:
         /// AsynchronousBoundedReadBuffer may set ignore >= size, so it should only be used with
         /// implementations that don't require that.
         size_t ignore = 0;
+        bool direct_io = false;
     };
 
     struct Result

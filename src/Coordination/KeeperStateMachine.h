@@ -4,6 +4,7 @@
 #include <Coordination/KeeperSnapshotManagerS3.h>
 #include <Coordination/KeeperContext.h>
 #include <Common/SharedMutex.h>
+#include <Interpreters/OpenTelemetrySpanLog.h>
 
 #include <base/defines.h>
 #include <libnuraft/nuraft.hxx>
@@ -42,6 +43,7 @@ public:
         WITH_TIME = 1,
         WITH_ZXID_DIGEST = 2,
         WITH_XID_64 = 3,
+        WITH_OPTIONAL_TRACING_CONTEXT = 4,
     };
 
     /// lifetime of a parsed request is:
@@ -60,7 +62,7 @@ public:
 
     static nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(const KeeperRequestForSession & request_for_session);
 
-    virtual bool preprocess(const KeeperRequestForSession & request_for_session) = 0;
+    virtual std::optional<KeeperDigest> preprocess(const KeeperRequestForSession & request_for_session) = 0;
 
     void commit_config(const uint64_t log_idx, nuraft::ptr<nuraft::cluster_config> & new_conf) override; /// NOLINT
 
@@ -96,7 +98,7 @@ public:
     virtual KeeperDigest getNodesDigest() const = 0;
 
     /// Introspection functions for 4lw commands
-    virtual uint64_t getLastProcessedZxid() const = 0;
+    virtual int64_t getLastProcessedZxid() const = 0;
 
     virtual const KeeperStorageStats & getStorageStats() const = 0;
 
@@ -195,7 +197,7 @@ public:
     /// Read state from the latest snapshot
     void init() override;
 
-    bool preprocess(const KeeperRequestForSession & request_for_session) override;
+    std::optional<KeeperDigest> preprocess(const KeeperRequestForSession & request_for_session) override;
 
     nuraft::ptr<nuraft::buffer> pre_commit(uint64_t log_idx, nuraft::buffer & data) override;
 
@@ -234,7 +236,7 @@ public:
     KeeperDigest getNodesDigest() const override;
 
     /// Introspection functions for 4lw commands
-    uint64_t getLastProcessedZxid() const override;
+    int64_t getLastProcessedZxid() const override;
 
     const KeeperStorageStats & getStorageStats() const override;
 

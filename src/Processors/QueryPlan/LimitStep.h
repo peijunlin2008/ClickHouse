@@ -10,7 +10,7 @@ class LimitStep : public ITransformingStep
 {
 public:
     LimitStep(
-        const Header & input_header_,
+        const SharedHeader & input_header_,
         size_t limit_, size_t offset_,
         bool always_read_till_end_ = false, /// Read all data even if limit is reached. Needed for totals.
         bool with_ties_ = false, /// Limit with ties.
@@ -38,7 +38,11 @@ public:
     void serialize(Serialization & ctx) const override;
     bool isSerializable() const override { return true; }
 
-    static std::unique_ptr<IQueryPlanStep> deserialize(Deserialization & ctx);
+    static QueryPlanStepPtr deserialize(Deserialization & ctx);
+
+    bool hasCorrelatedExpressions() const override { return false; }
+
+    bool supportsDataflowStatisticsCollection() const override { return true; }
 
 private:
     void updateOutputHeader() override

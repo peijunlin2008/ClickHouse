@@ -9,7 +9,6 @@
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnString.h>
 #include <Columns/IColumn.h>
-#include <Core/Block.h>
 #include <Core/ColumnNumbers.h>
 #include <Core/SortDescription.h>
 #include <Core/callOnTypeIndex.h>
@@ -115,6 +114,7 @@ struct SortCursorImpl
 
     /// We need a possibility to change pos (see MergeJoin).
     size_t & getPosRef() { return pos; }
+    size_t getPos() const { return pos; }
 
     bool isFirst() const { return pos == 0; }
     bool isLast() const { return pos + 1 >= rows; }

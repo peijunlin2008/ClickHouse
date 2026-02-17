@@ -1,7 +1,5 @@
-#include "CachedInMemoryReadBufferFromFile.h"
-#include <IO/SwapHelper.h>
+#include <IO/CachedInMemoryReadBufferFromFile.h>
 #include <base/scope_guard.h>
-#include <Common/logger_useful.h>
 #include <Common/ProfileEvents.h>
 
 namespace ProfileEvents
@@ -45,25 +43,6 @@ bool CachedInMemoryReadBufferFromFile::isSeekCheap()
     /// Seek is cheap in the sense that seek()+nextImpl() is never much slower than ignore()+nextImpl()
     /// (which is what the caller cares about).
     return true;
-}
-
-bool CachedInMemoryReadBufferFromFile::isContentCached(size_t offset, size_t /*size*/)
-{
-    /// Usually this is called immediately after seek()ing to `offset`.
-
-    if (!working_buffer.empty())
-    {
-        chassert(chunk);
-        return chunk->key.offset <= offset && chunk->key.offset + chunk->key.size > offset;
-    }
-
-    size_t block_size = settings.page_cache_block_size;
-    cache_key.offset = offset / block_size * block_size;
-    cache_key.size = std::min(block_size, file_size.value() - cache_key.offset);
-
-    chunk = cache->get(cache_key, settings.page_cache_inject_eviction);
-
-    return chunk != nullptr;
 }
 
 off_t CachedInMemoryReadBufferFromFile::seek(off_t off, int whence)
@@ -132,7 +111,7 @@ bool CachedInMemoryReadBufferFromFile::nextImpl()
 
     if (chunk != nullptr)
     {
-        chassert(chunk->key.hash() = cache_key.hash());
+        chassert(chunk->key.hash() == cache_key.hash());
         if (file_offset_of_buffer_end < cache_key.offset || file_offset_of_buffer_end >= cache_key.offset + block_size)
             chunk.reset();
     }
@@ -225,6 +204,23 @@ bool CachedInMemoryReadBufferFromFile::nextImpl()
     ProfileEvents::increment(ProfileEvents::PageCacheReadBytes, size);
 
     return true;
+}
+
+bool CachedInMemoryReadBufferFromFile::isContentCached(size_t offset, size_t /*size*/)
+{
+    /// Usually this is called immediately after seek()ing to `offset`.
+
+    if (!working_buffer.empty())
+    {
+        chassert(chunk);
+        return chunk->key.offset <= offset && chunk->key.offset + chunk->key.size > offset;
+    }
+
+    size_t block_size = settings.page_cache_block_size;
+    auto old_offset = std::exchange(cache_key.offset, offset / block_size * block_size);
+    auto old_size = std::exchange(cache_key.size, std::min(block_size, file_size.value() - cache_key.offset));
+    SCOPE_EXIT(cache_key.offset = old_offset; cache_key.size = old_size;);
+    return cache->contains(cache_key, settings.page_cache_inject_eviction);
 }
 
 }
