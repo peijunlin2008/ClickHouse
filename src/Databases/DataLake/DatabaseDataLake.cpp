@@ -659,14 +659,13 @@ DatabaseTablesIteratorPtr DatabaseDataLake::getTablesIterator(
     bool skip_not_loaded) const
 {
     Tables tables;
-    auto catalog = getCatalog();
     DB::Names iceberg_tables;
 
     /// Do not throw here, because this might be, for example, a query to system.tables.
     /// It must not fail on case of some datalake error.
     try
     {
-        iceberg_tables = catalog->getTables();
+        iceberg_tables = getCatalog()->getTables();
     }
     catch (...)
     {
