@@ -527,13 +527,13 @@ void FuzzConfig::loadServerConfigurations()
     loadServerSettings<String>(this->clusters, "clusters", R"(SELECT DISTINCT "cluster" FROM "system"."clusters")");
     loadServerSettings<String>(this->caches, "caches", "SHOW FILESYSTEM CACHES");
     /// keeper_leader_sets_invalid_digest - The server aborts legitimately, can't be used
-    /// terminate_with_exception - Terminates the server
-    /// terminate_with_std_exception - Terminates the server
+    /// terminate_with_exception, terminate_with_std_exception,  libcxx_hardening_out_of_bounds_assertion - Terminates the server
     loadServerSettings<String>(
         this->failpoints,
         "failpoints",
         "SELECT \"name\" FROM \"system\".\"fail_points\""
-        " WHERE \"name\" NOT IN ('keeper_leader_sets_invalid_digest', 'terminate_with_exception', 'terminate_with_std_exception')");
+        " WHERE \"name\" NOT IN ('keeper_leader_sets_invalid_digest', 'terminate_with_exception', "
+        "'terminate_with_std_exception', 'libcxx_hardening_out_of_bounds_assertion')");
 }
 
 String FuzzConfig::getConnectionHostAndPort(const bool secure) const
