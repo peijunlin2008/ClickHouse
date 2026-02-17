@@ -117,6 +117,8 @@ std::future<IAsynchronousReader::Result> AsynchronousBoundedReadBuffer::readAsyn
 {
     if (use_page_cache)
         chassert(data == nullptr);
+    else
+        chassert(data != nullptr);
     IAsynchronousReader::Request request;
     request.descriptor = std::make_shared<RemoteFSFileDescriptor>(*impl, async_read_counters);
     request.buf = data;
@@ -131,6 +133,8 @@ IAsynchronousReader::Result AsynchronousBoundedReadBuffer::readSync(char * data,
 {
     if (use_page_cache)
         chassert(data == nullptr);
+    else
+        chassert(data != nullptr);
     IAsynchronousReader::Request request;
     request.descriptor = std::make_shared<RemoteFSFileDescriptor>(*impl, async_read_counters);
     request.buf = data;
@@ -270,6 +274,8 @@ bool AsynchronousBoundedReadBuffer::nextImpl()
 
     bytes_to_ignore = 0;
     resetWorkingBuffer();
+
+    chassert(use_page_cache || !result.page_cache_cell);
 
     size_t bytes_read = result.size - result.offset;
     if (bytes_read)

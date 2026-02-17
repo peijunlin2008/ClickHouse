@@ -127,15 +127,16 @@ IAsynchronousReader::Result ThreadPoolRemoteFSReader::execute(Request request, b
 {
     CurrentMetrics::Increment metric_increment{CurrentMetrics::RemoteRead};
 
-    if (!request.buf)
+    auto * fd = assert_cast<RemoteFSFileDescriptor *>(request.descriptor.get());
+    auto & reader = fd->getReader();
+    auto * page_cache_reader = typeid_cast<CachedInMemoryReadBufferFromFile *>(&reader);
+
+    /// Page cache readers use their own buffers (PageCacheCell), so request.buf is expected to be null.
+    if (!page_cache_reader && !request.buf)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Request buffer is invalid");
 
     if (!request.size)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Request buffer size cannot be zero");
-
-    auto * fd = assert_cast<RemoteFSFileDescriptor *>(request.descriptor.get());
-    auto & reader = fd->getReader();
-    auto * page_cache_reader = typeid_cast<CachedInMemoryReadBufferFromFile *>(&reader);
 
     auto read_counters = fd->getReadCounters();
     std::optional<AsyncReadIncrement> increment = read_counters ? std::optional<AsyncReadIncrement>(read_counters) : std::nullopt;
