@@ -30,10 +30,10 @@ The default UUID is all-zero. It is used, for example, when a new record is inse
 Due to historical reasons, UUIDs are sorted by their second half.
 
 While this is fine for UUIDv4 values, this can deteriorate performance with UUIDv7 columns used in primary index definitions (usage in ordering keys or partition keys is fine).
-More specifically, UUIDv7 values consist of timestamp field in the first half and a counter field in the second half.
-Sorting in the sparse primary key index (the first value of each index granule) will therefore be by counter field.
-Assume UUIDs were sorted by the first half, then the primary key index analysis step at the beginning of queries is expected to prune all marks in all but one part.
-However, with sorting by the second half, at least one mark will be returned for all parts, leading to many unnecessary disk accesses.
+More specifically, UUIDv7 values consist of a timestamp in the first half and a counter in the second half.
+UUIDv7 sorting in sparse primary key indexes (i.e., the first values of each index granule) will therefore be by counter field.
+Assuming UUIDs were sorted by the first half (timestamp), then the primary key index analysis step at the beginning of queries is expected to prune all marks in all but one part.
+However, with sorting by the second half (counter), at least one mark is expected to be returned for all parts, leading to unnecessary unnecessary disk accesses.
 :::
 
 Example:
