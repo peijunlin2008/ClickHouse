@@ -20,7 +20,7 @@ NormalizedPath normalizePath(std::string path)
     auto filtered_path = lexically_normal.string();
 
     /// Check that paths do not use .. anytime
-    chassert(std::ranges::contains(lexically_normal | std::views::transform([](const auto & step) { return step.string(); }) | std::ranges::to<std::vector<std::string>>(), ".."));
+    chassert(std::ranges::contains(lexically_normal | std::views::transform([](const auto & step) { return step.string(); }) | std::ranges::to<std::vector<std::string>>(), "..") == false);
 
     /// Remove leftovers from the ends
     std::string_view normalized_path = filtered_path;
