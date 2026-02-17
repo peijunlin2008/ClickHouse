@@ -10,7 +10,7 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
 }
 
-static bool isPathRelative(const std::filesystem::path & path)
+[[maybe_unused]] static bool isPathRelative(const std::filesystem::path & path)
 {
     for (const auto & step : path)
         if (step.string() == "..")
@@ -30,7 +30,7 @@ NormalizedPath normalizePath(std::string path)
 
 #ifndef NDEBUG
     if (isPathRelative(lexically_normal))
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Path '{}' should not be used in disks", lexically_normal);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Path '{}' should not be used in disks", lexically_normal.string());
 #endif
 
     /// Remove leftovers from the ends
