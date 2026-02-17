@@ -254,7 +254,7 @@ public:
                         update_stats_func(SnapshotStats{
                             .total_bytes = total_bytes,
                             /// total_rows is an optional statistic, but total_bytes is obligatory.
-                            .total_rows = is_stats_consistent ? total_rows : std::nullopt
+                            .total_rows = total_rows
                         });
                     }
                     return;
@@ -443,12 +443,10 @@ public:
 
         context->total_data_files += 1;
         context->total_bytes += size;
-        if (stats)
-        {
-            if (!context->total_rows.has_value())
-                context->total_rows.emplace();
-            *context->total_rows += stats->num_records;
-        }
+        if (stats && context->total_rows.has_value())
+            context->total_rows.value() += stats->num_records;
+        else
+            context->total_rows = std::nullopt;
 
         context->data_files_cv.notify_one();
     }
@@ -488,8 +486,7 @@ private:
     /// and data scanning thread is finished.
     bool iterator_finished = false;
 
-    std::optional<size_t> total_rows;
-    bool is_stats_consistent = true;
+    std::optional<size_t> total_rows = 0;
     size_t total_bytes = 0;
     size_t total_data_files = 0;
 
@@ -564,8 +561,7 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
         size_t total_data_files = 0;
         size_t total_bytes = 0;
         /// Not all writers add rows count to metadata
-        std::optional<size_t> total_rows;
-        bool is_stats_consistent = true;
+        std::optional<size_t> total_rows = 0;
 
         static void visit(
             ffi::NullableCvoid engine_context,
@@ -580,14 +576,10 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
             auto * visitor = static_cast<StatsVisitor *>(engine_context);
             visitor->total_data_files += 1;
             visitor->total_bytes += static_cast<size_t>(size);
-            if (stats)
-            {
-                if (!visitor->total_rows.has_value())
-                    visitor->total_rows.emplace(0);
+            if (stats && visitor->total_rows.has_value())
                 visitor->total_rows.value() += stats->num_records;
-            }
             else
-                visitor->is_stats_consistent = false;
+                visitor->total_rows = std::nullopt;
         }
 
         static void visitData(void * engine_context, ffi::SharedScanMetadata * scan_metadata)
@@ -622,7 +614,7 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
     return SnapshotStats{
         .total_bytes = visitor.total_bytes,
         /// total_rows is an optional statistic, but total_bytes is obligatory.
-        .total_rows = visitor.is_stats_consistent ? visitor.total_rows : std::nullopt,
+        .total_rows = visitor.total_rows,
     };
 }
 

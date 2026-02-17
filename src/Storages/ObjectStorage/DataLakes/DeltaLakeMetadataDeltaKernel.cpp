@@ -134,9 +134,6 @@ DeltaLakeMetadataDeltaKernel::getTableSnapshot(std::optional<SnapshotVersion> ve
         ? version
         : latest_snapshot_version;
 
-    DeltaLake::TableSnapshotPtr snapshot;
-    bool created = false;
-
     auto snapshot_creator = [&]()
     {
         /// Constructor itself is lightweight.
@@ -147,10 +144,11 @@ DeltaLakeMetadataDeltaKernel::getTableSnapshot(std::optional<SnapshotVersion> ve
             log);
     };
 
+    DeltaLake::TableSnapshotPtr snapshot;
     if (result_snapshot_version.has_value())
     {
-        std::tie(snapshot, created) = snapshots.getOrSet(
-            result_snapshot_version.value(), std::move(snapshot_creator));
+        snapshot = snapshots.getOrSet(
+            result_snapshot_version.value(), std::move(snapshot_creator)).first;
     }
     else
     {

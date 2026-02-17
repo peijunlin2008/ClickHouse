@@ -4356,7 +4356,8 @@ def test_table_statistics(started_cluster):
         f"AND message LIKE '%{message_latest}%'"
     )
     assert int(log_result_latest) == 1
-=======
+
+
 @pytest.mark.parametrize("use_delta_kernel", ["1"])
 def test_system_reload_delta_kernel_tracing(started_cluster, use_delta_kernel):
     """Test SYSTEM RELOAD DELTA KERNEL TRACING command with different log levels."""
@@ -4469,4 +4470,3 @@ def test_system_reload_delta_kernel_tracing(started_cluster, use_delta_kernel):
     # Test invalid level
     error = instance.query_and_get_error("SYSTEM RELOAD DELTA KERNEL TRACING INVALID")
     assert "BAD_ARGUMENTS" in error or "Invalid delta kernel tracing level" in error
->>>>>>> origin/master
