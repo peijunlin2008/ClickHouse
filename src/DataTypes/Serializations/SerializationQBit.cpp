@@ -526,6 +526,8 @@ DECLARE_X86_64_V4_SPECIFIC_CODE(
         }
     })
 
+#if USE_MULTITARGET_CODE
+
 /// Use explicit AVX512BW target instead of x86-64-v4 for better performance
 /// The generic x86-64-v4 arch seems to generate slower code for this specific workload
 _Pragma("clang attribute push(__attribute__((target(\"sse,sse2,sse3,ssse3,sse4.1,sse4.2,popcnt,avx,avx2,fma,f16c,bmi,bmi2,avx512f,avx512cd,avx512bw,avx512dq,avx512vl\"))),apply_to=function)")
@@ -579,6 +581,8 @@ namespace TargetSpecific::x86_64_v4
     }
 }
 _Pragma("clang attribute pop")
+
+#endif
 
 template <typename T>
 void SerializationQBit::untransposeBitPlane(const UInt8 * __restrict src, T * __restrict dst, size_t stride_len, T bit_mask)
