@@ -32,9 +32,6 @@ FROM (SELECT toString(number) AS key FROM numbers(50000)) AS t1
 RIGHT JOIN (SELECT toString(number + 25000) AS key FROM numbers(50000)) AS t2
 ON t1.key = t2.key;
 
---- Verify pipeline structure using EXPLAIN PIPELINE (deterministic, no log timing issues).
-
-SET join_use_nulls = 0;
 SET join_algorithm = 'parallel_hash';
 SET max_threads = 4;
 
