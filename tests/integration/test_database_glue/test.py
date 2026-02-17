@@ -705,7 +705,7 @@ def test_show_tables_optimization(started_cluster):
 
     node.query(f"SELECT * from system.tables where table ilike '%{root_namespace}%'")
     assert node.contains_in_log(
-       f"Get table information for table"
+       f"Get table information"
     )
 
     node.query(f"SYSTEM ENABLE FAILPOINT lightweight_show_tables")
