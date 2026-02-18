@@ -171,7 +171,7 @@ def main():
                 Result.from_commands_run(
                     name="Build Ninja",
                     command=[
-                        f"cmake -B {NINJA_BUILD_DIR} -S {NINJA_SOURCE_DIR} -DCMAKE_BUILD_TYPE=Release",
+                        f"cmake -B {NINJA_BUILD_DIR} -S {NINJA_SOURCE_DIR} -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF",
                         f"cmake --build {NINJA_BUILD_DIR}",
                     ],
                 )
