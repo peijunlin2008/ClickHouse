@@ -196,6 +196,9 @@ def main():
             f" -DLLVM_TARGETS_TO_BUILD=Native"
             f" -DCMAKE_BUILD_TYPE=Release"
             f" -DLLVM_BUILD_INSTRUMENTED=IR"
+            f" -DCMAKE_C_COMPILER=clang-21"
+            f" -DCMAKE_CXX_COMPILER=clang++-21"
+            f" -DLLVM_ENABLE_LLD=ON"
             f" -DLLVM_ENABLE_TERMINFO=OFF"
             f" -DLLVM_ENABLE_ZLIB=OFF"
             f" -DLLVM_ENABLE_ZSTD=OFF"
@@ -227,7 +230,6 @@ def main():
                     command=(
                         f"{CUSTOM_NINJA} -C {STAGE1_BUILD_DIR}"
                         f" install-clang install-clang-resource-headers install-lld"
-                        f" install-compiler-rt-headers"
                     ),
                 )
             )
