@@ -173,10 +173,36 @@ def main():
                     command=(
                         f"ninja -C {STAGE1_BUILD_DIR}"
                         f" install-clang install-clang-resource-headers install-lld"
+                        f" install-compiler-rt-headers"
                     ),
                 )
             )
             res = results[-1].is_ok()
+
+        # Install compiler-rt headers (xray, sanitizer, etc.) into the clang resource
+        # directory so that ClickHouse can find <xray/xray_interface.h> when compiled
+        # with this toolchain.
+        if res:
+            resource_dirs = glob.glob(
+                f"{STAGE1_INSTALL_DIR}/lib/clang/*/include"
+            )
+            if resource_dirs:
+                resource_include = resource_dirs[0]
+                results.append(
+                    Result.from_commands_run(
+                        name="Install compiler-rt headers",
+                        command=(
+                            f"cp -r {LLVM_SOURCE_DIR}/compiler-rt/include/xray"
+                            f" {resource_include}/xray"
+                        ),
+                    )
+                )
+                res = results[-1].is_ok()
+            else:
+                print(
+                    f"WARNING: No clang resource directory found in"
+                    f" {STAGE1_INSTALL_DIR}/lib/clang/*/include"
+                )
 
     # Stage 2: Profile collection - build ClickHouse with instrumented clang
     if res and JobStages.PROFILE_COLLECTION in stages:
@@ -262,16 +288,6 @@ def main():
     if res and JobStages.STAGE2_BUILD in stages:
         clean_dirs(STAGE2_BUILD_DIR, STAGE2_INSTALL_DIR)
         os.makedirs(STAGE2_BUILD_DIR, exist_ok=True)
-
-        # Install binutils-dev for the plugin-api.h header needed to build
-        # LLVMgold.so (required by mold when clang passes --plugin for LTO)
-        results.append(
-            Result.from_commands_run(
-                name="Install binutils-dev",
-                command="apt-get update && apt-get install -y --no-install-recommends binutils-dev",
-            )
-        )
-        res = results[-1].is_ok()
 
         builtin_targets = ";".join(t for t, _ in CROSS_BUILTIN_TARGETS)
         builtin_cmake_args = " ".join(
