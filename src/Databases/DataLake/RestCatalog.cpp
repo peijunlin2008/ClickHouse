@@ -152,61 +152,10 @@ RestCatalog::RestCatalog(
         update_token_if_expired = true;
     }
     else if (!auth_header_.empty())
+    {
         auth_header = parseAuthHeader(auth_header_);
-
-    config = loadConfig();
-}
-
-RestCatalog::RestCatalog(
-    const std::string & warehouse_,
-    const std::string & base_url_,
-    const std::string & onelake_tenant_id,
-    const std::string & onelake_client_id,
-    const std::string & onelake_client_secret,
-    const std::string & auth_scope_,
-    const std::string & oauth_server_uri_,
-    bool oauth_server_use_request_body_,
-    DB::ContextPtr context_)
-    : ICatalog(warehouse_)
-    , DB::WithContext(context_)
-    , base_url(correctAPIURI(base_url_))
-    , log(getLogger("RestCatalog(" + warehouse_ + ")"))
-    , tenant_id(onelake_tenant_id)
-    , client_id(onelake_client_id)
-    , client_secret(onelake_client_secret)
-    , auth_scope(auth_scope_)
-    , oauth_server_uri(oauth_server_uri_)
-    , oauth_server_use_request_body(oauth_server_use_request_body_)
-{
-    update_token_if_expired = true;
-    config = loadConfig();
-}
-
-RestCatalog::RestCatalog(
-    const std::string & warehouse_,
-    const std::string & base_url_,
-    const std::string & google_project_id_,
-    const std::string & google_service_account_,
-    const std::string & google_metadata_service_,
-    const std::string & google_adc_client_id_,
-    const std::string & google_adc_client_secret_,
-    const std::string & google_adc_refresh_token_,
-    const std::string & google_adc_quota_project_id_,
-    DB::ContextPtr context_)
-    : ICatalog(warehouse_)
-    , DB::WithContext(context_)
-    , base_url(correctAPIURI(base_url_))
-    , log(getLogger("RestCatalog(" + warehouse_ + ")"))
-    , google_project_id(google_project_id_)
-    , google_service_account(google_service_account_.empty() ? "default" : google_service_account_)
-    , google_metadata_service(google_metadata_service_.empty() ? "metadata.google.internal" : google_metadata_service_)
-    , google_adc_client_id(google_adc_client_id_)
-    , google_adc_client_secret(google_adc_client_secret_)
-    , google_adc_refresh_token(google_adc_refresh_token_)
-    , google_adc_quota_project_id(google_adc_quota_project_id_)
-{
-    update_token_if_expired = true;
-    config = loadConfig();
+        config = loadConfig();
+    }
 }
 
 
@@ -248,7 +197,7 @@ void RestCatalog::parseCatalogConfigurationSettings(const Poco::JSON::Object::Pt
         result.default_base_location = object->get("default-base-location").extract<String>();
 }
 
-DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool update_token) const
+DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool /*update_token*/) const
 {
     /// Option 1: user specified auth header manually.
     /// Header has format: 'Authorization: <scheme> <token>'.
@@ -257,61 +206,64 @@ DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool update_token) const
         return DB::HTTPHeaderEntries{auth_header.value()};
     }
 
-    /// Option 2: Google Cloud OAuth2 for BigLake.
-    /// Uses GCP metadata service or Application Default Credentials to get access token.
-    /// Only use Google OAuth if explicitly configured (google_project_id or google_adc_client_id).
-    if (!google_project_id.empty() || !google_adc_client_id.empty())
+    /// For base RestCatalog, if catalog_credential is provided, token should be obtained
+    /// by derived classes (OneLakeCatalog, BigLakeCatalog) which override this method.
+    return {};
+}
+
+OneLakeCatalog::OneLakeCatalog(
+    const std::string & warehouse_,
+    const std::string & base_url_,
+    const std::string & onelake_tenant_id,
+    const std::string & onelake_client_id,
+    const std::string & onelake_client_secret,
+    const std::string & auth_scope_,
+    const std::string & oauth_server_uri_,
+    bool oauth_server_use_request_body_,
+    DB::ContextPtr context_)
+    : RestCatalog(
+        warehouse_,
+        base_url_,
+        "", // catalog_credential
+        auth_scope_,
+        "", // auth_header
+        oauth_server_uri_,
+        oauth_server_use_request_body_,
+        context_)
+    , tenant_id(onelake_tenant_id)
+{
+    client_id = onelake_client_id;
+    client_secret = onelake_client_secret;
+    update_token_if_expired = true;
+    // Get token before loading config so getAuthHeaders() can work
+    if (!client_id.empty() && !client_secret.empty())
     {
-        if (!google_access_token.has_value() || update_token
-            || std::chrono::system_clock::now() >= google_access_token->second)
-        {
-            auto token = retrieveGoogleCloudAccessToken();
-            if (!google_access_token.has_value() || google_access_token->first != token)
-            {
-                google_access_token = std::make_pair(token, std::chrono::system_clock::now() + std::chrono::minutes(55));
-            }
-        }
-
-        DB::HTTPHeaderEntries headers;
-        headers.emplace_back("Authorization", "Bearer " + google_access_token->first);
-
-        std::string project_id = google_project_id;
-        if (project_id.empty() && !google_adc_quota_project_id.empty())
-        {
-            project_id = google_adc_quota_project_id;
-        }
-        else if (project_id.empty() && google_adc_credentials.has_value() && !google_adc_credentials->quota_project_id.empty())
-        {
-            project_id = google_adc_credentials->quota_project_id;
-        }
-
-        if (!project_id.empty())
-        {
-            headers.emplace_back("x-goog-user-project", project_id);
-        }
-
-        return headers;
+        access_token = retrieveAccessToken();
     }
+    config = loadConfig();
+}
 
-    /// Option 3: user provided grant_type, client_id and client_secret.
+DB::HTTPHeaderEntries OneLakeCatalog::getAuthHeaders(bool update_token) const
+{
+    /// User provided grant_type, client_id and client_secret.
     /// We would make OAuthClientCredentialsRequest
     /// https://github.com/apache/iceberg/blob/3badfe0c1fcf0c0adfc7aa4a10f0b50365c48cf9/open-api/rest-catalog-open-api.yaml#L3498C5-L3498C34
     if (!client_id.empty())
     {
-        if (!access_token.has_value() || update_token)
+        if (!access_token.has_value() || update_token || access_token->isExpired())
         {
             access_token = retrieveAccessToken();
         }
 
         DB::HTTPHeaderEntries headers;
-        headers.emplace_back("Authorization", "Bearer " + access_token.value());
+        headers.emplace_back("Authorization", "Bearer " + access_token->token);
         return headers;
     }
 
-    return {};
+    return RestCatalog::getAuthHeaders(update_token);
 }
 
-std::string RestCatalog::retrieveAccessToken() const
+AccessToken OneLakeCatalog::retrieveAccessToken() const
 {
     static constexpr auto oauth_tokens_endpoint = "oauth/tokens";
 
@@ -383,10 +335,92 @@ std::string RestCatalog::retrieveAccessToken() const
     Poco::Dynamic::Var res_json = parser.parse(json_str);
     const Poco::JSON::Object::Ptr & object = res_json.extract<Poco::JSON::Object::Ptr>();
 
-    return object->get("access_token").extract<String>();
+    AccessToken token;
+    token.token = object->get("access_token").extract<String>();
+
+    if (object->has("expires_in"))
+    {
+        Int64 expires_in = object->getValue<Int64>("expires_in");
+        token.expires_at = std::chrono::system_clock::now() + std::chrono::seconds(expires_in - 300); /// 5 minutes buffer
+    }
+
+    return token;
 }
 
-RestCatalog::GoogleADCCredentials RestCatalog::getGoogleADCCredentials() const
+BigLakeCatalog::BigLakeCatalog(
+    const std::string & warehouse_,
+    const std::string & base_url_,
+    const std::string & google_project_id_,
+    const std::string & google_service_account_,
+    const std::string & google_metadata_service_,
+    const std::string & google_adc_client_id_,
+    const std::string & google_adc_client_secret_,
+    const std::string & google_adc_refresh_token_,
+    const std::string & google_adc_quota_project_id_,
+    DB::ContextPtr context_)
+    : RestCatalog(
+        warehouse_,
+        base_url_,
+        "", // catalog_credential
+        "", // auth_scope
+        "", // auth_header
+        "", // oauth_server_uri
+        false, // oauth_server_use_request_body
+        context_)
+    , google_project_id(google_project_id_)
+    , google_service_account(google_service_account_)
+    , google_metadata_service(google_metadata_service_)
+    , google_adc_client_id(google_adc_client_id_)
+    , google_adc_client_secret(google_adc_client_secret_)
+    , google_adc_refresh_token(google_adc_refresh_token_)
+    , google_adc_quota_project_id(google_adc_quota_project_id_)
+{
+    update_token_if_expired = true;
+    // Get token before loading config so getAuthHeaders() can work
+    if (!google_project_id.empty() || !google_adc_client_id.empty())
+    {
+        access_token = retrieveGoogleCloudAccessToken();
+    }
+    config = loadConfig();
+}
+
+DB::HTTPHeaderEntries BigLakeCatalog::getAuthHeaders(bool update_token) const
+{
+    /// Google Cloud OAuth2 for BigLake.
+    /// Uses GCP metadata service or Application Default Credentials to get access token.
+    /// Only use Google OAuth if explicitly configured (google_project_id or google_adc_client_id).
+    if (!google_project_id.empty() || !google_adc_client_id.empty())
+    {
+        if (!access_token.has_value() || update_token || access_token->isExpired())
+        {
+            access_token = retrieveGoogleCloudAccessToken();
+        }
+
+        DB::HTTPHeaderEntries headers;
+        headers.emplace_back("Authorization", "Bearer " + access_token->token);
+
+        std::string project_id = google_project_id;
+        if (project_id.empty() && !google_adc_quota_project_id.empty())
+        {
+            project_id = google_adc_quota_project_id;
+        }
+        else if (project_id.empty() && google_adc_credentials.has_value() && !google_adc_credentials->quota_project_id.empty())
+        {
+            project_id = google_adc_credentials->quota_project_id;
+        }
+
+        if (!project_id.empty())
+        {
+            headers.emplace_back("x-goog-user-project", project_id);
+        }
+
+        return headers;
+    }
+
+    return RestCatalog::getAuthHeaders(update_token);
+}
+
+BigLakeCatalog::GoogleADCCredentials BigLakeCatalog::getGoogleADCCredentials() const
 {
     if (google_adc_credentials.has_value())
         return google_adc_credentials.value();
@@ -409,7 +443,7 @@ RestCatalog::GoogleADCCredentials RestCatalog::getGoogleADCCredentials() const
     return adc;
 }
 
-std::string RestCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken(const GoogleADCCredentials & adc) const
+AccessToken BigLakeCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken(const GoogleADCCredentials & adc) const
 {
     static constexpr auto GOOGLE_OAUTH2_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 
@@ -431,6 +465,8 @@ std::string RestCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken(const Go
     const auto & context = getContext();
     auto timeouts = DB::ConnectionTimeouts::getHTTPTimeouts(context->getSettingsRef(), context->getServerSettings());
     DB::HTTPSessionPtr session;
+
+    /// For some reason session can be not initialized after first time, so we need to do retries
     for (size_t i = 0; i < 5; ++i)
     {
         try
@@ -443,6 +479,8 @@ std::string RestCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken(const Go
             DB::tryLogCurrentException(log);
         }
     }
+    if (!session)
+        throw DB::Exception(DB::ErrorCodes::BAD_ARGUMENTS, "Session for big lake catalog is not initialized");
 
     Poco::Net::HTTPRequest request(Poco::Net::HTTPRequest::HTTP_POST, url.getPathAndQuery(),
                                     Poco::Net::HTTPMessage::HTTP_1_1);
@@ -491,21 +529,20 @@ std::string RestCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken(const Go
             token_type);
     }
 
-    access_token = object->getValue<String>("access_token");
+    AccessToken token;
+    token.token = object->getValue<String>("access_token");
 
     /// Cache token expiration if provided (typically 3600 seconds for refresh token flow)
     if (object->has("expires_in"))
     {
         Int64 expires_in = object->getValue<Int64>("expires_in");
-        google_access_token = std::make_pair(
-            *access_token,
-            std::chrono::system_clock::now() + std::chrono::seconds(expires_in - 300)); /// 5 minutes buffer
+        token.expires_at = std::chrono::system_clock::now() + std::chrono::seconds(expires_in - 300); /// 5 minutes buffer
     }
 
-    return *access_token;
+    return token;
 }
 
-std::string RestCatalog::retrieveGoogleCloudAccessToken() const
+AccessToken BigLakeCatalog::retrieveGoogleCloudAccessToken() const
 {
     if (!google_adc_client_id.empty() && !google_adc_client_secret.empty() && !google_adc_refresh_token.empty())
     {
@@ -579,19 +616,18 @@ std::string RestCatalog::retrieveGoogleCloudAccessToken() const
             token_type);
     }
 
-    access_token = object->getValue<String>("access_token");
+    AccessToken token;
+    token.token = object->getValue<String>("access_token");
 
     /// For refresh token flow, tokens typically expire in 1 hour
     /// We'll cache for 55 minutes to be safe
     if (object->has("expires_in"))
     {
         Int64 expires_in = object->getValue<Int64>("expires_in");
-        google_access_token = std::make_pair(
-            *access_token,
-            std::chrono::system_clock::now() + std::chrono::seconds(expires_in - 300));
+        token.expires_at = std::chrono::system_clock::now() + std::chrono::seconds(expires_in - 300);
     }
 
-    return *access_token;
+    return token;
 }
 
 std::optional<StorageType> RestCatalog::getStorageType() const

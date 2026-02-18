@@ -18,7 +18,20 @@ class ReadBuffer;
 namespace DataLake
 {
 
-class RestCatalog final : public ICatalog, private DB::WithContext
+struct AccessToken
+{
+    std::string token;
+    std::optional<std::chrono::system_clock::time_point> expires_at;
+
+    bool isExpired() const
+    {
+        if (!expires_at.has_value())
+            return false;
+        return std::chrono::system_clock::now() >= expires_at.value();
+    }
+};
+
+class RestCatalog : public ICatalog, public DB::WithContext
 {
 public:
     explicit RestCatalog(
@@ -29,29 +42,6 @@ public:
         const std::string & auth_header_,
         const std::string & oauth_server_uri_,
         bool oauth_server_use_request_body_,
-        DB::ContextPtr context_);
-
-    explicit RestCatalog(
-        const std::string & warehouse_,
-        const std::string & base_url_,
-        const std::string & onelake_tenant_id,
-        const std::string & onelake_client_id,
-        const std::string & onelake_client_secret,
-        const std::string & auth_scope_,
-        const std::string & oauth_server_uri_,
-        bool oauth_server_use_request_body_,
-        DB::ContextPtr context_);
-
-    explicit RestCatalog(
-        const std::string & warehouse_,
-        const std::string & base_url_,
-        const std::string & google_project_id_,
-        const std::string & google_service_account_,
-        const std::string & google_metadata_service_,
-        const std::string & google_adc_client_id_,
-        const std::string & google_adc_client_secret_,
-        const std::string & google_adc_refresh_token_,
-        const std::string & google_adc_quota_project_id_,
         DB::ContextPtr context_);
 
     ~RestCatalog() override = default;
@@ -76,10 +66,6 @@ public:
 
     DB::DatabaseDataLakeCatalogType getCatalogType() const override
     {
-        if (!google_project_id.empty() || !google_adc_client_id.empty())
-            return DB::DatabaseDataLakeCatalogType::ICEBERG_BIGLAKE;
-        if (!tenant_id.empty())
-            return DB::DatabaseDataLakeCatalogType::ICEBERG_ONELAKE;
         return DB::DatabaseDataLakeCatalogType::ICEBERG_REST;
     }
 
@@ -91,13 +77,12 @@ public:
 
     void dropTable(const String & namespace_name, const String & table_name) const override;
 
-    String getTenantId() const { return tenant_id; }
+    ICatalog::CredentialsRefreshCallback getCredentialsConfigurationCallback(const DB::StorageID & storage_id) override;
+
     String getClientId() const { return client_id; }
     String getClientSecret() const { return client_secret; }
 
-    ICatalog::CredentialsRefreshCallback getCredentialsConfigurationCallback(const DB::StorageID & storage_id) override;
-
-private:
+protected:
     void createNamespaceIfNotExists(const String & namespace_name, const String & location) const;
 
     struct Config
@@ -121,35 +106,14 @@ private:
     /// Auth headers of format: "Authorization": "<auth_scheme> <token>"
     std::optional<DB::HTTPHeaderEntry> auth_header;
 
-    /// Parameters for OAuth.
+    /// Parameters for OAuth (common for REST catalog).
     bool update_token_if_expired = false;
-    std::string tenant_id;
     std::string client_id;
     std::string client_secret;
     std::string auth_scope;
     std::string oauth_server_uri;
     bool oauth_server_use_request_body;
-    mutable std::optional<std::string> access_token;
-
-    /// Parameters for Google Cloud OAuth2 (BigLake).
-    std::string google_project_id;
-    std::string google_service_account;
-    std::string google_metadata_service;
-    std::string google_adc_client_id;
-    std::string google_adc_client_secret;
-    std::string google_adc_refresh_token;
-    std::string google_adc_quota_project_id;
-    mutable std::optional<std::pair<std::string, std::chrono::system_clock::time_point>> google_access_token;
-
-    struct GoogleADCCredentials
-    {
-        std::string type;
-        std::string client_id;
-        std::string client_secret;
-        std::string refresh_token;
-        std::string quota_project_id;
-    };
-    mutable std::optional<GoogleADCCredentials> google_adc_credentials;
+    mutable std::optional<AccessToken> access_token;
 
     Poco::Net::HTTPBasicCredentials credentials{};
 
@@ -183,11 +147,7 @@ private:
         TableMetadata & result) const;
 
     Config loadConfig();
-    std::string retrieveAccessToken() const;
-    std::string retrieveGoogleCloudAccessToken() const;
-    GoogleADCCredentials getGoogleADCCredentials() const;
-    std::string retrieveGoogleCloudAccessTokenFromRefreshToken(const GoogleADCCredentials & adc) const;
-    DB::HTTPHeaderEntries getAuthHeaders(bool update_token = false) const;
+    virtual DB::HTTPHeaderEntries getAuthHeaders(bool update_token) const;
     static void parseCatalogConfigurationSettings(const Poco::JSON::Object::Ptr & object, Config & result);
 
     void sendRequest(
@@ -197,6 +157,83 @@ private:
         bool ignore_result = false) const;
 
     std::pair<std::shared_ptr<IStorageCredentials>, String> getCredentialsAndEndpoint(Poco::JSON::Object::Ptr object, const String & location) const;
+};
+
+class OneLakeCatalog : public RestCatalog
+{
+public:
+    explicit OneLakeCatalog(
+        const std::string & warehouse_,
+        const std::string & base_url_,
+        const std::string & onelake_tenant_id,
+        const std::string & onelake_client_id,
+        const std::string & onelake_client_secret,
+        const std::string & auth_scope_,
+        const std::string & oauth_server_uri_,
+        bool oauth_server_use_request_body_,
+        DB::ContextPtr context_);
+
+    DB::DatabaseDataLakeCatalogType getCatalogType() const override
+    {
+        return DB::DatabaseDataLakeCatalogType::ICEBERG_ONELAKE;
+    }
+
+    DB::HTTPHeaderEntries getAuthHeaders(bool update_token) const override;
+
+    String getTenantId() const { return tenant_id; }
+
+protected:
+    /// Parameters for OneLake OAuth.
+    const std::string tenant_id;
+
+    AccessToken retrieveAccessToken() const;
+};
+
+class BigLakeCatalog : public RestCatalog
+{
+public:
+    explicit BigLakeCatalog(
+        const std::string & warehouse_,
+        const std::string & base_url_,
+        const std::string & google_project_id_,
+        const std::string & google_service_account_,
+        const std::string & google_metadata_service_,
+        const std::string & google_adc_client_id_,
+        const std::string & google_adc_client_secret_,
+        const std::string & google_adc_refresh_token_,
+        const std::string & google_adc_quota_project_id_,
+        DB::ContextPtr context_);
+
+    DB::DatabaseDataLakeCatalogType getCatalogType() const override
+    {
+        return DB::DatabaseDataLakeCatalogType::ICEBERG_BIGLAKE;
+    }
+
+    DB::HTTPHeaderEntries getAuthHeaders(bool update_token) const override;
+
+private:
+    /// Parameters for Google Cloud OAuth2 (BigLake).
+    const std::string google_project_id;
+    const std::string google_service_account;
+    const std::string google_metadata_service;
+    const std::string google_adc_client_id;
+    const std::string google_adc_client_secret;
+    const std::string google_adc_refresh_token;
+    const std::string google_adc_quota_project_id;
+
+    struct GoogleADCCredentials
+    {
+        std::string type;
+        std::string client_id;
+        std::string client_secret;
+        std::string refresh_token;
+        std::string quota_project_id;
+    };
+    mutable std::optional<GoogleADCCredentials> google_adc_credentials;
+
+    AccessToken retrieveGoogleCloudAccessToken() const;
+    GoogleADCCredentials getGoogleADCCredentials() const;
+    AccessToken retrieveGoogleCloudAccessTokenFromRefreshToken(const GoogleADCCredentials & adc) const;
 };
 
 }
