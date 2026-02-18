@@ -456,7 +456,7 @@ public:
     }
 
 private:
-    String getNextAlias() { return "a" + std::to_string(aliases_counter++); }
+    String getNextAlias(RandomGenerator & rg);
     uint32_t getIdentifierFromString(const String & tname) const;
     void columnPathRef(const ColumnPathChain & entry, Expr * expr) const;
     void columnPathRef(const ColumnPathChain & entry, ColumnPath * cp) const;

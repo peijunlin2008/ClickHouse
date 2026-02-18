@@ -128,7 +128,7 @@ void StatementGenerator::generateArrayJoin(RandomGenerator & rg, ArrayJoin * aj)
     chassert(nclauses);
     for (uint32_t i = 0; i < nclauses; i++)
     {
-        const String ncname = getNextAlias();
+        const String ncname = getNextAlias(rg);
         ExprColAlias * eca = i == 0 ? aj->mutable_constraint() : aj->add_other_constraints();
         Expr * expr = eca->mutable_expr();
 
@@ -2078,7 +2078,7 @@ void StatementGenerator::addCTEs(RandomGenerator & rg, const uint32_t allowed_cl
         {
             /// Use CTE expression
             CTEexpr * expr = scte->mutable_cte_expr();
-            const String ncname = getNextAlias();
+            const String ncname = getNextAlias(rg);
             SQLRelation rel("");
 
             generateExpression(rg, expr->mutable_expr());
@@ -2271,7 +2271,7 @@ void StatementGenerator::generateSelect(
                 generateExpression(rg, eca->mutable_expr());
                 if (!top && rg.nextBool())
                 {
-                    const String ncname = getNextAlias();
+                    const String ncname = getNextAlias(rg);
 
                     SQLRelation rel("");
                     rel.cols.emplace_back(SQLRelationCol("", {ncname}));
