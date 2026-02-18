@@ -167,6 +167,10 @@ IAsynchronousReader::Result ThreadPoolRemoteFSReader::execute(Request request, b
     ProfileEvents::increment(ProfileEvents::ThreadpoolReaderTaskMicroseconds, watch->elapsedMicroseconds());
 
     IAsynchronousReader::Result read_result;
+    /// Even if no data was read (EOF), file_offset_of_buffer_end must reflect the current position.
+    /// Otherwise AsynchronousBoundedReadBuffer::file_offset_of_buffer_end would be reset to 0
+    /// and subsequent reads would re-read from the beginning of the file.
+    read_result.file_offset_of_buffer_end = request.offset + request.ignore;
     if (result)
     {
         if (page_cache_reader)
