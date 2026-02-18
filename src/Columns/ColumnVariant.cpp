@@ -215,6 +215,8 @@ ColumnVariant::ColumnVariant(DB::MutableColumnPtr local_discriminators_, DB::Mut
             global_to_local_discriminators[local_to_global_discriminators[i]] = i;
         }
     }
+
+    validateState();
 }
 
 namespace
@@ -541,6 +543,7 @@ void ColumnVariant::insertRangeFromImpl(const DB::IColumn & src_, size_t start, 
         offsets_data.reserve(offsets_data.size() + length);
         for (size_t i = 0; i != length; ++i)
             offsets_data.push_back(offset++);
+        validateState();
         return;
     }
 
@@ -594,6 +597,8 @@ void ColumnVariant::insertRangeFromImpl(const DB::IColumn & src_, size_t start, 
                 variants[local_discr]->insertRangeFrom(*src.variants[src_local_discr], nested_start, nested_length);
         }
     }
+
+    validateState();
 }
 
 void ColumnVariant::insertManyFromImpl(const DB::IColumn & src_, size_t position, size_t length, const std::vector<ColumnVariant::Discriminator> * global_discriminators_mapping)
@@ -1058,6 +1063,7 @@ void ColumnVariant::filter(const Filter & filt)
 
     discriminators_concrete->filter(filt);
     constructOffsetsFromDiscriminators();
+    validateState();
 }
 
 void ColumnVariant::expand(const Filter & mask, bool inverted)
@@ -1849,6 +1855,32 @@ void ColumnVariant::fixDynamicStructure()
 {
     for (auto & variant : variants)
         variant->fixDynamicStructure();
+}
+
+void ColumnVariant::validateState() const
+{
+    const auto & local_discriminators_data = getLocalDiscriminators();
+    const auto & offsets_data = getOffsets();
+    if (local_discriminators_data.size() != offsets_data.size())
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Size of discriminators and offsets should be equal, but {} and {} were given", local_discriminators_data.size(), offsets_data.size());
+
+    std::vector<size_t> expected_variant_sizes(variants.size(), 0);
+    for (size_t i = 0; i != local_discriminators_data.size(); ++i)
+    {
+        auto local_discr = local_discriminators_data[i];
+        if (local_discr != NULL_DISCRIMINATOR)
+        {
+            ++expected_variant_sizes[local_discr];
+            if (offsets_data[i] >= variants[local_discr]->size())
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "Offset at position {} is {}, but variant {} ({}) has size {}", i, offsets_data[i], static_cast<UInt32>(local_discr), variants[local_discr]->getName(), variants[local_discr]->size());
+        }
+    }
+
+    for (size_t i = 0; i != variants.size(); ++i)
+    {
+        if (variants[i]->size() != expected_variant_sizes[i])
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Variant {} ({}) has size {}, but expected {}", i, variants[i]->getName(), variants[i]->size(), expected_variant_sizes[i]);
+    }
 }
 
 
