@@ -1,3 +1,6 @@
+-- Tags: no-replicated-database
+-- For Replicated databases it's not allowed to execute ALTERs of different types (replicated and non replicated) in single query. (NOT_IMPLEMENTED)
+
 -- Test for issue #70678: ALTER UPDATE with RENAME unexpected behavior
 -- If the ALTER statement is atomic, both UPDATE and RENAME should either
 -- succeed together or fail together.
