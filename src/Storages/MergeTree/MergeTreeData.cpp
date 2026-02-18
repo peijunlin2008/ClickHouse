@@ -3839,6 +3839,12 @@ void MergeTreeData::renameInMemory(const StorageID & new_table_id)
 {
     IStorage::renameInMemory(new_table_id);
     log.store(new_table_id.getNameForLogs());
+
+    /// Update the cached storage ID in background job assignees so that
+    /// finish() can correctly find and wait for tasks belonging to this storage
+    /// after a rename (e.g., when system log tables are renamed during upgrade).
+    background_operations_assignee.updateStorageID(new_table_id);
+    background_moves_assignee.updateStorageID(new_table_id);
 }
 
 void MergeTreeData::dropAllData()
