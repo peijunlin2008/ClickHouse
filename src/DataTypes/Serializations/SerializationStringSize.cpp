@@ -63,16 +63,16 @@ void SerializationStringSize::deserializeBinaryBulkStatePrefix(
         {
             auto string_state = std::make_shared<DeserializeBinaryBulkStateStringWithoutSizeStream>();
 
-            /// If there is no state cache (e.g. StorageLog), we must always read the full string data. Without cached
-            /// state, we cannot know in advance whether the string data will be needed later, and the string size has
-            /// to be derived from the data itself.
+            /// Always read the full string data rather than only the size substream.
             ///
-            /// As a result, the subsequent deserialization relies on the substream cache to correctly share the string
-            /// data across subcolumns. We do not support an optimization that deserializes only the size substream in
-            /// this case, and therefore we must always populate the substream cache with the string data rather than
-            /// the size-only substream.
-            if (!cache)
-                string_state->need_string_data = true;
+            /// When multiple subcolumns of the same column are read in one readRows call
+            /// (e.g. both t.a.size and the full tuple t), they share a SubstreamsCache keyed
+            /// by the column name. If we only read sizes here, a ColumnUInt64 gets cached under
+            /// the Substream::Regular key. When the full column serialization later tries to
+            /// read the same stream, MergeTreeReaderWide::getStream returns nullptr (cache hit),
+            /// and SerializationString picks up the incompatible cached ColumnUInt64 instead of
+            /// a ColumnString, leading to wrong sizes in ColumnSparse and a LOGICAL_ERROR.
+            string_state->need_string_data = true;
             state = string_state;
             addToSubstreamsDeserializeStatesCache(cache, settings.path, state);
         }
@@ -125,7 +125,15 @@ void SerializationStringSize::deserializeWithStringData(
         serialization_string.deserializeBinaryBulk(*string_state.column->assumeMutable(), *stream, rows_offset, limit, avg_value_size_hint);
 
         num_read_rows = string_state.column->size() - prev_size;
-        addColumnWithNumReadRowsToSubstreamsCache(cache, settings.path, string_state.column, num_read_rows);
+
+        /// Cache only the current range's data, not the entire accumulated column.
+        /// string_state.column accumulates data across marks (it is persistent state),
+        /// so on mark 1+ it contains elements from all previous marks plus the current one.
+        /// If we cache the full accumulated column with num_read_rows < column->size(),
+        /// insertDataFromCachedColumn will see the size mismatch and replace the result
+        /// column entirely (e.g. ColumnSparse's values), breaking invariants.
+        auto column_for_cache = string_state.column->cut(prev_size, num_read_rows);
+        addColumnWithNumReadRowsToSubstreamsCache(cache, settings.path, column_for_cache, num_read_rows);
 
         if (settings.update_avg_value_size_hint_callback)
             settings.update_avg_value_size_hint_callback(settings.path, *string_state.column);
