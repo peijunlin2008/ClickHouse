@@ -374,7 +374,8 @@ class Shell:
                     # Process both stdout and stderr in real-time
                     def stream_output(stream, output_fp, output=None):
                         for line in iter(stream.readline, ""):
-                            if verbose: sys.stdout.write(line)
+                            if verbose:
+                                sys.stdout.write(line)
                             output_fp.write(line)
                             if output is not None:
                                 output.append(line)
@@ -407,17 +408,13 @@ class Shell:
                     )
 
                 if not retry_errors:
-                    continue # No retry errors specified, just retry on any failure
+                    continue  # No retry errors specified, just retry on any failure
 
                 if not any(
-                    err in err_line
-                    for err_line in err_output
-                    for err in retry_errors
+                    err in err_line for err_line in err_output for err in retry_errors
                 ):
                     if verbose:
-                        print(
-                            f"No retryable errors found, stopping retries"
-                        )
+                        print(f"No retryable errors found, stopping retries")
                     break
 
                 if verbose:
@@ -425,13 +422,9 @@ class Shell:
             except Exception as e:
                 if verbose:
                     if retries == 1:
-                        print(
-                            f"ERROR: exception {e}"
-                        )
+                        print(f"ERROR: exception {e}")
                     else:
-                        print(
-                            f"Retry {retry+1}/{retries}: exception {e}"
-                        )
+                        print(f"Retry {retry+1}/{retries}: exception {e}")
                         if retry == retries - 1:
                             print(f"ERROR: Final attempt failed, no more retries left.")
                 if proc:
@@ -444,13 +437,9 @@ class Shell:
 
         if verbose:
             if retries == 1:
-                print(
-                    f"ERROR: command failed, exit code: {proc.returncode}"
-                )
+                print(f"ERROR: command failed, exit code: {proc.returncode}")
             else:
-                print(
-                    f"ERROR: Final attempt failed, no more retries left."
-                )
+                print(f"ERROR: Final attempt failed, no more retries left.")
 
         if strict:
             err = "\n   ".join(err_output).strip()
