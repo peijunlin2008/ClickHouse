@@ -389,6 +389,7 @@ DB::HTTPHeaderEntries BigLakeCatalog::getAuthHeaders(bool update_token) const
     /// Google Cloud OAuth2 for BigLake.
     /// Uses GCP metadata service or Application Default Credentials to get access token.
     /// Only use Google OAuth if explicitly configured (google_project_id or google_adc_client_id).
+    /// https://developers.google.com/identity/protocols/oauth2
     if (!google_project_id.empty() || !google_adc_client_id.empty())
     {
         if (!access_token.has_value() || update_token || access_token->isExpired())
