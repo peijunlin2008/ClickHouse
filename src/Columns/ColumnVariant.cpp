@@ -597,8 +597,6 @@ void ColumnVariant::insertRangeFromImpl(const DB::IColumn & src_, size_t start, 
                 variants[local_discr]->insertRangeFrom(*src.variants[src_local_discr], nested_start, nested_length);
         }
     }
-
-    validateState();
 }
 
 void ColumnVariant::insertManyFromImpl(const DB::IColumn & src_, size_t position, size_t length, const std::vector<ColumnVariant::Discriminator> * global_discriminators_mapping)
@@ -649,6 +647,7 @@ void ColumnVariant::doInsertRangeFrom(const IColumn & src_, size_t start, size_t
 #endif
 {
     insertRangeFromImpl(src_, start, length, nullptr, nullptr);
+    validateState();
 }
 
 #if !defined(DEBUG_OR_SANITIZER_BUILD)
