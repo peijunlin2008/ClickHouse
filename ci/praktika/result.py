@@ -23,6 +23,16 @@ if TYPE_CHECKING:
     from .info import Info
 
 
+class _Colors:
+    """ANSI color codes for terminal output"""
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    CYAN = "\033[96m"
+
+
 @dataclasses.dataclass
 class Result(MetaClasses.Serializable):
     """
@@ -883,14 +893,36 @@ class Result(MetaClasses.Serializable):
         Returns:
             Formatted string representation of the result
         """
+        # Import here to avoid circular dependency
+        from .info import Info
+
         add_frame = not output
         sub_indent = indent + "  "
+        use_colors = Info().is_local_run
+
+        # Choose color based on status
+        if use_colors:
+            if self.is_success():
+                status_color = _Colors.GREEN + _Colors.BOLD
+                frame_color = _Colors.GREEN
+            elif self.is_failure() or self.is_error():
+                status_color = _Colors.RED + _Colors.BOLD
+                frame_color = _Colors.RED
+            else:
+                status_color = _Colors.YELLOW + _Colors.BOLD
+                frame_color = _Colors.YELLOW
+        else:
+            status_color = ""
+            frame_color = ""
 
         if add_frame:
-            output = indent + "+" * 80 + "\n"
+            output = indent + frame_color + "+" * 80 + (_Colors.RESET if use_colors else "") + "\n"
 
         if add_frame or not self.is_ok():
-            output += f"{indent}{self.status} [{self.name}]\n"
+            # Capitalize status and only show name if it's not empty
+            status_text = str(self.status).capitalize()
+            name_text = f" [{self.name}]" if self.name else ""
+            output += f"{indent}{status_color}{status_text}{_Colors.RESET if use_colors else ''}{name_text}\n"
             truncated_info = self.get_info_truncated(
                 max_info_lines_cnt=max_info_lines_cnt,
                 truncate_from_top=truncate_from_top,
@@ -911,7 +943,7 @@ class Result(MetaClasses.Serializable):
                 )
 
         if add_frame:
-            output += indent + "+" * 80 + "\n"
+            output += indent + frame_color + "+" * 80 + (_Colors.RESET if use_colors else "") + "\n"
 
         return output
 
