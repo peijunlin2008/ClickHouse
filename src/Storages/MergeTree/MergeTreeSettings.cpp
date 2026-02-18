@@ -45,7 +45,6 @@ namespace ErrorCodes
     extern const int READONLY;
 }
 
-
 // clang-format off
 
 /** These settings represent fine tunes for internal details of MergeTree storages
