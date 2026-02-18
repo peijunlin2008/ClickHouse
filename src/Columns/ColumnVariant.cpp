@@ -543,7 +543,6 @@ void ColumnVariant::insertRangeFromImpl(const DB::IColumn & src_, size_t start, 
         offsets_data.reserve(offsets_data.size() + length);
         for (size_t i = 0; i != length; ++i)
             offsets_data.push_back(offset++);
-        validateState();
         return;
     }
 
