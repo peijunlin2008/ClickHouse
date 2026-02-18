@@ -63,16 +63,16 @@ void SerializationStringSize::deserializeBinaryBulkStatePrefix(
         {
             auto string_state = std::make_shared<DeserializeBinaryBulkStateStringWithoutSizeStream>();
 
-            /// Always read the full string data rather than only the size substream.
+            /// Without a states cache (e.g. StorageLog) we must always read the full
+            /// string data, because the state is not shared with SerializationString
+            /// and we cannot know whether the full column will also be read.
             ///
-            /// When multiple subcolumns of the same column are read in one readRows call
-            /// (e.g. both t.a.size and the full tuple t), they share a SubstreamsCache keyed
-            /// by the column name. If we only read sizes here, a ColumnUInt64 gets cached under
-            /// the Substream::Regular key. When the full column serialization later tries to
-            /// read the same stream, MergeTreeReaderWide::getStream returns nullptr (cache hit),
-            /// and SerializationString picks up the incompatible cached ColumnUInt64 instead of
-            /// a ColumnString, leading to wrong sizes in ColumnSparse and a LOGICAL_ERROR.
-            string_state->need_string_data = true;
+            /// With a states cache (MergeTree), we default to sizes-only reading.
+            /// If SerializationString also reads this column, its
+            /// deserializeBinaryBulkStatePrefix will find this shared state and
+            /// upgrade need_string_data to true.
+            if (!cache)
+                string_state->need_string_data = true;
             state = string_state;
             addToSubstreamsDeserializeStatesCache(cache, settings.path, state);
         }
