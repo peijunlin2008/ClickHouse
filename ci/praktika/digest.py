@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List
 
 from .docker import Docker
+from .info import Info
 from .job import Job
 from .settings import Settings
 from .utils import Shell, Utils
@@ -107,7 +108,8 @@ class Digest:
         :param docker_config: Docker.Config to calculate digest for
         :return:
         """
-        print(f"Calculate digest for docker [{docker_config.name}]")
+        if not Info().is_local_run:
+            print(f"Calculate digest for docker [{docker_config.name}]")
         paths = Utils.traverse_path(docker_config.path, sorted=True)
         if not hash_md5:
             hash_md5 = hashlib.md5()
@@ -116,9 +118,10 @@ class Digest:
         for dependency_name in docker_config.depends_on:
             for dependency_config in dependency_configs:
                 if dependency_config.name == dependency_name:
-                    print(
-                        f"Add docker [{dependency_config.name}] as dependency for docker [{docker_config.name}] digest calculation"
-                    )
+                    if not Info().is_local_run:
+                        print(
+                            f"Add docker [{dependency_config.name}] as dependency for docker [{docker_config.name}] digest calculation"
+                        )
                     dependencies.append(dependency_config)
 
         for dependency in dependencies:
