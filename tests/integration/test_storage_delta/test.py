@@ -4194,5 +4194,11 @@ def test_early_return_limit(started_cluster, use_delta_kernel):
     # Should stop very early after consuming just a few files
     assert scanned_files < full_scan_files, \
         f"Early return should scan fewer files: {scanned_files} >= {full_scan_files}"
-    assert scanned_files < 10, \
-        f"Early return should scan < 10 files with LIMIT 1, but scanned {scanned_files}"
+    # 3 because:
+    # we have async reader creation with 2 existing readers at a moment of time,
+    # each calls next() and consumes 2 files from the scan.
+    # It takes 1 file for the query to stop because of LIMIT 1.
+    # But because scan is also asynchronous and continues once batch limit is not reached,
+    # we get +1 scanned file.
+    assert scanned_files == 3, \
+        f"Early return should scan 3 files with LIMIT 1, but scanned {scanned_files}"
