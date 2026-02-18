@@ -1420,17 +1420,17 @@ void loadFuzzerServerSettings(const FuzzConfig & fc)
              "max_ast_depth",
              "max_ast_elements",*/
              "max_autoincrement_series",
-             "max_backup_bandwidth",
+             /// "max_backup_bandwidth",
              "max_distributed_connections",
              /// "max_distributed_depth",
              "max_download_threads",
              /// "max_expanded_ast_elements",
              "max_fetch_partition_retries_count",
              "max_http_get_redirects",
-             "max_network_bandwidth",
+             /*"max_network_bandwidth",
              "max_network_bandwidth_for_all_users",
              "max_network_bandwidth_for_user",
-             /*"max_parser_backtracks",
+             "max_parser_backtracks",
              "max_parser_depth",
              "max_partitions_to_read",*/
              "max_sessions_for_user",
@@ -1449,8 +1449,8 @@ void loadFuzzerServerSettings(const FuzzConfig & fc)
              "max_execution_speed_bytes",*/
              "max_hyperscan_regexp_length",
              "max_hyperscan_regexp_total_length",
-             "max_network_bytes",
-             /*"max_query_size",
+             /*"max_network_bytes",
+             "max_query_size",
              "max_result_bytes",*/
              "max_size_to_preallocate_for_aggregation",
              "max_size_to_preallocate_for_joins"/*,
