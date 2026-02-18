@@ -646,7 +646,6 @@ void ColumnVariant::doInsertRangeFrom(const IColumn & src_, size_t start, size_t
 #endif
 {
     insertRangeFromImpl(src_, start, length, nullptr, nullptr);
-    validateState();
 }
 
 #if !defined(DEBUG_OR_SANITIZER_BUILD)
@@ -1061,7 +1060,6 @@ void ColumnVariant::filter(const Filter & filt)
 
     discriminators_concrete->filter(filt);
     constructOffsetsFromDiscriminators();
-    validateState();
 }
 
 void ColumnVariant::expand(const Filter & mask, bool inverted)

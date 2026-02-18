@@ -433,10 +433,7 @@ void ColumnDynamic::doInsertRangeFrom(const IColumn & src_, size_t start, size_t
 
         /// Check if src shared variant is empty, nothing to do in this case.
         if (dynamic_src.getSharedVariant().empty())
-        {
-            variant_col.validateState();
             return;
-        }
 
         /// Iterate over src discriminators and process insertion from src shared variant.
         const auto & src_variant_column = dynamic_src.getVariantColumn();
@@ -481,7 +478,6 @@ void ColumnDynamic::doInsertRangeFrom(const IColumn & src_, size_t start, size_t
             }
         }
 
-        variant_col.validateState();
         return;
     }
 
@@ -621,8 +617,6 @@ void ColumnDynamic::doInsertRangeFrom(const IColumn & src_, size_t start, size_t
             }
         }
     }
-
-    variant_col.validateState();
 }
 
 #if !defined(DEBUG_OR_SANITIZER_BUILD)
