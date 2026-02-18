@@ -217,7 +217,7 @@ def _update_workflow_with_native_jobs(workflow):
     if workflow._enabled_workflow_config():
         from .native_jobs import _workflow_config_job
 
-        if not Info().is_local_run:
+        if not _is_local_run():
             print(f"Enable native job [{_workflow_config_job.name}] for [{workflow.name}]")
         aux_job = copy.deepcopy(_workflow_config_job)
         workflow.jobs.insert(0, aux_job)
@@ -232,7 +232,7 @@ def _update_workflow_with_native_jobs(workflow):
     ):
         from .native_jobs import _final_job
 
-        if not Info().is_local_run:
+        if not _is_local_run():
             print(f"Enable native job [{_final_job.name}] for [{workflow.name}]")
         aux_job = copy.deepcopy(_final_job)
         for job in workflow.jobs:
