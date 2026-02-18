@@ -405,10 +405,6 @@ DB::HTTPHeaderEntries BigLakeCatalog::getAuthHeaders(bool update_token) const
         {
             project_id = google_adc_quota_project_id;
         }
-        else if (project_id.empty() && google_adc_credentials.has_value() && !google_adc_credentials->quota_project_id.empty())
-        {
-            project_id = google_adc_credentials->quota_project_id;
-        }
 
         if (!project_id.empty())
         {
@@ -421,10 +417,9 @@ DB::HTTPHeaderEntries BigLakeCatalog::getAuthHeaders(bool update_token) const
     return RestCatalog::getAuthHeaders(update_token);
 }
 
-BigLakeCatalog::GoogleADCCredentials BigLakeCatalog::getGoogleADCCredentials() const
+AccessToken BigLakeCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken() const
 {
-    if (google_adc_credentials.has_value())
-        return google_adc_credentials.value();
+    static constexpr auto GOOGLE_OAUTH2_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 
     if (google_adc_client_id.empty() || google_adc_client_secret.empty() || google_adc_refresh_token.empty())
     {
@@ -433,29 +428,14 @@ BigLakeCatalog::GoogleADCCredentials BigLakeCatalog::getGoogleADCCredentials() c
             "Invalid ADC credentials: client_id, client_secret, and refresh_token are required");
     }
 
-    GoogleADCCredentials adc;
-    adc.type = "authorized_user";
-    adc.client_id = google_adc_client_id;
-    adc.client_secret = google_adc_client_secret;
-    adc.refresh_token = google_adc_refresh_token;
-    adc.quota_project_id = google_adc_quota_project_id;
-
-    google_adc_credentials = adc;
-    return adc;
-}
-
-AccessToken BigLakeCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken(const GoogleADCCredentials & adc) const
-{
-    static constexpr auto GOOGLE_OAUTH2_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
-
     Poco::URI url(GOOGLE_OAUTH2_TOKEN_ENDPOINT);
 
     String encoded_refresh_token;
     String encoded_client_id;
     String encoded_client_secret;
-    Poco::URI::encode(adc.refresh_token, adc.refresh_token, encoded_refresh_token);
-    Poco::URI::encode(adc.client_id, adc.client_id, encoded_client_id);
-    Poco::URI::encode(adc.client_secret, adc.client_secret, encoded_client_secret);
+    Poco::URI::encode(google_adc_refresh_token, google_adc_refresh_token, encoded_refresh_token);
+    Poco::URI::encode(google_adc_client_id, google_adc_client_id, encoded_client_id);
+    Poco::URI::encode(google_adc_client_secret, google_adc_client_secret, encoded_client_secret);
     String body = fmt::format(
         "grant_type=refresh_token&client_id={}&client_secret={}&refresh_token={}",
         encoded_client_id, encoded_client_secret, encoded_refresh_token
@@ -549,11 +529,7 @@ AccessToken BigLakeCatalog::retrieveGoogleCloudAccessToken() const
     {
         try
         {
-            auto adc = getGoogleADCCredentials();
-            if (adc.type == "authorized_user")
-            {
-                return retrieveGoogleCloudAccessTokenFromRefreshToken(adc);
-            }
+            return retrieveGoogleCloudAccessTokenFromRefreshToken();
         }
         catch (const DB::Exception & e)
         {

@@ -221,19 +221,8 @@ private:
     const std::string google_adc_refresh_token;
     const std::string google_adc_quota_project_id;
 
-    struct GoogleADCCredentials
-    {
-        std::string type;
-        std::string client_id;
-        std::string client_secret;
-        std::string refresh_token;
-        std::string quota_project_id;
-    };
-    mutable std::optional<GoogleADCCredentials> google_adc_credentials;
-
     AccessToken retrieveGoogleCloudAccessToken() const;
-    GoogleADCCredentials getGoogleADCCredentials() const;
-    AccessToken retrieveGoogleCloudAccessTokenFromRefreshToken(const GoogleADCCredentials & adc) const;
+    AccessToken retrieveGoogleCloudAccessTokenFromRefreshToken() const;
 };
 
 }
