@@ -1479,17 +1479,20 @@ void loadFuzzerServerSettings(const FuzzConfig & fc)
     for (const auto & entry : max_bytes_values)
     {
         performanceSettings.insert({{entry, CHSetting(bytesRange, {"32768", "65536", "1048576", "4194304", "33554432", "'10M'"}, false)}});
-        serverSettings.insert({{entry, CHSetting(bytesRange, {"0", "4", "8", "16", "32", "1024", "4096", "16384"}, false)}});
+        serverSettings.insert(
+            {{entry, CHSetting(bytesRange, {"0", "1", "2", "4", "8", "16", "32", "1024", "2048", "4096", "16384"}, false)}});
     }
     for (const auto & entry : max_rows_values)
     {
         performanceSettings.insert({{entry, CHSetting(rowsRange, {"0", "512", "1024", "2048", "4096", "16384", "'10M'"}, false)}});
-        serverSettings.insert({{entry, CHSetting(rowsRange, {"0", "4", "8", "16", "32", "1024", "4096", "16384"}, false)}});
+        serverSettings.insert(
+            {{entry, CHSetting(rowsRange, {"0", "1", "2", "4", "8", "16", "32", "1024", "2048", "4096", "16384"}, false)}});
     }
     for (const auto & entry : max_block_sizes)
     {
         performanceSettings.insert({{entry, CHSetting(highRange, {"1024", "2048", "4096", "8192", "16384", "'10M'"}, false)}});
-        serverSettings.insert({{entry, CHSetting(highRange, {"4", "8", "16", "32", "64", "1024", "4096", "16384"}, false)}});
+        serverSettings.insert(
+            {{entry, CHSetting(highRange, {"1", "2", "4", "8", "16", "32", "64", "1024", "2048", "4096", "16384"}, false)}});
     }
     for (const auto & entry : max_columns_values)
     {
