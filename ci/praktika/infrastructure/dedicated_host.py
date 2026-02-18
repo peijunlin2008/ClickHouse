@@ -15,9 +15,6 @@ class DedicatedHost:
         praktika_resource_tag: str = (
             ""  # Praktika resource tag (e.g., "mac") - tagged as "praktika"
         )
-        runner_type: str = (
-            ""  # GitHub runner type (e.g., "arm_macos_small") - tagged as "github:runner-type"
-        )
 
         # If set, allocate hosts in all availability zones in the region.
         all_availability_zones: bool = False
@@ -89,8 +86,6 @@ class DedicatedHost:
             # Add resource tag if specified
             if self.praktika_resource_tag:
                 merged_tags["praktika_resource_tag"] = self.praktika_resource_tag
-            if self.runner_type:
-                merged_tags["github:runner-type"] = self.runner_type
             # Add user-defined tags
             merged_tags.update(self.tags or {})
 
@@ -146,8 +141,6 @@ class DedicatedHost:
             # Add resource tag if specified
             if self.praktika_resource_tag:
                 merged_tags["praktika_resource_tag"] = self.praktika_resource_tag
-            if self.runner_type:
-                merged_tags["github:runner-type"] = self.runner_type
             # Add user-defined tags
             merged_tags.update(self.tags or {})
 
@@ -235,8 +228,6 @@ class DedicatedHost:
             # Add resource tag if specified
             if self.praktika_resource_tag:
                 merged_tags["praktika_resource_tag"] = self.praktika_resource_tag
-            if self.runner_type:
-                merged_tags["github:runner-type"] = self.runner_type
             # Add user-defined tags
             merged_tags.update(self.tags or {})
 
