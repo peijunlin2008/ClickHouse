@@ -1289,11 +1289,6 @@ public:
 
             if (!is_tuple && elements.size() == 1)
             {
-                // Special case for (('a', 'b')) = tuple(('a', 'b'))
-                if (auto * literal = elements[0]->as<ASTLiteral>())
-                    if (literal->value.getType() == Field::Types::Tuple)
-                        is_tuple = true;
-
                 // Special case for f(x, (y) -> z) = f(x, tuple(y) -> z)
                 if (pos->type == TokenType::Arrow)
                     is_tuple = true;
@@ -1312,7 +1307,15 @@ protected:
         if (!is_tuple && elements.size() == 1)
             node = std::move(elements[0]);
         else
-            node = makeASTOperator("tuple", std::move(elements));
+        {
+            auto func = makeASTOperator("tuple", std::move(elements));
+            /// If all arguments are literals, collapse into ASTLiteral(Tuple{...})
+            /// so that the formatting roundtrip is consistent with ParserCollectionOfLiterals.
+            if (auto literal = func->as<ASTFunction>()->toLiteral())
+                node = std::move(literal);
+            else
+                node = std::move(func);
+        }
 
         return true;
     }
@@ -1333,7 +1336,13 @@ public:
 protected:
     bool getResultImpl(ASTPtr & node) override
     {
-        node = makeASTOperator("array", std::move(elements));
+        auto func = makeASTOperator("array", std::move(elements));
+        /// If all arguments are literals, collapse into ASTLiteral(Array{...})
+        /// so that the formatting roundtrip is consistent with ParserCollectionOfLiterals.
+        if (auto literal = func->as<ASTFunction>()->toLiteral())
+            node = std::move(literal);
+        else
+            node = std::move(func);
         return true;
     }
 };
