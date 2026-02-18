@@ -999,7 +999,13 @@ static size_t getBytesInColumn(const IColumn & column)
         /// Same logic as ColumnString for sparse columns.
         const auto & values = col_sparse->getValuesColumn();
         const auto & offsets = col_sparse->getOffsetsColumn();
-        return !offsets.empty() ? getBytesInColumn(values) + offsets.size() * getLengthOfVarInt(offsets.getInt(offsets.size() - 1)) : 0;
+
+        if (offsets.empty())
+            return 0;
+
+        /// Offsets are stored as VarInt; estimate their total size using the last offset's length.
+        return getBytesInColumn(values)
+            + offsets.size() * getLengthOfVarInt(offsets.getInt(offsets.size() - 1));
     }
     else
     {
