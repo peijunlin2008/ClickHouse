@@ -1,6 +1,7 @@
--- Tags: no-parallel, no-fasttest
+-- Tags: no-parallel, no-fasttest, no-replicated-database
 -- Tag no-parallel - uses external data source
 -- Tag no-fasttest - requires SSL for https
+-- Tag no-replicated-database - because of https://github.com/ClickHouse/ClickHouse/issues/97287
 
 -- Verifiy that two tables on separate web disks with table_disk=1 do not collide in mark caches
 DROP TABLE IF EXISTS call_center;
