@@ -1307,19 +1307,7 @@ protected:
         if (!is_tuple && elements.size() == 1)
             node = std::move(elements[0]);
         else
-        {
-            auto func = makeASTOperator("tuple", std::move(elements));
-            /// For tuples with 2+ elements where all arguments are literals,
-            /// collapse into ASTLiteral(Tuple{...}) to match the fast-path
-            /// ParserCollectionOfLiterals output and ensure formatting roundtrip consistency.
-            /// Note: empty tuples and single-element tuples must NOT be collapsed,
-            /// matching ParserCollectionOfLiterals behavior which skips those cases.
-            if (auto literal = func->as<ASTFunction>()->toLiteral();
-                literal && func->as<ASTFunction>()->arguments->children.size() >= 2)
-                node = std::move(literal);
-            else
-                node = std::move(func);
-        }
+            node = makeASTOperator("tuple", std::move(elements));
 
         return true;
     }
@@ -1340,15 +1328,7 @@ public:
 protected:
     bool getResultImpl(ASTPtr & node) override
     {
-        auto func = makeASTOperator("array", std::move(elements));
-        /// For non-empty arrays where all arguments are literals,
-        /// collapse into ASTLiteral(Array{...}) to match the fast-path
-        /// ParserCollectionOfLiterals output and ensure formatting roundtrip consistency.
-        if (auto literal = func->as<ASTFunction>()->toLiteral();
-            literal && !func->as<ASTFunction>()->arguments->children.empty())
-            node = std::move(literal);
-        else
-            node = std::move(func);
+        node = makeASTOperator("array", std::move(elements));
         return true;
     }
 };
