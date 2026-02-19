@@ -1042,11 +1042,9 @@ ColumnPtr ColumnVector<T>::replicate(const IColumn::Offsets & offsets) const
 }
 
 template <typename T>
-void ColumnVector<T>::getExtremes(Field & min, Field & max) const
+void ColumnVector<T>::getExtremes(Field & min, Field & max, size_t start, size_t end) const
 {
-    size_t size = data.size();
-
-    if (size == 0)
+    if (start >= end)
     {
         min = T(0);
         max = T(0);
@@ -1064,23 +1062,24 @@ void ColumnVector<T>::getExtremes(Field & min, Field & max) const
     T cur_min = NaNOrZero<T>();
     T cur_max = NaNOrZero<T>();
 
-    for (const T & x : data)
+    const T * ptr = data.data();
+    for (size_t i = start; i < end; ++i)
     {
-        if (isNaN(x))
+        if (isNaN(ptr[i]))
             continue;
 
         if (!has_value)
         {
-            cur_min = x;
-            cur_max = x;
+            cur_min = ptr[i];
+            cur_max = ptr[i];
             has_value = true;
             continue;
         }
 
-        if (x < cur_min)
-            cur_min = x;
-        else if (x > cur_max)
-            cur_max = x;
+        if (ptr[i] < cur_min)
+            cur_min = ptr[i];
+        else if (ptr[i] > cur_max)
+            cur_max = ptr[i];
     }
 
     min = NearestFieldType<T>(cur_min);
