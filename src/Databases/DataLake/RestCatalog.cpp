@@ -154,8 +154,8 @@ RestCatalog::RestCatalog(
     else if (!auth_header_.empty())
     {
         auth_header = parseAuthHeader(auth_header_);
-        config = loadConfig();
     }
+    config = loadConfig();
 }
 
 
@@ -555,6 +555,8 @@ AccessToken BigLakeCatalog::retrieveGoogleCloudAccessToken() const
     auto timeouts = DB::ConnectionTimeouts::getHTTPTimeouts(context->getSettingsRef(), context->getServerSettings());
     auto session = makeHTTPSession(DB::HTTPConnectionGroupType::HTTP, url, timeouts, {});
 
+    if (!session)
+        throw DB::Exception(DB::ErrorCodes::BAD_ARGUMENTS, "Can not create HTTP session");
     session->sendRequest(request);
 
     Poco::Net::HTTPResponse response;

@@ -200,7 +200,7 @@ std::shared_ptr<DataLake::ICatalog> DatabaseDataLake::getCatalog() const
             std::string google_adc_refresh_token = settings[DatabaseDataLakeSetting::google_adc_refresh_token].value;
             std::string google_adc_quota_project_id = settings[DatabaseDataLakeSetting::google_adc_quota_project_id].value;
 
-            if (!settings[DatabaseDataLakeSetting::google_adc_credentials_file].value.empty())
+            if (!settings[DatabaseDataLakeSetting::google_adc_credentials_file].changed)
             {
                 try
                 {
