@@ -189,63 +189,57 @@ GlobalSum::~GlobalSum() noexcept
 
 void GlobalSum::set(CurrentMetrics::Value value) noexcept
 {
-    CurrentMetrics::Value prev_value = accounted_value.exchange(value, std::memory_order_relaxed);
+    CurrentMetrics::Value prev_value = accounted_value.exchange(value, std::memory_order::relaxed);
     CurrentMetrics::Value delta = value - prev_value;
     CurrentMetrics::add(destination_metric, delta);
 }
 
 void GlobalSum::add(CurrentMetrics::Value delta) noexcept
 {
-    accounted_value.fetch_add(delta, std::memory_order_relaxed);
+    accounted_value.fetch_add(delta, std::memory_order::relaxed);
     CurrentMetrics::add(destination_metric, delta);
 }
 
 void GlobalSum::sub(CurrentMetrics::Value delta) noexcept
 {
-    accounted_value.fetch_sub(delta, std::memory_order_relaxed);
+    accounted_value.fetch_sub(delta, std::memory_order::relaxed);
     CurrentMetrics::sub(destination_metric, delta);
+}
+
+void GlobalQuantile::updateBuckets(std::optional<CurrentMetrics::Value> prev_value, std::optional<CurrentMetrics::Value> new_value) noexcept
+{
+    BucketCountQuantile * buckets = static_cast<BucketCountQuantile *>(shared_buckets);
+    std::atomic<bool> * update = static_cast<std::atomic<bool> *>(shared_update);
+
+    if (prev_value.has_value())
+        buckets->decrement(prev_value.value());
+
+    if (new_value.has_value())
+        buckets->increment(new_value.value());
+
+    if (update->exchange(true, std::memory_order::relaxed) == false)
+    {
+        CurrentMetrics::set(destination_metric, buckets->quantile(quantile));
+        update->store(false, std::memory_order::relaxed);
+    }
 }
 
 GlobalQuantile::GlobalQuantile(CurrentMetrics::Metric destination_metric_) noexcept
     : destination_metric(destination_metric_)
 {
     std::tie(quantile, shared_buckets, shared_update) = takeSharedQuantileData(destination_metric);
+    updateBuckets(/*prev_value=*/std::nullopt, /*new_value=*/0);
 }
 
 GlobalQuantile::~GlobalQuantile() noexcept
 {
-    if (!was_accounted)
-        return;
-
-    BucketCountQuantile * buckets = static_cast<BucketCountQuantile *>(shared_buckets);
-    std::atomic<bool> * update = static_cast<std::atomic<bool> *>(shared_update);
-
-    buckets->decrement(accounted_value.load());
-
-    if (update->exchange(true) == false)
-    {
-        CurrentMetrics::set(destination_metric, buckets->quantile(quantile));
-        update->store(false);
-    }
+    updateBuckets(/*prev_value=*/accounted_value.load(std::memory_order::relaxed), /*new_value=*/std::nullopt);
 }
 
 void GlobalQuantile::set(CurrentMetrics::Value value) noexcept
 {
-    BucketCountQuantile * buckets = static_cast<BucketCountQuantile *>(shared_buckets);
-    std::atomic<bool> * update = static_cast<std::atomic<bool> *>(shared_update);
-
-    CurrentMetrics::Value prev_value = accounted_value.exchange(value, std::memory_order_relaxed);
-    if (was_accounted)
-        buckets->decrement(prev_value);
-
-    buckets->increment(value);
-    was_accounted = true;
-
-    if (update->exchange(true) == false)
-    {
-        CurrentMetrics::set(destination_metric, buckets->quantile(quantile));
-        update->store(false);
-    }
+    CurrentMetrics::Value prev_value = accounted_value.exchange(value, std::memory_order::relaxed);
+    updateBuckets(/*prev_value=*/prev_value, /*new_value=*/value);
 }
 
 }

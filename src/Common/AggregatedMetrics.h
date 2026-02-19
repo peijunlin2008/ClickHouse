@@ -27,6 +27,8 @@ private:
 
 class GlobalQuantile
 {
+    void updateBuckets(std::optional<CurrentMetrics::Value> prev_value, std::optional<CurrentMetrics::Value> new_value) noexcept;
+
 public:
     explicit GlobalQuantile(CurrentMetrics::Metric destination_metric_) noexcept;
     ~GlobalQuantile() noexcept;
@@ -40,7 +42,6 @@ private:
     void * shared_buckets = nullptr;
     void * shared_update = nullptr;
 
-    bool was_accounted = false;
     std::atomic<CurrentMetrics::Value> accounted_value = 0;
 };
 
