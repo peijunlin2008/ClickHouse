@@ -10,7 +10,7 @@ RUN apt-get update \
 
 ARG ver=42.7.7
 RUN curl -L -o /postgresql-java-${ver}.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/${ver}/postgresql-${ver}.jar
-ENV CLASSPATH=/postgresql-java-${ver}.jar
+ENV CLASSPATH=.:/postgresql-java-${ver}.jar
 
 WORKDIR /jdbc
 COPY Test.java Test.java
