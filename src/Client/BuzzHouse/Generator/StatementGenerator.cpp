@@ -2717,8 +2717,6 @@ static const auto has_mergeable_mt_func
 static const auto has_non_mergeable_mt_func
     = [](const SQLTable & t) { return t.isAttached() && t.isMergeTreeFamily() && !t.can_run_merges; };
 
-static const auto has_distributed_table_func = [](const SQLTable & t) { return t.isAttached() && t.isDistributedEngine(); };
-
 static const auto has_refreshable_view_func = [](const SQLView & v) { return v.isAttached() && v.is_refreshable; };
 
 void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const bool allow_table_statements, SystemCommand * sc)
@@ -2729,8 +2727,6 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
         = static_cast<uint32_t>(allow_table_statements && collectionHas<SQLTable>(has_non_mergeable_mt_func));
     const uint32_t has_refreshable_view
         = static_cast<uint32_t>(allow_table_statements && collectionHas<SQLView>(has_refreshable_view_func));
-    const uint32_t has_distributed_table
-        = static_cast<uint32_t>(allow_table_statements && collectionHas<SQLTable>(has_distributed_table_func));
     const uint32_t has_table = static_cast<uint32_t>(allow_table_statements && collectionHas<SQLTable>(attached_tables));
 
     const uint32_t reload_embedded_dictionaries = 0;
@@ -2800,9 +2796,9 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
     /// for dictionaries
     const uint32_t reload_dictionary = 0 * static_cast<uint32_t>(collectionHas<SQLDictionary>(attached_dictionaries));
     /// for distributed tables
-    const uint32_t flush_distributed = 8 * has_distributed_table;
-    const uint32_t stop_distributed_sends = 8 * has_distributed_table;
-    const uint32_t start_distributed_sends = 8 * has_distributed_table;
+    const uint32_t flush_distributed = 3 * has_table;
+    const uint32_t stop_distributed_sends = 3 * has_table;
+    const uint32_t start_distributed_sends = 3 * has_table;
     const uint32_t drop_query_condition_cache = 3;
     const uint32_t enable_failpoint = 20 * static_cast<uint32_t>(!fc.failpoints.empty());
     const uint32_t disable_failpoint = 5 * static_cast<uint32_t>(!fc.failpoints.empty());
@@ -3585,7 +3581,7 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
                + flush_async_insert_queue + sync_filesystem_cache + drop_vector_similarity_index_cache + reload_dictionary
                + flush_distributed + 1))
     {
-        cluster = setTableSystemStatement<SQLTable>(rg, has_distributed_table_func, sc->mutable_flush_distributed());
+        cluster = setTableSystemStatement<SQLTable>(rg, attached_tables, sc->mutable_flush_distributed());
     }
     else if (
         stop_distributed_sends
@@ -3603,7 +3599,7 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
                + flush_async_insert_queue + sync_filesystem_cache + drop_vector_similarity_index_cache + reload_dictionary
                + flush_distributed + stop_distributed_sends + 1))
     {
-        cluster = setTableSystemStatement<SQLTable>(rg, has_distributed_table_func, sc->mutable_stop_distributed_sends());
+        cluster = setTableSystemStatement<SQLTable>(rg, attached_tables, sc->mutable_stop_distributed_sends());
     }
     else if (
         start_distributed_sends
@@ -3621,7 +3617,7 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
                + flush_async_insert_queue + sync_filesystem_cache + drop_vector_similarity_index_cache + reload_dictionary
                + flush_distributed + stop_distributed_sends + start_distributed_sends + 1))
     {
-        cluster = setTableSystemStatement<SQLTable>(rg, has_distributed_table_func, sc->mutable_start_distributed_sends());
+        cluster = setTableSystemStatement<SQLTable>(rg, attached_tables, sc->mutable_start_distributed_sends());
     }
     else if (
         drop_query_condition_cache
