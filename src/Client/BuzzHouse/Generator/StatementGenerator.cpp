@@ -1407,7 +1407,7 @@ void StatementGenerator::generateNextUpdate(RandomGenerator & rg, const SQLTable
             UpdateSet & uset = const_cast<UpdateSet &>(j == 0 ? upt->update() : upt->other_updates(j - 1));
             Expr * expr = uset.mutable_expr();
 
-            if (rg.nextSmallNumber() < 9)
+            if (rg.nextBool())
             {
                 /// Set constant value
                 String buf;
