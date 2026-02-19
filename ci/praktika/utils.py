@@ -399,10 +399,7 @@ class Shell:
                 if proc.returncode == 0:
                     return 0
 
-                if retries == 1:
-                    break
-
-                if verbose:
+                if verbose and retries > 1:
                     print(
                         f"Retry {retry+1}/{retries}: command failed, exit code: {proc.returncode}"
                     )
@@ -446,10 +443,9 @@ class Shell:
                         return 1  # Return non-zero for failure
 
         if verbose:
-            if retries == 1:
-                print(f"ERROR: command failed, exit code: {proc.returncode}")
-            else:
-                print(f"ERROR: Final attempt failed, no more retries left.")
+            print(
+                f"ERROR: command failed after {retry+1}/{retries} attempt(s), exit code: {proc.returncode}"
+            )
 
         if strict:
             err = "\n   ".join(err_output).strip()
