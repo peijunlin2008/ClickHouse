@@ -1367,7 +1367,7 @@ String Context::getFilesystemCacheUser() const
 DatabaseAndTable Context::getOrCacheStorage(const StorageID & id, std::function<DatabaseAndTable()> storage_getter, std::optional<Exception> * exception) const
 {
     auto & shard = storage_cache.shards[StorageCache::shardIndex(id)];
-    std::lock_guard lock(shard.m);
+    std::lock_guard lock(shard.mutex);
 
     if (auto it = shard.set.find(id); it != shard.set.end())
     {

@@ -22,7 +22,6 @@
 #include <Server/HTTP/HTTPContext.h>
 #include <Storages/IStorage_fwd.h>
 #include <Backups/BackupsInMemoryHolder.h>
-#include <Interpreters/DatabaseCatalog.h>
 
 #include <Poco/AutoPtr.h>
 
@@ -302,6 +301,9 @@ class QueryMetadataCache;
 using QueryMetadataCachePtr = std::shared_ptr<QueryMetadataCache>;
 using QueryMetadataCacheWeakPtr = std::weak_ptr<QueryMetadataCache>;
 
+using DatabasePtr = std::shared_ptr<IDatabase>;
+using DatabaseAndTable = std::pair<DatabasePtr, StoragePtr>;
+
 /// An empty interface for an arbitrary object that may be attached by a shared pointer
 /// to query context, when using ClickHouse as a library.
 struct IHostContext
@@ -575,7 +577,7 @@ protected:
 
         struct Shard
         {
-            std::mutex m;
+            std::mutex mutex;
             std::unordered_set<
                 StorageID,
                 StorageID::DatabaseAndTableNameHash,
