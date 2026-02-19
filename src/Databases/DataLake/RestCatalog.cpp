@@ -441,8 +441,6 @@ AccessToken BigLakeCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken() con
         encoded_client_id, encoded_client_secret, encoded_refresh_token
     );
 
-    LOG_DEBUG(log, "Requesting Google Cloud access token using refresh token {}", body);
-
     const auto & context = getContext();
     auto timeouts = DB::ConnectionTimeouts::getHTTPTimeouts(context->getSettingsRef(), context->getServerSettings());
     DB::HTTPSessionPtr session;
@@ -488,8 +486,6 @@ AccessToken BigLakeCatalog::retrieveGoogleCloudAccessTokenFromRefreshToken() con
             response.getReason(),
             static_cast<int>(response.getStatus()));
     }
-
-    LOG_DEBUG(log, "Received Google Cloud token response from refresh token {}", token_json_raw);
 
     Poco::JSON::Parser parser;
     auto object = parser.parse(token_json_raw).extract<Poco::JSON::Object::Ptr>();
