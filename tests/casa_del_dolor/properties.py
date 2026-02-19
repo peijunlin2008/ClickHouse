@@ -1313,7 +1313,9 @@ def modify_server_settings(
         ET.indent(tree, space="    ", level=0)  # indent tree
         temp_path = None
         # Create a temporary file
-        with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(
+            dir=args.tmp_files_dir, suffix=".xml", delete=False
+        ) as temp_file:
             temp_path = temp_file.name
             # Write the modified XML to the temporary file
             tree.write(temp_path, encoding="utf-8", xml_declaration=True)
@@ -1322,7 +1324,7 @@ def modify_server_settings(
 
 
 def modify_user_settings(
-    input_config_path: str, number_clusters: int
+    args, input_config_path: str, number_clusters: int
 ) -> tuple[bool, str]:
     modified = False
 
@@ -1355,7 +1357,9 @@ def modify_user_settings(
         ET.indent(tree, space="    ", level=0)  # indent tree
         temp_path = None
         # Create a temporary file
-        with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(
+            dir=args.tmp_files_dir, suffix=".xml", delete=False
+        ) as temp_file:
             temp_path = temp_file.name
             # Write the modified XML to the temporary file
             tree.write(temp_path, encoding="utf-8", xml_declaration=True)
@@ -1534,7 +1538,9 @@ def modify_keeper_settings(args, is_private_binary: bool) -> list[str]:
             multi_read_xml.text = "1"
 
         ET.indent(tree, space="    ", level=0)
-        with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(
+            dir=args.tmp_files_dir, suffix=".xml", delete=False
+        ) as temp_file:
             result_configs.append(temp_file.name)
             tree.write(temp_file.name, encoding="utf-8", xml_declaration=True)
     return result_configs
