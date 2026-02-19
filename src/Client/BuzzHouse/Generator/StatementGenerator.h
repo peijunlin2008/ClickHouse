@@ -576,7 +576,7 @@ private:
         const std::vector<SQLRelationCol> & available_cols,
         std::vector<GroupCol> & gcols,
         Expr * expr);
-    bool generateGroupBy(RandomGenerator & rg, uint32_t ncols, bool enforce_having, bool allow_settings, GroupByStatement * gb);
+    bool generateGroupBy(RandomGenerator & rg, uint32_t ncols, bool enforce_having, bool allow_settings, SelectStatementCore * ssc);
     void addWhereSide(RandomGenerator & rg, const std::vector<GroupCol> & available_cols, Expr * expr);
     void addWhereFilter(RandomGenerator & rg, const std::vector<GroupCol> & available_cols, Expr * expr);
     void generateWherePredicate(RandomGenerator & rg, Expr * expr);
