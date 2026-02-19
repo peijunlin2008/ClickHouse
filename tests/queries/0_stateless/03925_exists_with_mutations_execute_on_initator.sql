@@ -9,6 +9,6 @@ ORDER BY id;
 
 INSERT INTO t_mutations_nondeterministic VALUES (10, 20);
 
-ALTER TABLE t_mutations_nondeterministic (UPDATE v = now((exists((SELECT 1023)))) WHERE NULL);
+ALTER TABLE t_mutations_nondeterministic (UPDATE v = exists((SELECT 1023)) WHERE NULL);
 
 DROP TABLE t_mutations_nondeterministic;
