@@ -1,7 +1,6 @@
 # https://software.intel.com/sites/landingpage/IntrinsicsGuide/
 
 # On x86-64, the build target is specified as a microarchitecture level (v1, v2, v3, v4) via `X86_ARCH_LEVEL`.
-# Individual `ENABLE_*` variables are derived from it for third-party dependency compatibility.
 # All of this is unrelated to the instruction set of the host machine
 # (you can compile for a newer instruction set on old machines and vice versa).
 
@@ -28,23 +27,26 @@ if (ARCH_NATIVE)
         endif ()
     endmacro()
 
-    # Populate the ENABLE_ option flags. This is required for the build of some third-party dependencies, specifically snappy, which
-    # (somewhat weirdly) expects the relative SNAPPY_HAVE_ preprocessor variables to be populated, in addition to the microarchitecture
-    # feature flags being enabled in the compiler. This fixes the ARCH_NATIVE flag by automatically populating the ENABLE_ option flags
-    # according to the current CPU's capabilities, detected using clang.
+    # Detect the native microarchitecture level so that X86_ARCH_LEVEL is available for third-party cmake wrappers.
+    # Detection uses clang to query features enabled by -march=native.
     if (ARCH_AMD64)
         GET_CPU_FEATURES (TEST_FEATURE_RESULT)
 
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} ssse3 ENABLE_SSSE3)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} sse4.1 ENABLE_SSE41)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} sse4.2 ENABLE_SSE42)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} vpclmulqdq ENABLE_PCLMULQDQ)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} popcnt ENABLE_POPCNT)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} avx ENABLE_AVX)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} avx2 ENABLE_AVX2)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} avx512f ENABLE_AVX512)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} bmi ENABLE_BMI)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} bmi2 ENABLE_BMI2)
+        # Detect the highest supported microarchitecture level.
+        # Check key features from highest to lowest; levels are cumulative.
+        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} avx512vl _HAS_AVX512VL)
+        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} avx2 _HAS_AVX2)
+        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} sse4.2 _HAS_SSE42)
+
+        if (_HAS_AVX512VL)
+            set (X86_ARCH_LEVEL "v4")
+        elseif (_HAS_AVX2)
+            set (X86_ARCH_LEVEL "v3")
+        elseif (_HAS_SSE42)
+            set (X86_ARCH_LEVEL "v2")
+        else ()
+            set (X86_ARCH_LEVEL "v1")
+        endif ()
     elseif (ARCH_AARCH64)
         GET_CPU_FEATURES (TEST_FEATURE_RESULT)
         TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} aes ENABLE_AES)
@@ -139,37 +141,6 @@ elseif (ARCH_AMD64)
 
     if (NOT X86_ARCH_LEVEL MATCHES "^v[1-4]$")
         message (FATAL_ERROR "X86_ARCH_LEVEL must be one of: v1, v2, v3, v4 (got '${X86_ARCH_LEVEL}')")
-    endif ()
-
-    # Derive individual ENABLE_* variables from the architecture level.
-    # Third-party cmake files (zlib-ng, snappy, crc32c, aws-cmake) check these.
-    set (ENABLE_SSSE3 0)
-    set (ENABLE_SSE41 0)
-    set (ENABLE_SSE42 0)
-    set (ENABLE_PCLMULQDQ 0)
-    set (ENABLE_POPCNT 0)
-    set (ENABLE_AVX 0)
-    set (ENABLE_AVX2 0)
-    set (ENABLE_BMI 0)
-    set (ENABLE_BMI2 0)
-    set (ENABLE_AVX512 0)
-
-    if (NOT X86_ARCH_LEVEL STREQUAL "v1")
-        # v2 and above
-        set (ENABLE_SSSE3 1)
-        set (ENABLE_SSE41 1)
-        set (ENABLE_SSE42 1)
-        set (ENABLE_PCLMULQDQ 1)
-        set (ENABLE_POPCNT 1)
-    endif ()
-    if (X86_ARCH_LEVEL STREQUAL "v3" OR X86_ARCH_LEVEL STREQUAL "v4")
-        set (ENABLE_AVX 1)
-        set (ENABLE_AVX2 1)
-        set (ENABLE_BMI 1)
-        set (ENABLE_BMI2 1)
-    endif ()
-    if (X86_ARCH_LEVEL STREQUAL "v4")
-        set (ENABLE_AVX512 1)
     endif ()
 
     # Same best-effort check for x86 as above for ARM.
