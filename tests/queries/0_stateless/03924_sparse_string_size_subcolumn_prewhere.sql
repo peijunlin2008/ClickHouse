@@ -28,6 +28,6 @@ OPTIMIZE TABLE t_sparse_string_size FINAL;
 
 -- The bug manifested when reading t.a.size and t in the same readRows call
 -- across multiple granules with PREWHERE.
-SELECT t.a.size, id FROM t_sparse_string_size PREWHERE id % 11 = 0 WHERE toString(t) != '' LIMIT 3;
+SELECT t.a.size, id FROM t_sparse_string_size PREWHERE id % 11 = 0 WHERE toString(t) != '' ORDER BY id LIMIT 3;
 
 DROP TABLE t_sparse_string_size;
