@@ -236,10 +236,10 @@ Implements the `CASE expr WHEN val1 THEN result1 ... ELSE default END` expressio
     FunctionDocumentation::ReturnedValue returned_value = {"Returns the result corresponding to the first matching value, or the default.", {"Any"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT CASE 1 WHEN 1 THEN 'one' WHEN 2 THEN 'two' ELSE 'other' END", "one"}};
     FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::INTERNAL_FUNCTION_DOCS;
+    FunctionDocumentation::Category category = FunctionDocumentation::Category::Conditional;
     FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionCaseWithExpression>(documentation);
+    factory.registerFunction<FunctionCaseWithExpression>(FunctionDocumentation::INTERNAL_FUNCTION_DOCS);
 
     /// These are obsolete function names.
     factory.registerAlias("caseWithExpr", "caseWithExpression");
