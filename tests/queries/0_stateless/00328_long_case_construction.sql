@@ -3,6 +3,9 @@
 -- This test contains > 1500 queries and apparently the overhead of re-interpretation with enabled parallel replicas is too high.
 SET automatic_parallel_replicas_mode=0;
 
+-- Too slow for targeted tests
+SET compile_aggregate_expressions=0, compile_expressions=0;
+
 /* Trivial case */
 
 SELECT CASE WHEN 1 THEN 2 WHEN 3 THEN  4 ELSE 5 END;
