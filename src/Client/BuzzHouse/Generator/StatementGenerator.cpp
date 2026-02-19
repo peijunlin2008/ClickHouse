@@ -2719,6 +2719,12 @@ static const auto has_non_mergeable_mt_func
 
 static const auto has_refreshable_view_func = [](const SQLView & v) { return v.isAttached() && v.is_refreshable; };
 
+static const std::function<bool(const std::shared_ptr<SQLDatabase> &)> db_has_replicas
+    = [](const std::shared_ptr<SQLDatabase> & db) { return db->isAttached() && db->replica_counter > 0; };
+
+static const std::function<bool(const SQLTable &)> table_has_replicas
+    = [](const SQLTable & t) { return t.isAttached() && t.replica_counter > 0; };
+
 void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const bool allow_table_statements, SystemCommand * sc)
 {
     const uint32_t has_merge_tree = static_cast<uint32_t>(allow_table_statements && collectionHas<SQLTable>(has_merge_tree_func));
@@ -2728,9 +2734,8 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
     const uint32_t has_refreshable_view
         = static_cast<uint32_t>(allow_table_statements && collectionHas<SQLView>(has_refreshable_view_func));
     const uint32_t has_table = static_cast<uint32_t>(allow_table_statements && collectionHas<SQLTable>(attached_tables));
-    const uint32_t has_replicated_table = static_cast<uint32_t>(allow_table_statements && collectionHas<SQLTable>(replicated_tables));
-    const uint32_t has_replicated_database
-        = static_cast<uint32_t>(allow_table_statements && collectionHas<std::shared_ptr<SQLDatabase>>(replicated_databases));
+    const uint32_t has_replicated_table = static_cast<uint32_t>(allow_table_statements && collectionHas<SQLTable>(table_has_replicas));
+    const uint32_t has_replicated_database = static_cast<uint32_t>(collectionHas<std::shared_ptr<SQLDatabase>>(db_has_replicas));
 
     const uint32_t reload_embedded_dictionaries = 0;
     const uint32_t reload_dictionaries = 0;
@@ -3116,11 +3121,29 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
                + stop_replicated_sends + start_replicated_sends + stop_replication_queues + start_replication_queues
                + stop_pulling_replication_log + start_pulling_replication_log + sync_replica + 1))
     {
+        const uint32_t nopt2 = rg.nextSmallNumber();
         SyncReplica * srep = sc->mutable_sync_replica();
-        std::uniform_int_distribution<uint32_t> sync_range(1, static_cast<uint32_t>(SyncReplica::SyncPolicy_MAX));
+        const SQLTable & t = rg.pickRandomly(filterCollection<SQLTable>(has_merge_tree_func));
 
-        srep->set_policy(static_cast<SyncReplica_SyncPolicy>(sync_range(rg.generator)));
-        cluster = setTableSystemStatement<SQLTable>(rg, has_merge_tree_func, srep->mutable_est());
+        cluster = t.getCluster();
+        t.setName(srep->mutable_est(), false);
+        if (nopt2 < 4)
+        {
+            srep->set_strict(true);
+        }
+        else if (nopt2 < 8)
+        {
+            LightweightSyncReplica * lsrep = srep->mutable_lightweight();
+
+            if (t.replica_counter > 0)
+            {
+                lsrep->add_replicas("r" + std::to_string(rg.randomInt<uint32_t>(0, t.replica_counter - 1)));
+            }
+        }
+        else
+        {
+            srep->set_pull(true);
+        }
     }
     else if (
         sync_replicated_database
@@ -3971,7 +3994,7 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
     {
         const uint32_t nopt2 = rg.nextSmallNumber();
         DropReplica * dr = sc->mutable_drop_replica();
-        const SQLTable & t = rg.pickRandomly(filterCollection<SQLTable>(replicated_tables));
+        const SQLTable & t = rg.pickRandomly(filterCollection<SQLTable>(table_has_replicas));
 
         dr->set_replica("r" + std::to_string(rg.randomInt<uint32_t>(0, t.replica_counter - 1)));
         if (nopt2 < 4)
@@ -4004,10 +4027,10 @@ void StatementGenerator::generateNextSystemStatement(RandomGenerator & rg, const
                + drop_database_replica + 1))
     {
         DropDatabaseReplica * dr = sc->mutable_drop_database_replica();
-        const std::shared_ptr<SQLDatabase> & d = rg.pickRandomly(filterCollection<std::shared_ptr<SQLDatabase>>(replicated_databases));
+        const std::shared_ptr<SQLDatabase> & d = rg.pickRandomly(filterCollection<std::shared_ptr<SQLDatabase>>(db_has_replicas));
 
         dr->set_replica("r" + std::to_string(rg.randomInt<uint32_t>(0, d->replica_counter - 1)));
-        if (rg.nextBool())
+        if (d->shard_counter > 0 && rg.nextBool())
         {
             dr->set_shard("s" + std::to_string(rg.randomInt<uint32_t>(0, d->shard_counter - 1)));
         }

@@ -4967,11 +4967,39 @@ CONV_FN(SystemCommand, cmd)
         case CmdType::kStartPullingReplicationLog:
             SystemCommandOnCluster(ret, "START PULLING REPLICATION LOG", cmd, cmd.start_pulling_replication_log());
             break;
-        case CmdType::kSyncReplica:
-            SystemCommandOnCluster(ret, "SYNC REPLICA", cmd, cmd.sync_replica().est());
+        case CmdType::kSyncReplica: {
+            const auto & sr = cmd.sync_replica();
+
+            SystemCommandOnCluster(ret, "SYNC REPLICA", cmd, sr.est());
             ret += " ";
-            ret += SyncReplica_SyncPolicy_Name(cmd.sync_replica().policy());
-            break;
+            using SyncType = SyncReplica::SyncOneofCase;
+            switch (sr.sync_oneof_case())
+            {
+                case SyncType::kStrict:
+                    ret += "STRICT";
+                    break;
+                case SyncType::kLightweight:
+                    ret += "LIGHTWEIGHT";
+                    if (sr.lightweight().replicas_size() > 0)
+                    {
+                        ret += " ";
+                        for (int i = 0; i < sr.lightweight().replicas_size(); i++)
+                        {
+                            if (i != 0)
+                            {
+                                ret += ", ";
+                            }
+                            ret += "'";
+                            ret += sr.lightweight().replicas(i);
+                            ret += "'";
+                        }
+                    }
+                    break;
+                default:
+                    ret += "PULL";
+            }
+        }
+        break;
         case CmdType::kSyncReplicatedDatabase:
             ret += "SYNC DATABASE REPLICA";
             if (cmd.has_cluster())

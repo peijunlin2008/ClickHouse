@@ -824,12 +824,10 @@ public:
     const std::function<bool(const SQLTable &)> detached_tables = [](const SQLTable & t) { return t.isDettached(); };
     const std::function<bool(const SQLView &)> detached_views = [](const SQLView & v) { return v.isDettached(); };
     const std::function<bool(const SQLDictionary &)> detached_dictionaries = [](const SQLDictionary & d) { return d.isDettached(); };
-    const std::function<bool(const std::shared_ptr<SQLDatabase> &)> replicated_databases = [](const std::shared_ptr<SQLDatabase> & db)
-    { return db->isAttached() && db->isReplicatedDatabase() && (db->shard_counter > 0 || db->replica_counter > 0); };
-    const std::function<bool(const SQLTable &)> replicated_tables = [](const SQLTable & t)
-    { return t.isAttached() && t.isReplicatedOrSharedMergeTree() && (t.shard_counter > 0 || t.replica_counter > 0); };
-    const std::function<bool(const SQLView &)> replicated_views = [](const SQLView & v)
-    { return v.isAttached() && v.isReplicatedOrSharedMergeTree() && (v.shard_counter > 0 || v.replica_counter > 0); };
+    const std::function<bool(const std::shared_ptr<SQLDatabase> &)> replicated_databases
+        = [](const std::shared_ptr<SQLDatabase> & db) { return db->isAttached() && (db->shard_counter > 0 || db->replica_counter > 0); };
+    const std::function<bool(const SQLTable &)> replicated_tables
+        = [](const SQLTable & t) { return t.isAttached() && (t.shard_counter > 0 || t.replica_counter > 0); };
 
     template <typename T>
     std::function<bool(const T &)> hasTableOrView(const SQLBase & b) const

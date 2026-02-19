@@ -4051,14 +4051,17 @@ message Detach {
     optional SettingValues setting_values = 6;
 }
 
+message LightweightSyncReplica {
+    repeated string replicas = 1;
+}
+
 message SyncReplica {
-    enum SyncPolicy {
-        STRICT = 1;
-        LIGHTWEIGHT = 2;
-        PULL = 3;
-    }
     required ExprSchemaTable est = 1;
-    required SyncPolicy policy = 2;
+    oneof sync_oneof {
+        bool strict = 2;
+        LightweightSyncReplica lightweight = 3;
+        bool pull = 4;
+    }
 }
 
 message DropReplica {
