@@ -4554,10 +4554,13 @@ def test_early_return_limit(started_cluster, use_delta_kernel):
         f"SELECT count() FROM system.text_log WHERE query_id = '{query_id}' AND message LIKE '%shutdown detected after queue wait%'"
     ).strip()
 
+    first_check_hits = int(first_check_hits)
+    queue_check_hits = int(queue_check_hits)
+
     print(f"First shutdown check hits: {first_check_hits}")
     print(f"Queue shutdown check hits: {queue_check_hits}")
 
-    assert first_check_hits or queue_check_hits
+    assert first_check_hits > 0 or queue_check_hits > 0
 
     assert 1 == int(instance.query(
         f"SELECT count() FROM system.text_log WHERE query_id = '{query_id}' AND message LIKE '%List batch size is 1/1, shutdown: true%'"
