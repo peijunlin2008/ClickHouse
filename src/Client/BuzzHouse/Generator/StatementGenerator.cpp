@@ -4913,72 +4913,82 @@ template <typename T>
 void StatementGenerator::exchangeObjects(const uint32_t tname1, const uint32_t tname2)
 {
     auto & container = getNextCollection<T>();
-    T obj1 = std::move(container.at(tname1));
-    T obj2 = std::move(container.at(tname2));
-    auto db_tmp = obj1.db;
+    if (container.contains(tname1) && container.contains(tname2))
+    {
+        T obj1 = std::move(container.at(tname1));
+        T obj2 = std::move(container.at(tname2));
+        auto db_tmp = obj1.db;
 
-    obj1.tname = tname2;
-    obj1.db = obj2.db;
-    obj2.tname = tname1;
-    obj2.db = db_tmp;
-    container[tname2] = std::move(obj1);
-    container[tname1] = std::move(obj2);
+        obj1.tname = tname2;
+        obj1.db = obj2.db;
+        obj2.tname = tname1;
+        obj2.db = db_tmp;
+        container[tname2] = std::move(obj1);
+        container[tname1] = std::move(obj2);
+    }
 }
 
 template <typename T>
 void StatementGenerator::renameObjects(const uint32_t old_tname, const uint32_t new_tname, const std::optional<uint32_t> & new_db)
 {
     auto & container = getNextCollection<T>();
-    T obj = std::move(container.at(old_tname));
+    if (container.contains(old_tname))
+    {
+        T obj = std::move(container.at(old_tname));
 
-    if constexpr (std::is_same_v<T, std::shared_ptr<SQLDatabase>>)
-    {
-        obj->dname = new_tname;
-        UNUSED(new_db);
+        if constexpr (std::is_same_v<T, std::shared_ptr<SQLDatabase>>)
+        {
+            obj->dname = new_tname;
+            UNUSED(new_db);
+        }
+        else
+        {
+            obj.tname = new_tname;
+            obj.db = new_db.has_value() ? this->databases.at(new_db.value()) : nullptr;
+        }
+        container[new_tname] = std::move(obj);
+        container.erase(old_tname);
     }
-    else
-    {
-        obj.tname = new_tname;
-        obj.db = new_db.has_value() ? this->databases.at(new_db.value()) : nullptr;
-    }
-    container[new_tname] = std::move(obj);
-    container.erase(old_tname);
 }
 
 template <typename T>
 void StatementGenerator::attachOrDetachObject(const uint32_t tname, const DetachStatus status)
 {
     auto & container = getNextCollection<T>();
-    T & obj = container.at(tname);
 
-    if constexpr (std::is_same_v<T, std::shared_ptr<SQLDatabase>>)
+    if (container.contains(tname))
     {
-        obj->attached = status;
-        for (auto & [_, table] : this->tables)
+        T & obj = container.at(tname);
+
+        if constexpr (std::is_same_v<T, std::shared_ptr<SQLDatabase>>)
         {
-            if (table.db && table.db->dname == tname)
+            obj->attached = status;
+            for (auto & [_, table] : this->tables)
             {
-                table.attached = std::max(table.attached, status);
+                if (table.db && table.db->dname == tname)
+                {
+                    table.attached = std::max(table.attached, status);
+                }
+            }
+            for (auto & [_, view] : this->views)
+            {
+                if (view.db && view.db->dname == tname)
+                {
+                    view.attached = std::max(view.attached, status);
+                }
+            }
+            for (auto & [_, dictionary] : this->dictionaries)
+            {
+                if (dictionary.db && dictionary.db->dname == tname)
+                {
+                    dictionary.attached = std::max(dictionary.attached, status);
+                }
             }
         }
-        for (auto & [_, view] : this->views)
+        else
         {
-            if (view.db && view.db->dname == tname)
-            {
-                view.attached = std::max(view.attached, status);
-            }
+            obj.attached = status;
         }
-        for (auto & [_, dictionary] : this->dictionaries)
-        {
-            if (dictionary.db && dictionary.db->dname == tname)
-            {
-                dictionary.attached = std::max(dictionary.attached, status);
-            }
-        }
-    }
-    else
-    {
-        obj.attached = status;
     }
 }
 
