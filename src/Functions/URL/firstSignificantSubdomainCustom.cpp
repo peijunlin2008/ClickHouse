@@ -39,10 +39,10 @@ Similar to `firstSignificantSubdomainCustom` but uses RFC 3986 compliant URL par
         {"tld_list_name", "Name of the custom TLD list from the configuration.", {"String"}}
     };
     FunctionDocumentation::ReturnedValue returned_value_custom_rfc = {"Returns the first significant subdomain.", {"String"}};
-    FunctionDocumentation::IntroducedIn introduced_in_custom = {22,10};
+    FunctionDocumentation::IntroducedIn introduced_in_custom_rfc = {22,10};
     FunctionDocumentation::Examples examples_custom_rfc = {{"Basic usage", "SELECT firstSignificantSubdomainCustomRFC('https://news.example.com', 'public_suffix_list')", "example"}};
     FunctionDocumentation::Category category_custom_rfc = FunctionDocumentation::Category::URL;
-    FunctionDocumentation documentation_custom_rfc = {description_custom_rfc, syntax_custom_rfc, arguments_custom_rfc, {}, returned_value_custom_rfc, examples_custom_rfc, introduced_in_custom, category_custom_rfc};
+    FunctionDocumentation documentation_custom_rfc = {description_custom_rfc, syntax_custom_rfc, arguments_custom_rfc, {}, returned_value_custom_rfc, examples_custom_rfc, introduced_in_custom_rfc, category_custom_rfc};
 
     factory.registerFunction<FunctionFirstSignificantSubdomainCustomRFC>(documentation_custom_rfc);
 }
