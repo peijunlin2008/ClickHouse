@@ -67,7 +67,7 @@ Calculates the sigmoid function: `1 / (1 + exp(-x))`. The sigmoid function maps 
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT sigmoid(0)", "0.5"}};
     FunctionDocumentation::IntroducedIn introduced_in = {20, 1};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Mathematical;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionSigmoid>(documentation);
 }
