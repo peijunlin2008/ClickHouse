@@ -894,14 +894,27 @@ class Result(MetaClasses.Serializable):
             Formatted string representation of the result
         """
         # Import here to avoid circular dependency
+        import os
+        import sys
         from .info import Info
 
         add_frame = not output
         sub_indent = indent + "  "
-        use_colors = Info().is_local_run
 
-        # Choose color based on status
+        # Check if colors should be used: local run + TTY + terminal supports colors
+        use_colors = (
+            Info().is_local_run
+            and sys.stdout.isatty()
+            and os.environ.get("TERM", "").lower() != "dumb"
+        )
+
+        # Define color variables once to avoid repetition
+        status_color = ""
+        frame_color = ""
+        reset_color = ""
+
         if use_colors:
+            reset_color = _Colors.RESET
             if self.is_success():
                 status_color = _Colors.GREEN + _Colors.BOLD
                 frame_color = _Colors.GREEN
@@ -911,18 +924,15 @@ class Result(MetaClasses.Serializable):
             else:
                 status_color = _Colors.YELLOW + _Colors.BOLD
                 frame_color = _Colors.YELLOW
-        else:
-            status_color = ""
-            frame_color = ""
 
         if add_frame:
-            output = indent + frame_color + "+" * 80 + (_Colors.RESET if use_colors else "") + "\n"
+            output = f"{indent}{frame_color}{'+'*80}{reset_color}\n"
 
         if add_frame or not self.is_ok():
             # Capitalize status and only show name if it's not empty
             status_text = str(self.status).capitalize()
             name_text = f" [{self.name}]" if self.name else ""
-            output += f"{indent}{status_color}{status_text}{_Colors.RESET if use_colors else ''}{name_text}\n"
+            output += f"{indent}{status_color}{status_text}{reset_color}{name_text}\n"
             truncated_info = self.get_info_truncated(
                 max_info_lines_cnt=max_info_lines_cnt,
                 truncate_from_top=truncate_from_top,
@@ -943,7 +953,7 @@ class Result(MetaClasses.Serializable):
                 )
 
         if add_frame:
-            output += indent + frame_color + "+" * 80 + (_Colors.RESET if use_colors else "") + "\n"
+            output += f"{indent}{frame_color}{'+'*80}{reset_color}\n"
 
         return output
 
