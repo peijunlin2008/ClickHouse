@@ -647,10 +647,19 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
             int64_t size,
             int64_t /* mod_time */,
             const ffi::Stats * stats,
-            ffi::SharedDvInfo * /* dv_info */,
-            ffi::OptionalValue<ffi::SharedExpression *> /* transform */,
+            ffi::SharedDvInfo * dv_info,
+            ffi::OptionalValue<ffi::SharedExpression *> transform,
             const struct ffi::CStringMap * /* deprecated */)
         {
+            /// Wrap handles in RAII immediately to ensure cleanup on any exit path
+            /// TODO: Actually we do not need any transforms/dv_info to exist here,
+            /// so it would be better to implement in delta-kernel scanCallback
+            /// which will only collect stats.
+            KernelDvInfo dv_info_handle(dv_info);
+            std::optional<KernelExpression> transform_handle;
+            if (transform.tag == ffi::OptionalValue<ffi::SharedExpression *>::Tag::Some)
+                transform_handle.emplace(transform.some._0);
+
             auto * visitor = static_cast<StatsVisitor *>(engine_context);
             visitor->total_data_files += 1;
             visitor->total_bytes += static_cast<size_t>(size);
