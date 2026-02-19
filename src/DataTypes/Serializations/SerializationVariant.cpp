@@ -262,7 +262,8 @@ void SerializationVariant::serializeBinaryBulkWithMultipleStreamsAndUpdateVarian
     size_t & total_size_of_variants) const
 {
     const ColumnVariant & col = assert_cast<const ColumnVariant &>(column);
-    col.validateState();
+    if (offset == 0)
+        col.validateState();
 
     if (const size_t size = col.size(); limit == 0 || offset + limit > size)
         limit = size - offset;
@@ -664,6 +665,9 @@ void SerializationVariant::deserializeBinaryBulkWithMultipleStreams(
                 ++num_non_empty_variants;
                 last_non_empty_discr = i;
             }
+
+            if (col.getVariantByLocalDiscriminator(i).size() < variant_limits[i])
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "Size of variant {} is expected to be not less than {} according to di, but it is {}", variant_names[i], variant_limits[i], col.getVariantByLocalDiscriminator(i).size());
 
             variant_offsets.push_back(col.getVariantByLocalDiscriminator(i).size() - variant_limits[i]);
         }

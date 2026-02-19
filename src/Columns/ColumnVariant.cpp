@@ -1860,6 +1860,10 @@ void ColumnVariant::validateState() const
     if (local_discriminators_data.size() != offsets_data.size())
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Size of discriminators and offsets should be equal, but {} and {} were given", local_discriminators_data.size(), offsets_data.size());
 
+    std::vector<size_t> actual_variant_sizes(variants.size());
+    for (size_t i = 0; i != variants.size(); ++i)
+        actual_variant_sizes[i] = variants[i]->size();
+
     std::vector<size_t> expected_variant_sizes(variants.size(), 0);
     for (size_t i = 0; i != local_discriminators_data.size(); ++i)
     {
@@ -1867,7 +1871,7 @@ void ColumnVariant::validateState() const
         if (local_discr != NULL_DISCRIMINATOR)
         {
             ++expected_variant_sizes[local_discr];
-            if (offsets_data[i] >= variants[local_discr]->size())
+            if (offsets_data[i] >= actual_variant_sizes[local_discr])
                 throw Exception(ErrorCodes::LOGICAL_ERROR, "Offset at position {} is {}, but variant {} ({}) has size {}", i, offsets_data[i], static_cast<UInt32>(local_discr), variants[local_discr]->getName(), variants[local_discr]->size());
         }
     }
