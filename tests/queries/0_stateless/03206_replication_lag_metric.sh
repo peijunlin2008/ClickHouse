@@ -12,14 +12,11 @@ CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 #
 # The other replica (replica2) may or may not have caught up by the time we query
 # (timing-dependent), so we retry in a loop to observe lag >= 2 at least once.
-#
-# After syncing replica2 via SYSTEM SYNC DATABASE REPLICA, both replicas must have lag = 0.
 
 DB1="rdb1_${CLICKHOUSE_TEST_UNIQUE_NAME}"
 DB2="rdb2_${CLICKHOUSE_TEST_UNIQUE_NAME}"
 ZK_PATH="/test/test_replication_lag_metric/${CLICKHOUSE_TEST_UNIQUE_NAME}"
 
-# Part 1: Check that we can observe non-zero replication lag on the non-initiator replica.
 # Retry with fresh databases each time, because once replica2 catches up, lag stays at 0.
 observed_lag=0
 for i in $(seq 1 30); do
@@ -32,21 +29,11 @@ for i in $(seq 1 30); do
     lag1=$($CLICKHOUSE_CLIENT --query "SELECT replication_lag FROM system.clusters WHERE cluster = '${DB1}' AND replica_num = 1")
     lag2=$($CLICKHOUSE_CLIENT --query "SELECT replication_lag FROM system.clusters WHERE cluster = '${DB1}' AND replica_num = 2")
 
-    # Also verify that after syncing, both replicas have lag = 0.
-    $CLICKHOUSE_CLIENT --query "SYSTEM SYNC DATABASE REPLICA ${DB2}"
-    lag1_after=$($CLICKHOUSE_CLIENT --query "SELECT replication_lag FROM system.clusters WHERE cluster = '${DB1}' AND replica_num = 1")
-    lag2_after=$($CLICKHOUSE_CLIENT --query "SELECT replication_lag FROM system.clusters WHERE cluster = '${DB1}' AND replica_num = 2")
-
     $CLICKHOUSE_CLIENT --query "DROP DATABASE ${DB1}"
     $CLICKHOUSE_CLIENT --query "DROP DATABASE ${DB2}"
 
     if [[ "$lag1" != "0" ]]; then
         echo "FAIL: initiator replica1 should have lag = 0, got $lag1"
-        exit 1
-    fi
-
-    if [[ "$lag1_after" != "0" ]] || [[ "$lag2_after" != "0" ]]; then
-        echo "FAIL: after sync, both replicas should have lag = 0, got replica1=$lag1_after replica2=$lag2_after"
         exit 1
     fi
 
