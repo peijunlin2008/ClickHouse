@@ -4612,7 +4612,7 @@ void StatementGenerator::generateNextQuery(RandomGenerator & rg, const bool in_p
     SQLMask[static_cast<size_t>(SQLOp::OptimizeTable)] = has_tables;
     SQLMask[static_cast<size_t>(SQLOp::CheckTable)] = has_tables;
     SQLMask[static_cast<size_t>(SQLOp::DescTable)] = !in_parallel;
-    SQLMask[static_cast<size_t>(SQLOp::Exchange)] = !in_parallel
+    SQLMask[static_cast<size_t>(SQLOp::Exchange)] = this->fc.enable_renames && !in_parallel
         && (collectionCount<SQLTable>(exchange_table_lambda) > 1 || collectionCount<SQLView>(attached_views) > 1
             || collectionCount<SQLDictionary>(attached_dictionaries) > 1);
     SQLMask[static_cast<size_t>(SQLOp::Alter)] = has_tables || has_views || has_databases;
@@ -4629,8 +4629,8 @@ void StatementGenerator::generateNextQuery(RandomGenerator & rg, const bool in_p
     /// SQLMask[static_cast<size_t>(SQLOp::SystemStmt)] = true;
     SQLMask[static_cast<size_t>(SQLOp::BackupOrRestore)] = this->fc.enable_backups;
     SQLMask[static_cast<size_t>(SQLOp::CreateDictionary)] = static_cast<uint32_t>(dictionaries.size()) < this->fc.max_dictionaries;
-    SQLMask[static_cast<size_t>(SQLOp::Rename)]
-        = !in_parallel && (collectionHas<SQLTable>(exchange_table_lambda) || has_views || has_dictionaries || has_databases);
+    SQLMask[static_cast<size_t>(SQLOp::Rename)] = this->fc.enable_renames && !in_parallel
+        && (collectionHas<SQLTable>(exchange_table_lambda) || has_views || has_dictionaries || has_databases);
     SQLMask[static_cast<size_t>(SQLOp::LightUpdate)] = has_mergeable_mt;
     SQLMask[static_cast<size_t>(SQLOp::SelectQuery)] = !in_parallel;
     /// SQLMask[static_cast<size_t>(SQLOp::Kill)] = true;

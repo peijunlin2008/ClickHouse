@@ -329,6 +329,7 @@ public:
     bool enable_compatibility_settings = false;
     bool enable_memory_settings = false;
     bool enable_backups = true;
+    bool enable_renames = true;
 
     uint64_t seed = 0;
     uint64_t min_insert_rows = 1;
