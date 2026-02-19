@@ -165,20 +165,7 @@ FunctionBasePtr createInternalCast(ColumnWithTypeAndName from, DataTypePtr to, C
 
 REGISTER_FUNCTION(CastOverloadResolvers)
 {
-    FunctionDocumentation::Description description_cast_internal = R"(
-Internal variant of `CAST` that performs type conversion. Unlike `CAST`, this function is used internally and is not affected by the null preserving setting. It uses non-accurate cast semantics.
-    )";
-    FunctionDocumentation::Syntax syntax_cast_internal = "_CAST(x, T)";
-    FunctionDocumentation::Arguments arguments_cast_internal = {
-        {"x", "The value to convert.", {}},
-        {"T", "The target data type.", {"String"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value_cast_internal = {"Returns the value converted to the specified type.", {}};
-    FunctionDocumentation::Examples examples_cast_internal = {{"Basic usage", "SELECT _CAST(1, 'String')", "1"}};
-    FunctionDocumentation::Category category_cast_internal = FunctionDocumentation::Category::TypeConversion;
-    FunctionDocumentation documentation_cast_internal = {description_cast_internal, syntax_cast_internal, arguments_cast_internal, {}, returned_value_cast_internal, examples_cast_internal, {}, category_cast_internal};
-
-    factory.registerFunction("_CAST", [](ContextPtr context){ return CastOverloadResolverImpl::create(context, CastType::nonAccurate, true, {}); }, documentation_cast_internal, FunctionFactory::Case::Insensitive);
+    factory.registerFunction("_CAST", [](ContextPtr context){ return CastOverloadResolverImpl::create(context, CastType::nonAccurate, true, {}); }, FunctionDocumentation::INTERNAL_FUNCTION_DOCS, FunctionFactory::Case::Insensitive);
     /// Note: "internal" (not affected by null preserving setting) versions of accurate cast functions are unneeded.
 
     /// CAST documentation
