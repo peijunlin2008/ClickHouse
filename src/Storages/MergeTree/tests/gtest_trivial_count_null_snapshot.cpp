@@ -9,7 +9,7 @@
 #include <Storages/MergeTree/MergeTreeSettings.h>
 #include <Storages/StorageMergeTree.h>
 #include <Storages/StorageSnapshot.h>
-#include <Common/ThreadStatus.h>
+#include <Common/CurrentThread.h>
 #include <Common/tests/gtest_global_context.h>
 #include <Common/tests/gtest_global_register.h>
 
@@ -32,7 +32,7 @@ TEST(SupportsTrivialCountOptimization, NullMutationsSnapshot)
 {
     using namespace DB;
 
-    ThreadStatus thread_status;
+    MainThreadStatus::getInstance();
     tryRegisterFunctions();
     tryRegisterAggregateFunctions();
 
