@@ -8,7 +8,7 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/cache/debconf /tmp/*
 
-ARG ver=42.7.5
+ARG ver=42.7.7
 RUN curl -L -o /postgresql-java-${ver}.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/${ver}/postgresql-${ver}.jar
 ENV CLASSPATH=$CLASSPATH:/postgresql-java-${ver}.jar
 

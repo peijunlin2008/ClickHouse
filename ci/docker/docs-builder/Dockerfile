@@ -22,6 +22,7 @@ ARG CACHE_INVALIDATOR=0
 RUN groupadd -r clickhouse && \
     useradd -r -g clickhouse -m -d /home/clickhouse -s /sbin/nologin -c "ClickHouse user" clickhouse
 
+RUN npm install -g npm@latest
 RUN yarn config set registry https://registry.npmjs.org
 ENV HOME=/opt/clickhouse-docs
 

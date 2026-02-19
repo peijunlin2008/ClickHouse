@@ -5,6 +5,6 @@ FROM node:22-alpine
 
 WORKDIR /usr/app
 
-RUN npm install mysql
+RUN npm install -g npm@latest && npm install mysql
 
 COPY ./test.js ./test.js
