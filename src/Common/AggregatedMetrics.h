@@ -38,7 +38,7 @@ public:
 private:
     const CurrentMetrics::Metric destination_metric;
 
-    double quantile;
+    double quantile = 0;
     void * shared_buckets = nullptr;
     void * shared_update = nullptr;
 
