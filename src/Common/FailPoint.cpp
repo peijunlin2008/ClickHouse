@@ -69,6 +69,7 @@ static struct InitFiu
     REGULAR(distributed_cache_fail_connect_non_retriable) \
     REGULAR(distributed_cache_fail_connect_retriable) \
     REGULAR(object_storage_queue_fail_commit) \
+    REGULAR(object_storage_queue_fail_after_insert) \
     REGULAR(object_storage_queue_fail_startup) \
     REGULAR(smt_dont_merge_first_part) \
     REGULAR(smt_mutate_only_second_part) \
@@ -306,6 +307,31 @@ void FailPointInjection::waitForResume(const String & fail_point_name)
     });
 }
 
+std::vector<FailPointInjection::FailPointInfo> FailPointInjection::getFailPoints()
+{
+    std::vector<FailPointInfo> result;
+
+#define SUB_M(NAME, TP)                                 \
+    result.push_back(                                   \
+        FailPointInfo{                                  \
+            .name = FailPoints::NAME,                   \
+            .type = FailPointType::TP,                  \
+            .enabled = fiu_fail(FailPoints::NAME) != 0, \
+        });
+#define ADD_ONCE(NAME) SUB_M(NAME, Once)
+#define ADD_REGULAR(NAME) SUB_M(NAME, Regular)
+#define ADD_PAUSEABLE_ONCE(NAME) SUB_M(NAME, PauseableOnce)
+#define ADD_PAUSEABLE(NAME) SUB_M(NAME, Pauseable)
+    APPLY_FOR_FAILPOINTS(ADD_ONCE, ADD_REGULAR, ADD_PAUSEABLE_ONCE, ADD_PAUSEABLE)
+#undef SUB_M
+#undef ADD_ONCE
+#undef ADD_REGULAR
+#undef ADD_PAUSEABLE_ONCE
+#undef ADD_PAUSEABLE
+
+    return result;
+}
+
 #else // USE_LIBFIU
 
 void FailPointInjection::pauseFailPoint(const String &)
@@ -349,6 +375,13 @@ void FailPointInjection::enableFromGlobalConfig(const Poco::Util::AbstractConfig
 
     if (!fail_point_names.empty())
         throw Exception(ErrorCodes::SUPPORT_IS_DISABLED, "FIU is not enabled");
+}
+
+std::vector<FailPointInjection::FailPointInfo> FailPointInjection::getFailPoints()
+{
+    std::vector<FailPointInfo> result;
+
+    return result;
 }
 
 #endif // USE_LIBFIU
