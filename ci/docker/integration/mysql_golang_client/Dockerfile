@@ -3,7 +3,7 @@
 
 FROM golang:1.24-alpine
 
-RUN apk update && apk upgrade --no-cache
+RUN apk --no-cache upgrade
 
 WORKDIR /opt
 
