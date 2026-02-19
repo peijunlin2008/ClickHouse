@@ -5148,6 +5148,28 @@ CONV_FN(SystemCommand, cmd)
             ret += "NOTIFY FAILPOINT ";
             ret += cmd.notify_failpoint();
             break;
+        case CmdType::kRestoreDatabaseReplica:
+            ret += "RESTORE DATABASE REPLICA";
+            if (cmd.has_cluster())
+            {
+                ClusterToString(ret, true, cmd.cluster());
+            }
+            ret += " ";
+            DatabaseToString(ret, cmd.restore_database_replica());
+            break;
+        case CmdType::kStopReplicatedView:
+            ret += "STOP REPLICATED VIEW ";
+            ExprSchemaTableToString(ret, cmd.stop_replicated_view());
+            break;
+        case CmdType::kStartReplicatedView:
+            ret += "START REPLICATED VIEW ";
+            ExprSchemaTableToString(ret, cmd.start_replicated_view());
+            break;
+        case CmdType::kUnfreeze:
+            ret += "UNFREEZE WITH NAME 'f";
+            ret += std::to_string(cmd.unfreeze());
+            ret += "'";
+            break;
         default:
             ret += "FLUSH LOGS";
     }

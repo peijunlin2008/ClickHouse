@@ -4145,6 +4145,10 @@ message SystemCommand {
         bool drop_parquet_metadata_cache = 78;
         string wait_failpoint = 79;
         string notify_failpoint = 80;
+        Database restore_database_replica = 81;
+        ExprSchemaTable stop_replicated_view = 82;
+        ExprSchemaTable start_replicated_view = 83;
+        uint32 unfreeze = 84;
     }
 }
 
