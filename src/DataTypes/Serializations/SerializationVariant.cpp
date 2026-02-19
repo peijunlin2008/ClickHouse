@@ -667,7 +667,7 @@ void SerializationVariant::deserializeBinaryBulkWithMultipleStreams(
             }
 
             if (col.getVariantByLocalDiscriminator(i).size() < variant_limits[i])
-                throw Exception(ErrorCodes::LOGICAL_ERROR, "Size of variant {} is expected to be not less than {} according to di, but it is {}", variant_names[i], variant_limits[i], col.getVariantByLocalDiscriminator(i).size());
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "Size of variant {} is expected to be not less than {} according to discriminators, but it is {}", variant_names[i], variant_limits[i], col.getVariantByLocalDiscriminator(i).size());
 
             variant_offsets.push_back(col.getVariantByLocalDiscriminator(i).size() - variant_limits[i]);
         }
