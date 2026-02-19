@@ -131,10 +131,10 @@ Internal function used to check the consistency of Nested data type subcolumn of
     FunctionDocumentation::ReturnedValue returned_value = {"Returns a column of ones (UInt8). Throws an exception if array sizes are inconsistent.", {"UInt8"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT validateNestedArraySizes(1, [1, 2], [3, 4])", "1"}};
     FunctionDocumentation::IntroducedIn introduced_in = {21, 4};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::INTERNAL_FUNCTION_DOCS;
+    FunctionDocumentation::Category category = FunctionDocumentation::Category::Array;
     FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
 
-    factory.registerFunction<FunctionValidateNestedArraySizes>(documentation);
+    factory.registerFunction<FunctionValidateNestedArraySizes>(FunctionDocumentation::INTERNAL_FUNCTION_DOCS);
 }
 
 }
