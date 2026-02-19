@@ -100,7 +100,7 @@ public:
 private:
     /// Overrides for response headers.
     std::unordered_map<String, String> http_response_headers_override;
-}
+};
 
 class ClickStackUIRequestHandler : public HTTPRequestHandler
 {
