@@ -702,8 +702,8 @@ clickhouse-client --query "SELECT count() FROM test.visits"
             )
 
         if self.kafka_proc:
-            print("Stopping Kafka broker")
-            Shell.check("kafka-server-stop.sh", verbose=True)
+            print("Stopping Redpanda broker")
+            Shell.check("pkill -f redpanda", verbose=True)
             try:
                 self.kafka_proc.wait(timeout=30)
             except subprocess.TimeoutExpired:
