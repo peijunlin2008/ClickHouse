@@ -2375,7 +2375,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
         {
             MovePartition * mp = ati->mutable_move_partition();
 
-            generateNextTablePartition(rg, true, rg.nextSmallNumber() < 3, true, t, mp->mutable_single_partition()->mutable_partition());
+            generateNextTablePartition(rg, true, rg.nextSmallNumber() < 3, false, t, mp->mutable_single_partition()->mutable_partition());
             generateStorage(rg, mp->mutable_storage());
         }
         else if (
