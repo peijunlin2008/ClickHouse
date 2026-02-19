@@ -1309,9 +1309,13 @@ protected:
         else
         {
             auto func = makeASTOperator("tuple", std::move(elements));
-            /// If all arguments are literals, collapse into ASTLiteral(Tuple{...})
-            /// so that the formatting roundtrip is consistent with ParserCollectionOfLiterals.
-            if (auto literal = func->as<ASTFunction>()->toLiteral())
+            /// For tuples with 2+ elements where all arguments are literals,
+            /// collapse into ASTLiteral(Tuple{...}) to match the fast-path
+            /// ParserCollectionOfLiterals output and ensure formatting roundtrip consistency.
+            /// Note: empty tuples and single-element tuples must NOT be collapsed,
+            /// matching ParserCollectionOfLiterals behavior which skips those cases.
+            if (auto literal = func->as<ASTFunction>()->toLiteral();
+                literal && func->as<ASTFunction>()->arguments->children.size() >= 2)
                 node = std::move(literal);
             else
                 node = std::move(func);
@@ -1337,9 +1341,11 @@ protected:
     bool getResultImpl(ASTPtr & node) override
     {
         auto func = makeASTOperator("array", std::move(elements));
-        /// If all arguments are literals, collapse into ASTLiteral(Array{...})
-        /// so that the formatting roundtrip is consistent with ParserCollectionOfLiterals.
-        if (auto literal = func->as<ASTFunction>()->toLiteral())
+        /// For non-empty arrays where all arguments are literals,
+        /// collapse into ASTLiteral(Array{...}) to match the fast-path
+        /// ParserCollectionOfLiterals output and ensure formatting roundtrip consistency.
+        if (auto literal = func->as<ASTFunction>()->toLiteral();
+            literal && !func->as<ASTFunction>()->arguments->children.empty())
             node = std::move(literal);
         else
             node = std::move(func);
@@ -2813,6 +2819,7 @@ Action ParserExpressionImpl::tryParseOperator(Layers & layers, IParser::Pos & po
         return Action::NONE;
 
     /// Try to find operators from 'operators_table'
+    auto saved_pos = pos;
     auto cur_op = operators_table.begin();
     for (; cur_op != operators_table.end(); ++cur_op)
     {
@@ -2840,7 +2847,12 @@ Action ParserExpressionImpl::tryParseOperator(Layers & layers, IParser::Pos & po
     if (op.type == OperatorType::Lambda)
     {
         if (!layers.back()->parseLambda())
+        {
+            /// Restore the position: parseOperator already advanced past '->',
+            /// but parseLambda failed, so we must not consume the token.
+            pos = saved_pos;
             return Action::NONE;
+        }
 
         layers.back()->pushOperator(op);
         return Action::OPERAND;
