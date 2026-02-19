@@ -828,6 +828,8 @@ public:
     { return db->isAttached() && db->isReplicatedDatabase() && (db->shard_counter > 0 || db->replica_counter > 0); };
     const std::function<bool(const SQLTable &)> replicated_tables = [](const SQLTable & t)
     { return t.isAttached() && t.isReplicatedOrSharedMergeTree() && (t.shard_counter > 0 || t.replica_counter > 0); };
+    const std::function<bool(const SQLView &)> replicated_views = [](const SQLView & v)
+    { return v.isAttached() && v.isReplicatedOrSharedMergeTree() && (v.shard_counter > 0 || v.replica_counter > 0); };
 
     template <typename T>
     std::function<bool(const T &)> hasTableOrView(const SQLBase & b) const
