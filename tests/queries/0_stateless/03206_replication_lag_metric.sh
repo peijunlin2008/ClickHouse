@@ -18,13 +18,15 @@ CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # The other replica (replica2) may or may not have caught up by the time we query
 # (timing-dependent), so we retry in a loop to observe lag >= 2 at least once.
 
-DB1="rdb1_${CLICKHOUSE_TEST_UNIQUE_NAME}"
-DB2="rdb2_${CLICKHOUSE_TEST_UNIQUE_NAME}"
 ZK_PATH="/test/test_replication_lag_metric/${CLICKHOUSE_TEST_UNIQUE_NAME}"
 
 # Retry with fresh databases each time, because once replica2 catches up, lag stays at 0.
+# Use unique database names per iteration to avoid DDL worker races during rapid create/drop.
 observed_lag=0
 for i in $(seq 1 30); do
+    DB1="rdb1_${CLICKHOUSE_TEST_UNIQUE_NAME}_${i}"
+    DB2="rdb2_${CLICKHOUSE_TEST_UNIQUE_NAME}_${i}"
+
     $CLICKHOUSE_CLIENT --query "CREATE DATABASE ${DB1} ENGINE = Replicated('${ZK_PATH}/${i}', 'shard1', 'replica1')"
     $CLICKHOUSE_CLIENT --query "CREATE DATABASE ${DB2} ENGINE = Replicated('${ZK_PATH}/${i}', 'shard1', 'replica2')"
 
