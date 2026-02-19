@@ -132,7 +132,7 @@ Internal function used to check the consistency of Nested data type subcolumn of
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT validateNestedArraySizes(1, [1, 2], [3, 4])", "1"}};
     FunctionDocumentation::IntroducedIn introduced_in = {21, 4};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Array;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionValidateNestedArraySizes>(FunctionDocumentation::INTERNAL_FUNCTION_DOCS);
 }
