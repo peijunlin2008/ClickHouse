@@ -4,6 +4,7 @@
 #include <base/defines.h>
 
 #include <atomic>
+#include <mutex>
 #include <tuple>
 
 namespace CurrentMetrics
@@ -143,6 +144,11 @@ private:
 std::tuple<double, BucketCountQuantile *, std::atomic<bool> *> takeSharedQuantileData(CurrentMetrics::Metric metric)
 {
     static std::unordered_map<CurrentMetrics::Metric, double> quantiles;
+    static std::unordered_map<CurrentMetrics::Metric, BucketCountQuantile> buckets;
+    static std::unordered_map<CurrentMetrics::Metric, std::atomic<bool>> updates;
+    static std::once_flag initialize_metrics_shared_data;
+
+    std::call_once(initialize_metrics_shared_data, [&]()
     {
         quantiles.emplace(CurrentMetrics::SharedMergeTreeMaxActiveReplicas, 1);
         quantiles.emplace(CurrentMetrics::SharedMergeTreeMaxInactiveReplicas, 1);
@@ -150,27 +156,21 @@ std::tuple<double, BucketCountQuantile *, std::atomic<bool> *> takeSharedQuantil
         quantiles.emplace(CurrentMetrics::SharedMergeTreeMinActiveReplicas, 0);
         quantiles.emplace(CurrentMetrics::SharedMergeTreeMinInactiveReplicas, 0);
         quantiles.emplace(CurrentMetrics::SharedMergeTreeMinReplicas, 0);
-    }
 
-    static std::unordered_map<CurrentMetrics::Metric, BucketCountQuantile> buckets;
-    {
         buckets.emplace(std::piecewise_construct, std::forward_as_tuple(CurrentMetrics::SharedMergeTreeMaxActiveReplicas), std::forward_as_tuple(0, 500, 501));
         buckets.emplace(std::piecewise_construct, std::forward_as_tuple(CurrentMetrics::SharedMergeTreeMaxInactiveReplicas), std::forward_as_tuple(0, 500, 501));
         buckets.emplace(std::piecewise_construct, std::forward_as_tuple(CurrentMetrics::SharedMergeTreeMaxReplicas), std::forward_as_tuple(0, 500, 501));
         buckets.emplace(std::piecewise_construct, std::forward_as_tuple(CurrentMetrics::SharedMergeTreeMinActiveReplicas), std::forward_as_tuple(0, 500, 501));
         buckets.emplace(std::piecewise_construct, std::forward_as_tuple(CurrentMetrics::SharedMergeTreeMinInactiveReplicas), std::forward_as_tuple(0, 500, 501));
         buckets.emplace(std::piecewise_construct, std::forward_as_tuple(CurrentMetrics::SharedMergeTreeMinReplicas), std::forward_as_tuple(0, 500, 501));
-    }
 
-    static std::unordered_map<CurrentMetrics::Metric, std::atomic<bool>> updates;
-    {
         updates.emplace(CurrentMetrics::SharedMergeTreeMaxActiveReplicas, false);
         updates.emplace(CurrentMetrics::SharedMergeTreeMaxInactiveReplicas, false);
         updates.emplace(CurrentMetrics::SharedMergeTreeMaxReplicas, false);
         updates.emplace(CurrentMetrics::SharedMergeTreeMinActiveReplicas, false);
         updates.emplace(CurrentMetrics::SharedMergeTreeMinInactiveReplicas, false);
         updates.emplace(CurrentMetrics::SharedMergeTreeMinReplicas, false);
-    }
+    });
 
     return std::make_tuple(quantiles.at(metric), &buckets.at(metric), &updates.at(metric));
 }
