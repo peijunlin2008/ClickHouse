@@ -228,7 +228,7 @@ CREATE TABLE income_band(
     ib_income_band_sk         Int64 NOT NULL,
     ib_lower_bound            Int64,
     ib_upper_bound            Int64,
-    PRIMARY KEY (ib_income_band_sk),
+    PRIMARY KEY (ib_income_band_sk)
 );
 
 CREATE TABLE inventory (
@@ -236,7 +236,7 @@ CREATE TABLE inventory (
     inv_item_sk             Int64 NOT NULL,
     inv_warehouse_sk        Int64 NOT NULL,
     inv_quantity_on_hand    Int64,
-    PRIMARY KEY (inv_date_sk, inv_item_sk, inv_warehouse_sk),
+    PRIMARY KEY (inv_date_sk, inv_item_sk, inv_warehouse_sk)
 );
 
 CREATE TABLE item (
