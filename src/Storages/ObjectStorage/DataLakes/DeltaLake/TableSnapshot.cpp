@@ -242,8 +242,11 @@ public:
                 if (have_scan_data_res)
                 {
                     std::unique_lock lock(next_mutex);
-                    LOG_TEST(log, "List batch size is {}/{}, shutdown: {}",
-                             data_files.size(), list_batch_size, shutdown.load());
+                    LOG_TEST(
+                        log, "List batch size is {}/{}, shutdown: {}",
+                        data_files.size(),
+                        list_batch_size ? toString(list_batch_size) : "Unlimitted",
+                        shutdown.load());
 
                     if (!shutdown.load() && list_batch_size && data_files.size() >= list_batch_size)
                     {
@@ -638,14 +641,14 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
         /// Not all writers add rows count to metadata
         std::optional<size_t> total_rows = 0;
 
-        static void visit(
+        static bool visit(
             ffi::NullableCvoid engine_context,
             struct ffi::KernelStringSlice /* path */,
             int64_t size,
             int64_t /* mod_time */,
             const ffi::Stats * stats,
-            const ffi::CDvInfo * /* dv_info */,
-            const ffi::Expression * /* transform */,
+            ffi::SharedDvInfo * /* dv_info */,
+            ffi::OptionalValue<ffi::SharedExpression *> /* transform */,
             const struct ffi::CStringMap * /* deprecated */)
         {
             auto * visitor = static_cast<StatsVisitor *>(engine_context);
@@ -655,6 +658,7 @@ TableSnapshot::SnapshotStats TableSnapshot::getSnapshotStatsImpl() const
                 visitor->total_rows.value() += stats->num_records;
             else
                 visitor->total_rows = std::nullopt;
+            return true;
         }
 
         static void visitData(void * engine_context, ffi::SharedScanMetadata * scan_metadata)
