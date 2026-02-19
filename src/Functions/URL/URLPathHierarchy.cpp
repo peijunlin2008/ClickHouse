@@ -121,7 +121,7 @@ Returns an array containing the URL, truncated at the end by the symbols `/`, `?
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT URLHierarchy('https://example.com/a/b?c=1')", "['https://example.com/','https://example.com/a/','https://example.com/a/b','https://example.com/a/b?c=1']"}};
     FunctionDocumentation::IntroducedIn introduced_in = {1,1};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::URL;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionURLHierarchy>(documentation);
 }
