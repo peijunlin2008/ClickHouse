@@ -7751,6 +7751,10 @@ void MergeTreeData::optimizeDryRun(
 
     auto new_part = executeHere(merge_task);
 
+    /// This commits a transcation on disk, but doesn't commit the data part.
+    if (new_part->getDataPartStorage().hasActiveTransaction())
+        new_part->getDataPartStorage().commitTransaction();
+
     LOG_INFO(log,
         "OPTIMIZE DRY RUN: successfully merged {} parts into temporary part {} ({} rows, {} bytes)",
         choice.range.size(), new_part->name, new_part->rows_count, new_part->getBytesOnDisk());
