@@ -125,8 +125,8 @@ Internal function used to check the consistency of Nested data type subcolumn of
     FunctionDocumentation::Syntax syntax = "validateNestedArraySizes(condition, arr1, arr2[, ...])";
     FunctionDocumentation::Arguments arguments = {
         {"condition", "The WHERE condition from the UPDATE operation. Validation is only performed for rows where this is true.", {"UInt8"}},
-        {"arr1", "First array subcolumn of the Nested type.", {"Array"}},
-        {"arr2", "Second array subcolumn of the Nested type.", {"Array"}}
+        {"arr1", "First array subcolumn of the Nested type.", {"Array(T)"}},
+        {"arr2", "Second array subcolumn of the Nested type.", {"Array(T)"}}
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns a column of ones (UInt8). Throws an exception if array sizes are inconsistent.", {"UInt8"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT validateNestedArraySizes(1, [1, 2], [3, 4])", "1"}};

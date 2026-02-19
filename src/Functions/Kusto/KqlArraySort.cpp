@@ -262,8 +262,8 @@ Sorts one or more arrays in ascending order. The first array is sorted, and subs
     )";
     FunctionDocumentation::Syntax syntax_asc = "kql_array_sort_asc(array1[, array2, ..., nulls_last])";
     FunctionDocumentation::Arguments arguments_asc = {
-        {"array1", "The array to sort.", {"Array"}},
-        {"array2", "Optional. Additional arrays to reorder according to array1's sort order.", {"Array"}},
+        {"array1", "The array to sort.", {"Array(T)"}},
+        {"array2", "Optional. Additional arrays to reorder according to array1's sort order.", {"Array(T)"}},
         {"nulls_last", "Optional. A boolean indicating whether nulls should appear last. Default is true.", {"UInt8"}}
     };
     FunctionDocumentation::ReturnedValue returned_value_asc = {"Returns a tuple of arrays sorted in ascending order.", {"Tuple(Array, ...)"}};
@@ -279,8 +279,8 @@ Sorts one or more arrays in descending order. The first array is sorted, and sub
     )";
     FunctionDocumentation::Syntax syntax_desc = "kql_array_sort_desc(array1[, array2, ..., nulls_last])";
     FunctionDocumentation::Arguments arguments_desc = {
-        {"array1", "The array to sort.", {"Array"}},
-        {"array2", "Optional additional arrays to reorder according to array1's sort order.", {"Array"}},
+        {"array1", "The array to sort.", {"Array(T)"}},
+        {"array2", "Optional additional arrays to reorder according to array1's sort order.", {"Array(T)"}},
         {"nulls_last", "Optional boolean indicating whether nulls should appear last. Default is true.", {"UInt8"}}
     };
     FunctionDocumentation::ReturnedValue returned_value_desc = {"Returns a tuple of arrays sorted in descending order.", {"Tuple(Array, ...)"}};
