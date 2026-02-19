@@ -16,6 +16,8 @@ start_redpanda() {
         --overprovisioned \
         --kafka-addr "127.0.0.1:9092" \
         --advertise-kafka-addr "127.0.0.1:9092" \
+        --rpc-addr "127.0.0.1:33145" \
+        --advertise-rpc-addr "127.0.0.1:33145" \
         --set redpanda.auto_create_topics_enabled=false \
         --set redpanda.log_segment_size=16777216 \
         > /tmp/redpanda.log 2>&1 &
