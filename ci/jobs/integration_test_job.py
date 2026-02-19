@@ -38,7 +38,9 @@ def _start_docker_in_docker():
         )
     retries = 20
     for i in range(retries):
-        if Shell.check("docker info > /dev/null 2>&1", verbose=True):
+        # On last retry, show errors; otherwise suppress them
+        cmd = "docker info > /dev/null" if i == retries - 1 else "docker info > /dev/null 2>&1"
+        if Shell.check(cmd, verbose=True):
             break
         if i == retries - 1:
             raise RuntimeError(
@@ -508,7 +510,7 @@ tar -czf ./ci/tmp/logs.tar.gz \
 
     if not Shell.check("docker info > /dev/null 2>&1", verbose=True):
         _start_docker_in_docker()
-    Shell.check("docker info > /dev/null 2>&1", verbose=True, strict=True)
+    Shell.check("docker info > /dev/null", verbose=True, strict=True)
 
     parallel_test_modules, sequential_test_modules = (
         get_parallel_sequential_tests_to_run(
