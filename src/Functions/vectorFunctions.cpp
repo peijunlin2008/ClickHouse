@@ -2036,7 +2036,7 @@ Returns the sum of the products of the corresponding elements.
     FunctionDocumentation::Examples examples_dotProduct = {
         {"Basic usage", "SELECT dotProduct((1, 2), (3, 4))", "11"}
     };
-    FunctionDocumentation::IntroducedIn introduced_in_dotProduct = {22, 8};
+    FunctionDocumentation::IntroducedIn introduced_in_dotProduct = {21, 11};
     FunctionDocumentation::Category category_dotProduct = FunctionDocumentation::Category::Tuple;
     FunctionDocumentation documentation_dotProduct = {description_dotProduct, syntax_dotProduct, arguments_dotProduct, {}, returned_value_dotProduct, examples_dotProduct, introduced_in_dotProduct, category_dotProduct};
 

@@ -158,8 +158,9 @@ An S2 point index is a number that internally encodes a point on the surface of 
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns the S2 cell identifier.", {"UInt64"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT geoToS2(37.79506683, 55.71290588)", "4704772434919038107"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {21, 9};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionGeoToS2>(documentation);
 }

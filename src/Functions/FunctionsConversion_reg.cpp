@@ -1106,7 +1106,8 @@ Converts the argument to the Date data type. This is a MySQL compatibility alias
     FunctionDocumentation::ReturnedValue returned_value_date = {"Returns a Date value.", {"Date"}};
     FunctionDocumentation::Examples examples_date = {{"Basic usage", "SELECT DATE('2023-01-01')", "2023-01-01"}};
     FunctionDocumentation::Category category_date = FunctionDocumentation::Category::TypeConversion;
-    FunctionDocumentation documentation_date = {description_date, syntax_date, arguments_date, {}, returned_value_date, examples_date, {}, category_date};
+    FunctionDocumentation::IntroducedIn introduced_in_date = {21, 2};
+    FunctionDocumentation documentation_date = {description_date, syntax_date, arguments_date, {}, returned_value_date, examples_date, introduced_in_date, category_date};
 
     factory.registerFunction("DATE", &detail::FunctionToDate::create, documentation_date, FunctionFactory::Case::Insensitive);
 

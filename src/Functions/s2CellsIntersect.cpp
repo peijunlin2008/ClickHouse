@@ -134,8 +134,9 @@ Determines if two provided S2 cells intersect or not.
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns 1 if the cells intersect and 0 otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT s2CellsIntersect(9926595209846587392, 9926594385212866560)", "1"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {21, 9};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionS2CellsIntersect>(documentation);
 }

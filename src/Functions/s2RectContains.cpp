@@ -148,8 +148,9 @@ Determines if an S2 latitude-longitude rectangle contains the given S2 point. Th
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns 1 if the rectangle contains the point and 0 otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT s2RectContains(5765131099823669248, 5765131099956887552, 5765131099880128512)", "1"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {21, 9};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionS2RectContains>(documentation);
 }

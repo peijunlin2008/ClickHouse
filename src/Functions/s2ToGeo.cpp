@@ -124,8 +124,9 @@ Returns geo coordinates (longitude, latitude) corresponding to the provided S2 p
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns a tuple (lon, lat) of Float64 values representing the longitude and latitude.", {"Tuple(Float64, Float64)"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT s2ToGeo(4704772434919038107)", "(37.79506681471008,55.7129059052841)"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {21, 9};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionS2ToGeo>(documentation);
 }

@@ -24,8 +24,9 @@ Returns the first significant subdomain of a URL using a custom TLD (Top-Level D
     };
     FunctionDocumentation::ReturnedValue returned_value_custom = {"Returns the first significant subdomain.", {"String"}};
     FunctionDocumentation::Examples examples_custom = {{"Basic usage", "SELECT firstSignificantSubdomainCustom('https://news.example.com', 'public_suffix_list')", "example"}};
+    FunctionDocumentation::IntroducedIn introduced_in_custom = {21,1};
     FunctionDocumentation::Category category_custom = FunctionDocumentation::Category::URL;
-    FunctionDocumentation documentation_custom = {description_custom, syntax_custom, arguments_custom, {}, returned_value_custom, examples_custom, {}, category_custom};
+    FunctionDocumentation documentation_custom = {description_custom, syntax_custom, arguments_custom, {}, returned_value_custom, examples_custom, introduced_in_custom, category_custom};
 
     factory.registerFunction<FunctionFirstSignificantSubdomainCustom>(documentation_custom);
 

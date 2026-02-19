@@ -65,6 +65,7 @@ Calculates the sigmoid function: `1 / (1 + exp(-x))`. The sigmoid function maps 
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns the sigmoid of the input value, in the range (0, 1).", {"Float64"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT sigmoid(0)", "0.5"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {20, 1};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Mathematical;
     FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
 

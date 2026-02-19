@@ -120,7 +120,7 @@ ColumnPtr FunctionValidateNestedArraySizes::executeImpl(
 REGISTER_FUNCTION(ValidateNestedArraySizes)
 {
     FunctionDocumentation::Description description = R"(
-Internal function used to check the consistency of Nested data type subcolumn offsets during ALTER UPDATE operations. Verifies that all array subcolumns of a Nested type have matching sizes for each row. Throws an exception if sizes are inconsistent.
+Internal function used to check the consistency of Nested data type subcolumn offsets during `ALTER UPDATE` operations. Verifies that all array subcolumns of a Nested type have matching sizes for each row. Throws an exception if sizes are inconsistent.
     )";
     FunctionDocumentation::Syntax syntax = "validateNestedArraySizes(condition, arr1, arr2[, ...])";
     FunctionDocumentation::Arguments arguments = {
@@ -130,7 +130,8 @@ Internal function used to check the consistency of Nested data type subcolumn of
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns a column of ones (UInt8). Throws an exception if array sizes are inconsistent.", {"UInt8"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT validateNestedArraySizes(1, [1, 2], [3, 4])", "1"}};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::Array;
+    FunctionDocumentation::IntroducedIn introduced_in = {21, 4};
+    FunctionDocumentation::Category category = FunctionDocumentation::Category::INTERNAL_FUNCTION_DOCS;
     FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
 
     factory.registerFunction<FunctionValidateNestedArraySizes>(documentation);

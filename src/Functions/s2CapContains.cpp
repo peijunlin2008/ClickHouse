@@ -172,8 +172,9 @@ Determines if an S2 cap contains an S2 point. A cap represents a portion of the 
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns 1 if the cap contains the point and 0 otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT s2CapContains(1157339245694594829, 1.0, 1157347770437378819)", "1"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {21, 9};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionS2CapContains>(documentation);
 }

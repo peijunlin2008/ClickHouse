@@ -164,8 +164,9 @@ Returns the intersection of two S2 latitude-longitude rectangles. Each rectangle
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns a tuple (s2RectLow, s2RectHigh) representing the intersection rectangle.", {"Tuple(UInt64, UInt64)"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT s2RectIntersection(5765131099823669248, 5765131099956887552, 5765131099880128512, 5765131100088901632)", ""}};
+    FunctionDocumentation::IntroducedIn introduced_in = {21, 9};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionS2RectIntersection>(documentation);
 }

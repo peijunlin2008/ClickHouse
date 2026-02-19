@@ -221,8 +221,9 @@ Calculates the remainder of a division. This is the legacy modulo implementation
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns the remainder of the division.", {"(U)Int*", "Float*"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT moduloLegacy(10, 3)", "1"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Arithmetic;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionModuloLegacy>(documentation);
 }

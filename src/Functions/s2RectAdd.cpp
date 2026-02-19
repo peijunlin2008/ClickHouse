@@ -151,8 +151,9 @@ Expands an S2 latitude-longitude rectangle to include the given S2 point. The re
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns a tuple (s2RectLow, s2RectHigh) representing the expanded rectangle.", {"Tuple(UInt64, UInt64)"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT s2RectAdd(5765131099823669248, 5765131099823669248, 5765131099956887552)", ""}};
+    FunctionDocumentation::IntroducedIn introduced_in = {21, 9};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionS2RectAdd>(documentation);
 }

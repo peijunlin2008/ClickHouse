@@ -263,13 +263,14 @@ Sorts one or more arrays in ascending order. The first array is sorted, and subs
     FunctionDocumentation::Syntax syntax_asc = "kql_array_sort_asc(array1[, array2, ..., nulls_last])";
     FunctionDocumentation::Arguments arguments_asc = {
         {"array1", "The array to sort.", {"Array"}},
-        {"array2", "Optional additional arrays to reorder according to array1's sort order.", {"Array"}},
-        {"nulls_last", "Optional boolean indicating whether nulls should appear last. Default is true.", {"UInt8"}}
+        {"array2", "Optional. Additional arrays to reorder according to array1's sort order.", {"Array"}},
+        {"nulls_last", "Optional. A boolean indicating whether nulls should appear last. Default is true.", {"UInt8"}}
     };
     FunctionDocumentation::ReturnedValue returned_value_asc = {"Returns a tuple of arrays sorted in ascending order.", {"Tuple(Array, ...)"}};
     FunctionDocumentation::Examples examples_asc = {{"Basic usage", "SELECT kql_array_sort_asc([3, 1, 2])", "([1, 2, 3])"}};
+    FunctionDocumentation::IntroducedIn introduced_in_asc = {23, 10};
     FunctionDocumentation::Category category_asc = FunctionDocumentation::Category::Array;
-    FunctionDocumentation documentation_asc = {description_asc, syntax_asc, arguments_asc, {}, returned_value_asc, examples_asc, {}, category_asc};
+    FunctionDocumentation documentation_asc = {description_asc, syntax_asc, arguments_asc, {}, returned_value_asc, examples_asc, introduced_in_asc, category_asc};
 
     factory.registerFunction<FunctionKqlArraySortAsc>(documentation_asc);
 
@@ -284,8 +285,9 @@ Sorts one or more arrays in descending order. The first array is sorted, and sub
     };
     FunctionDocumentation::ReturnedValue returned_value_desc = {"Returns a tuple of arrays sorted in descending order.", {"Tuple(Array, ...)"}};
     FunctionDocumentation::Examples examples_desc = {{"Basic usage", "SELECT kql_array_sort_desc([3, 1, 2])", "([3, 2, 1])"}};
+    FunctionDocumentation::IntroducedIn introduced_in_desc = {23, 10};
     FunctionDocumentation::Category category_desc = FunctionDocumentation::Category::Array;
-    FunctionDocumentation documentation_desc = {description_desc, syntax_desc, arguments_desc, {}, returned_value_desc, examples_desc, {}, category_desc};
+    FunctionDocumentation documentation_desc = {description_desc, syntax_desc, arguments_desc, {}, returned_value_desc, examples_desc, introduced_in_desc, category_desc};
 
     factory.registerFunction<FunctionKqlArraySortDesc>(documentation_desc);
 }

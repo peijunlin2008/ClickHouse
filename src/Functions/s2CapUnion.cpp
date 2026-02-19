@@ -173,8 +173,9 @@ Returns the smallest cap that contains both of the input S2 caps. A cap represen
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns a tuple (center, radius) representing the smallest cap containing both input caps.", {"Tuple(UInt64, Float64)"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT s2CapUnion(1157339245694594829, 1.0, 1157347770437378819, 1.0)", "(1157339245694594829,1.0049841409301968)"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {21, 9};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionS2CapUnion>(documentation);
 }

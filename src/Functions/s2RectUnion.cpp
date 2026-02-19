@@ -162,8 +162,9 @@ Returns the smallest S2 latitude-longitude rectangle that contains the union of 
     };
     FunctionDocumentation::ReturnedValue returned_value = {"Returns a tuple (s2RectLow, s2RectHigh) representing the union rectangle.", {"Tuple(UInt64, UInt64)"}};
     FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT s2RectUnion(5765131099823669248, 5765131099956887552, 5765131100074868736, 5765131100088901632)", ""}};
+    FunctionDocumentation::IntroducedIn introduced_in = {21, 9};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, {}, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionS2RectUnion>(documentation);
 }

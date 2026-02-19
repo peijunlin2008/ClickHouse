@@ -193,8 +193,9 @@ Checks if the left operand is a member of the right operand set. Returns 1 if it
     FunctionDocumentation::Arguments arguments_in = {{"x", "The value to check.", {}}, {"set", "The set of values.", {}}};
     FunctionDocumentation::ReturnedValue returned_value_in = {"Returns 1 if x is in the set, 0 otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples_in = {{"Basic usage", "SELECT 1 IN (1, 2, 3)", "1"}};
+    FunctionDocumentation::IntroducedIn introduced_in_in = {1, 1};
     FunctionDocumentation::Category category_in = FunctionDocumentation::Category::Comparison;
-    FunctionDocumentation documentation_in = {description_in, syntax_in, arguments_in, {}, returned_value_in, examples_in, {}, category_in};
+    FunctionDocumentation documentation_in = {description_in, syntax_in, arguments_in, {}, returned_value_in, examples_in, introduced_in_in, category_in};
     reg("in", false, true, documentation_in);
 
     /// globalIn
@@ -205,8 +206,9 @@ Same as `in`, but uses global set distribution in distributed queries. The set i
     FunctionDocumentation::Arguments arguments_globalIn = {{"x", "The value to check.", {}}, {"set", "The set of values.", {}}};
     FunctionDocumentation::ReturnedValue returned_value_globalIn = {"Returns 1 if x is in the set, 0 otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples_globalIn = {{"Basic usage", "SELECT 1 IN (1, 2, 3)", "1"}};
+    FunctionDocumentation::IntroducedIn introduced_in_globalIn = {1, 1};
     FunctionDocumentation::Category category_globalIn = FunctionDocumentation::Category::Comparison;
-    FunctionDocumentation documentation_globalIn = {description_globalIn, syntax_globalIn, arguments_globalIn, {}, returned_value_globalIn, examples_globalIn, {}, category_globalIn};
+    FunctionDocumentation documentation_globalIn = {description_globalIn, syntax_globalIn, arguments_globalIn, {}, returned_value_globalIn, examples_globalIn, introduced_in_globalIn, category_globalIn};
     reg("globalIn", false, true, documentation_globalIn);
 
     /// notIn
@@ -217,8 +219,9 @@ Checks if the left operand is NOT a member of the right operand set. Returns 1 i
     FunctionDocumentation::Arguments arguments_notIn = {{"x", "The value to check.", {}}, {"set", "The set of values.", {}}};
     FunctionDocumentation::ReturnedValue returned_value_notIn = {"Returns 1 if x is not in the set, 0 otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples_notIn = {{"Basic usage", "SELECT 4 NOT IN (1, 2, 3)", "1"}};
+    FunctionDocumentation::IntroducedIn introduced_in_notIn = {1, 1};
     FunctionDocumentation::Category category_notIn = FunctionDocumentation::Category::Comparison;
-    FunctionDocumentation documentation_notIn = {description_notIn, syntax_notIn, arguments_notIn, {}, returned_value_notIn, examples_notIn, {}, category_notIn};
+    FunctionDocumentation documentation_notIn = {description_notIn, syntax_notIn, arguments_notIn, {}, returned_value_notIn, examples_notIn, introduced_in_notIn, category_notIn};
     reg("notIn", true, true, documentation_notIn);
 
     /// globalNotIn
@@ -229,8 +232,9 @@ Same as `notIn`, but uses global set distribution in distributed queries. The se
     FunctionDocumentation::Arguments arguments_globalNotIn = {{"x", "The value to check.", {}}, {"set", "The set of values.", {}}};
     FunctionDocumentation::ReturnedValue returned_value_globalNotIn = {"Returns 1 if x is not in the set, 0 otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples_globalNotIn = {{"Basic usage", "SELECT 4 NOT IN (1, 2, 3)", "1"}};
+    FunctionDocumentation::IntroducedIn introduced_in_globalNotIn = {1, 1};
     FunctionDocumentation::Category category_globalNotIn = FunctionDocumentation::Category::Comparison;
-    FunctionDocumentation documentation_globalNotIn = {description_globalNotIn, syntax_globalNotIn, arguments_globalNotIn, {}, returned_value_globalNotIn, examples_globalNotIn, {}, category_globalNotIn};
+    FunctionDocumentation documentation_globalNotIn = {description_globalNotIn, syntax_globalNotIn, arguments_globalNotIn, {}, returned_value_globalNotIn, examples_globalNotIn, introduced_in_globalNotIn, category_globalNotIn};
     reg("globalNotIn", true, true, documentation_globalNotIn);
 
     /// nullIn
@@ -241,8 +245,9 @@ Checks if the left operand is a member of the right operand set. Unlike `in`, NU
     FunctionDocumentation::Arguments arguments_nullIn = {{"x", "The value to check.", {}}, {"set", "The set of values.", {}}};
     FunctionDocumentation::ReturnedValue returned_value_nullIn = {"Returns 1 if x is in the set, 0 otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples_nullIn = {{"Basic usage", "SELECT nullIn(NULL, tuple(1, NULL))", "1"}};
+    FunctionDocumentation::IntroducedIn introduced_in_nullIn = {1, 1};
     FunctionDocumentation::Category category_nullIn = FunctionDocumentation::Category::Comparison;
-    FunctionDocumentation documentation_nullIn = {description_nullIn, syntax_nullIn, arguments_nullIn, {}, returned_value_nullIn, examples_nullIn, {}, category_nullIn};
+    FunctionDocumentation documentation_nullIn = {description_nullIn, syntax_nullIn, arguments_nullIn, {}, returned_value_nullIn, examples_nullIn, introduced_in_nullIn, category_nullIn};
     reg("nullIn", false, false, documentation_nullIn);
 
     /// globalNullIn
@@ -253,8 +258,9 @@ Same as `nullIn`, but uses global set distribution in distributed queries. The s
     FunctionDocumentation::Arguments arguments_globalNullIn = {{"x", "The value to check.", {}}, {"set", "The set of values.", {}}};
     FunctionDocumentation::ReturnedValue returned_value_globalNullIn = {"Returns 1 if x is in the set, 0 otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples_globalNullIn = {{"Basic usage", "SELECT nullIn(NULL, tuple(1, NULL))", "1"}};
+    FunctionDocumentation::IntroducedIn introduced_in_globalNulllIn = {1, 1};
     FunctionDocumentation::Category category_globalNullIn = FunctionDocumentation::Category::Comparison;
-    FunctionDocumentation documentation_globalNullIn = {description_globalNullIn, syntax_globalNullIn, arguments_globalNullIn, {}, returned_value_globalNullIn, examples_globalNullIn, {}, category_globalNullIn};
+    FunctionDocumentation documentation_globalNullIn = {description_globalNullIn, syntax_globalNullIn, arguments_globalNullIn, {}, returned_value_globalNullIn, examples_globalNullIn, introduced_in_globalNulllIn, category_globalNullIn};
     reg("globalNullIn", false, false, documentation_globalNullIn);
 
     /// notNullIn
@@ -265,8 +271,9 @@ Checks if the left operand is NOT a member of the right operand set. Unlike `not
     FunctionDocumentation::Arguments arguments_notNullIn = {{"x", "The value to check.", {}}, {"set", "The set of values.", {}}};
     FunctionDocumentation::ReturnedValue returned_value_notNullIn = {"Returns 1 if x is not in the set, 0 otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples_notNullIn = {{"Basic usage", "SELECT notNullIn(NULL, tuple(1, NULL))", "0"}};
+    FunctionDocumentation::IntroducedIn introduced_in_notNulllIn = {1, 1};
     FunctionDocumentation::Category category_notNullIn = FunctionDocumentation::Category::Comparison;
-    FunctionDocumentation documentation_notNullIn = {description_notNullIn, syntax_notNullIn, arguments_notNullIn, {}, returned_value_notNullIn, examples_notNullIn, {}, category_notNullIn};
+    FunctionDocumentation documentation_notNullIn = {description_notNullIn, syntax_notNullIn, arguments_notNullIn, {}, returned_value_notNullIn, examples_notNullIn, introduced_in_notNulllIn, category_notNullIn};
     reg("notNullIn", true, false, documentation_notNullIn);
 
     /// globalNotNullIn
@@ -277,8 +284,9 @@ Same as `notNullIn`, but uses global set distribution in distributed queries. Th
     FunctionDocumentation::Arguments arguments_globalNotNullIn = {{"x", "The value to check.", {}}, {"set", "The set of values.", {}}};
     FunctionDocumentation::ReturnedValue returned_value_globalNotNullIn = {"Returns 1 if x is not in the set, 0 otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples_globalNotNullIn = {{"Basic usage", "SELECT notNullIn(NULL, tuple(1, NULL))", "0"}};
+    FunctionDocumentation::IntroducedIn introduced_in_globalNotNulllIn = {1, 1};
     FunctionDocumentation::Category category_globalNotNullIn = FunctionDocumentation::Category::Comparison;
-    FunctionDocumentation documentation_globalNotNullIn = {description_globalNotNullIn, syntax_globalNotNullIn, arguments_globalNotNullIn, {}, returned_value_globalNotNullIn, examples_globalNotNullIn, {}, category_globalNotNullIn};
+    FunctionDocumentation documentation_globalNotNullIn = {description_globalNotNullIn, syntax_globalNotNullIn, arguments_globalNotNullIn, {}, returned_value_globalNotNullIn, examples_globalNotNullIn, introduced_in_globalNotNulllIn, category_globalNotNullIn};
     reg("globalNotNullIn", true, false, documentation_globalNotNullIn);
 }
 
