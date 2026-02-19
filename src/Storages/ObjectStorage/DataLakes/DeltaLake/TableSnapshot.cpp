@@ -245,7 +245,7 @@ public:
                     LOG_TEST(
                         log, "List batch size is {}/{}, shutdown: {}",
                         data_files.size(),
-                        list_batch_size ? toString(list_batch_size) : "Unlimitted",
+                        list_batch_size ? DB::toString(list_batch_size) : "Unlimitted",
                         shutdown.load());
 
                     if (!shutdown.load() && list_batch_size && data_files.size() >= list_batch_size)
