@@ -89,8 +89,8 @@ You can configure any number of dictionaries in the same file.
 
 ## Related content {#related-content}
 
-- [Layouts](./layouts/) — How dictionaries are stored in memory
-- [Sources](./sources/) — Connecting to data sources
+- [Layouts](/sql-reference/statements/create/dictionary/layouts) — How dictionaries are stored in memory
+- [Sources](/sql-reference/statements/create/dictionary/sources) — Connecting to data sources
 - [Lifetime](./lifetime.md) — Automatic refresh configuration
 - [Attributes](./attributes.md) — Key and attribute configuration
 - [Embedded Dictionaries](./embedded.md) — Built-in geobase dictionaries
