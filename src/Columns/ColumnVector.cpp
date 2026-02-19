@@ -1051,35 +1051,42 @@ void ColumnVector<T>::getExtremes(Field & min, Field & max, size_t start, size_t
         return;
     }
 
-    bool has_value = false;
-
     /** Skip all NaNs in extremes calculation.
         * If all values are NaNs, then return NaN.
         * NOTE: There exist many different NaNs.
         * Different NaN could be returned: not bit-exact value as one of NaNs from column.
         */
-
-    T cur_min = NaNOrZero<T>();
-    T cur_max = NaNOrZero<T>();
-
-    const T * ptr = data.data();
-    for (size_t i = start; i < end; ++i)
+    size_t i = start;
+    if constexpr (is_floating_point<T>)
     {
-        if (isNaN(ptr[i]))
-            continue;
-
-        if (!has_value)
+        for (; i < end; i++)
         {
-            cur_min = ptr[i];
-            cur_max = ptr[i];
-            has_value = true;
-            continue;
+            if (!isNaN(data[i]))
+                break;
+        }
+        if (i == end)
+        {
+            min = NaNOrZero<T>();
+            max = NaNOrZero<T>();
+            return;
+        }
+    }
+
+    T cur_min = data.data()[i];
+    T cur_max = data.data()[i];
+
+    i++;
+    for (; i < end; i++)
+    {
+        if constexpr (is_floating_point<T>)
+        {
+            if (isNaN(data[i]))
+                continue;
         }
 
-        if (ptr[i] < cur_min)
-            cur_min = ptr[i];
-        else if (ptr[i] > cur_max)
-            cur_max = ptr[i];
+        const T & x = data.data()[i];
+        cur_min = std::min(x, cur_min);
+        cur_max = std::max(x, cur_max);
     }
 
     min = NearestFieldType<T>(cur_min);
