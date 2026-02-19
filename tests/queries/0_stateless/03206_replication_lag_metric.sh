@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Tags: zookeeper
 
+# Suppress server Error logs forwarded to client stderr (the DDL worker for replica2
+# may transiently log KEEPER_EXCEPTION during initialization when databases are
+# rapidly created and dropped in the retry loop).
+CLICKHOUSE_CLIENT_SERVER_LOGS_LEVEL=none
+
 CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
 . "$CURDIR"/../shell_config.sh
