@@ -418,7 +418,17 @@ class Shell:
                     break
 
                 if verbose:
-                    print(f"Retryable error occurred")
+                    matched = next(
+                        (
+                            err
+                            for err in retry_errors
+                            if any(err in line for line in err_output)
+                        ),
+                        "",
+                    )
+                    print(
+                        f"Retryable error [{matched}] found, retry {retry+1}/{retries}"
+                    )
             except Exception as e:
                 if verbose:
                     if retries == 1:
@@ -431,7 +441,7 @@ class Shell:
                     proc.kill()
                 if retry == retries - 1:
                     if strict:
-                        raise e
+                        raise
                     else:
                         return 1  # Return non-zero for failure
 

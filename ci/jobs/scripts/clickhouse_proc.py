@@ -133,15 +133,15 @@ class ClickHouseProc:
         with open(self.MINIO_LOG, "w") as log_file:
             self.minio_proc = subprocess.Popen(
                 command, stdout=log_file, stderr=subprocess.STDOUT
-        )
+            )
         print(f"Started setup_minio.sh asynchronously with PID {self.minio_proc.pid}")
 
         if Shell.check(
-                "/mc ls clickminio/test | grep -q .",
-                verbose=False,
-                retries=5
-            ):
-                return True
+            "/mc ls clickminio/test | grep -q .",
+            verbose=False,
+            retries=6,
+        ):
+            return True
         print("Failed to start minio")
         return False
 
