@@ -32,7 +32,7 @@ if (ENABLE_LLVM_LIBC_MATH)
     link_directories("${CMAKE_BINARY_DIR}/contrib/libllvmlibc-cmake")
 
     if (ARCH_AMD64)
-        if (X86_ARCH_LEVEL STREQUAL "v1")
+        if (X86_ARCH_LEVEL VERSION_LESS 2)
             # Compat mode: single library, no dispatch
             target_link_libraries(global-libs INTERFACE libllvmlibc)
             set (DEFAULT_LIBS "${DEFAULT_LIBS} -llibllvmlibc")

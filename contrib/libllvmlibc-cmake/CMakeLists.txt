@@ -48,7 +48,7 @@ set(LLVMLIBC_DEFS_COMMON
 )
 
 if (ARCH_AMD64)
-    if (X86_ARCH_LEVEL STREQUAL "v1")
+    if (X86_ARCH_LEVEL VERSION_LESS 2)
         # Compat build: Single library without dispatch, minimal CPU features (SSE2 baseline)
         add_library(libllvmlibc ${SRCS})
         set_target_properties(libllvmlibc PROPERTIES FOLDER "contrib/libllvmlibc-cmake")
