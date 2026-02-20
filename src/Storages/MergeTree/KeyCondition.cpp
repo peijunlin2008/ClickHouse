@@ -2438,7 +2438,7 @@ bool KeyCondition::extractAtomFromTree(const RPNBuilderTreeNode & node, const Bu
                     func_name = "greaterOrEquals";
                 else if (func_name == "like" || func_name == "notLike" ||
                          func_name == "ilike" || func_name == "notILike" ||
-                         func_name == "startsWith" || func_name == "match")
+                         func_name == "startsWith" || func_name == "startsWithUTF8" || func_name == "match")
                     return false;
             }
 
