@@ -573,7 +573,7 @@ protected:
 
     struct StorageCache
     {
-        static constexpr size_t NumShards = 256;
+        static constexpr size_t NumShards = 6;
 
         struct Shard
         {
