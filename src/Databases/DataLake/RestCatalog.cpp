@@ -150,13 +150,29 @@ RestCatalog::RestCatalog(
     {
         std::tie(client_id, client_secret) = parseCatalogCredential(catalog_credential_);
         update_token_if_expired = true;
-        config = loadConfig();
     }
     else if (!auth_header_.empty())
     {
         auth_header = parseAuthHeader(auth_header_);
-        config = loadConfig();
     }
+    config = loadConfig();
+}
+
+RestCatalog::RestCatalog(
+    const std::string & warehouse_,
+    const std::string & base_url_,
+    const std::string & auth_scope_,
+    const std::string & oauth_server_uri_,
+    bool oauth_server_use_request_body_,
+    DB::ContextPtr context_)
+    : ICatalog(warehouse_)
+    , DB::WithContext(context_)
+    , base_url(correctAPIURI(base_url_))
+    , log(getLogger("RestCatalog(" + warehouse_ + ")"))
+    , auth_scope(auth_scope_)
+    , oauth_server_uri(oauth_server_uri_)
+    , oauth_server_use_request_body(oauth_server_use_request_body_)
+{
 }
 
 
@@ -222,15 +238,7 @@ OneLakeCatalog::OneLakeCatalog(
     const std::string & oauth_server_uri_,
     bool oauth_server_use_request_body_,
     DB::ContextPtr context_)
-    : RestCatalog(
-        warehouse_,
-        base_url_,
-        "", // catalog_credential
-        auth_scope_,
-        "", // auth_header
-        oauth_server_uri_,
-        oauth_server_use_request_body_,
-        context_)
+    : RestCatalog(warehouse_, base_url_, auth_scope_, oauth_server_uri_, oauth_server_use_request_body_, context_)
     , tenant_id(onelake_tenant_id)
 {
     client_id = onelake_client_id;
@@ -359,15 +367,7 @@ BigLakeCatalog::BigLakeCatalog(
     const std::string & google_adc_refresh_token_,
     const std::string & google_adc_quota_project_id_,
     DB::ContextPtr context_)
-    : RestCatalog(
-        warehouse_,
-        base_url_,
-        "", // catalog_credential
-        "", // auth_scope
-        "", // auth_header
-        "", // oauth_server_uri
-        false, // oauth_server_use_request_body
-        context_)
+    : RestCatalog(warehouse_, base_url_, "", "", false, context_)
     , google_project_id(google_project_id_)
     , google_service_account(google_service_account_)
     , google_metadata_service(google_metadata_service_)

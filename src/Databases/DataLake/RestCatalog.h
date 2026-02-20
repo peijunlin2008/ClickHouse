@@ -83,6 +83,15 @@ public:
     String getClientSecret() const { return client_secret; }
 
 protected:
+    /// For derived classes: same init but no catalog_credential/auth_header (always empty there), no loadConfig().
+    RestCatalog(
+        const std::string & warehouse_,
+        const std::string & base_url_,
+        const std::string & auth_scope_,
+        const std::string & oauth_server_uri_,
+        bool oauth_server_use_request_body_,
+        DB::ContextPtr context_);
+
     void createNamespaceIfNotExists(const String & namespace_name, const String & location) const;
 
     struct Config
