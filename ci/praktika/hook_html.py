@@ -136,8 +136,6 @@ class HtmlRunnerHooks:
             _workflow.name, Result.Status.RUNNING, results=results
         )
         summary_result.start_time = Utils.timestamp()
-        summary_result.links.append(env.CHANGE_URL)
-        summary_result.links.append(env.RUN_URL)
         info = Info()
         report_url_current_sha = info.get_report_url(latest=False)
         summary_result.add_ext_key_value("pr_title", info.pr_title).add_ext_key_value(
