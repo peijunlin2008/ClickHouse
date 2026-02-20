@@ -140,11 +140,6 @@ namespace Setting
     extern const SettingsBool restore_replace_external_dictionary_source_to_null;
 }
 
-namespace MergeTreeSetting
-{
-    extern const MergeTreeSettingsBool table_disk;
-}
-
 namespace ServerSetting
 {
     extern const ServerSettingsBool ignore_empty_sql_security_in_create_view_query;
@@ -1816,47 +1811,6 @@ catch (...)
 
 }
 
-/// Ensures that for a given disk used with `table_disk`, at most one table is non-readonly. table_disk assumes no directory-level isolation
-/// between tables on the same disk, so allowing multiple writable tables would risk data corruption.
-static void validateTableDiskUniqueness(const MergeTreeData & merge_tree, ContextPtr context)
-{
-    for (const auto & disk : merge_tree.getDisks())
-    {
-        if (disk->isReadOnly())
-            continue;
-
-        const String & disk_name = disk->getName();
-
-        for (const auto & [db_name, database] : DatabaseCatalog::instance().getDatabases({}))
-        {
-            for (auto it = database->getTablesIterator(context); it->isValid(); it->next())
-            {
-                auto table = it->table();
-                if (!table)
-                    continue;
-
-                auto * existing_merge_tree = dynamic_cast<MergeTreeData *>(table.get());
-                if (!existing_merge_tree)
-                    continue;
-
-                auto existing_settings = existing_merge_tree->getSettings();
-                if (!(*existing_settings)[MergeTreeSetting::table_disk])
-                    continue;
-
-                for (const auto & existing_disk : existing_merge_tree->getDisks())
-                {
-                    if (existing_disk->getName() == disk_name && !existing_disk->isReadOnly())
-                        throw Exception(
-                            ErrorCodes::BAD_ARGUMENTS,
-                            "Another table already uses disk '{}' with `table_disk` in non-readonly mode. "
-                            "Only one non-readonly table per disk is allowed with `table_disk`",
-                            disk_name);
-                }
-            }
-        }
-    }
-}
-
 bool InterpreterCreateQuery::doCreateTable(ASTCreateQuery & create,
                                            const InterpreterCreateQuery::TableProperties & properties,
                                            DDLGuardPtr & ddl_guard, LoadingStrictnessLevel mode)
@@ -2070,14 +2024,6 @@ bool InterpreterCreateQuery::doCreateTable(ASTCreateQuery & create,
     }
 
     validateStorage(*res, mode);
-
-    /// Validate that for a given disk used with `table_disk`, at most one table is non-readonly
-    if (const auto * merge_tree = dynamic_cast<const MergeTreeData *>(res.get()))
-    {
-        auto merge_tree_settings = merge_tree->getSettings();
-        if ((*merge_tree_settings)[MergeTreeSetting::table_disk])
-            validateTableDiskUniqueness(*merge_tree, getContext());
-    }
 
     if (!create.attach && getContext()->getSettingsRef()[Setting::database_replicated_allow_only_replicated_engine])
     {
