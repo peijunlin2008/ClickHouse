@@ -86,9 +86,6 @@ namespace DeltaLake
 class TableSnapshot::Iterator final : public DB::IObjectIterator
 {
 private:
-    using KernelDvInfo = KernelPointerWrapper<ffi::SharedDvInfo, ffi::free_kernel_dv_info>;
-    using KernelExpression = KernelPointerWrapper<ffi::SharedExpression, ffi::free_kernel_expression>;
-
     /// Struct to hold ObjectInfo along with FFI handles for lazy parsing
     struct ScannedDataFile
     {
