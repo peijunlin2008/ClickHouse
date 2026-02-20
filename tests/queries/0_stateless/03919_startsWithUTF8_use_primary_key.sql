@@ -1,5 +1,5 @@
 DROP TABLE IF EXISTS test_startsWithUTF8;
-CREATE TABLE test_startsWithUTF8 (a String) Engine = MergeTree() ORDER BY a;
+CREATE TABLE test_startsWithUTF8 (a String) Engine = MergeTree() ORDER BY a SETTINGS index_granularity = 1;
 
 INSERT INTO test_startsWithUTF8 (a) VALUES ('a'), ('abcd'), ('bbb'), (''), ('abc');
 
