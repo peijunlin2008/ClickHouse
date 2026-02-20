@@ -144,7 +144,7 @@ public:
 
         /// This rewrite turns `dictGet(...)` predicates into `IN (SELECT ... FROM dictionary(...))`.
         /// The `dictionary()` table function requires `CREATE TEMPORARY TABLE`; if that grant is missing,
-        /// keep the original predicate to preserve original query permissions and avoid `ACCESS_DENIED`.
+        /// skip the optimization to avoid `ACCESS_DENIED`.
         if (!getContext()->getAccess()->isGranted(AccessType::CREATE_TEMPORARY_TABLE))
             return;
 
