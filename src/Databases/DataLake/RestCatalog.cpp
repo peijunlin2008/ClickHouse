@@ -150,12 +150,13 @@ RestCatalog::RestCatalog(
     {
         std::tie(client_id, client_secret) = parseCatalogCredential(catalog_credential_);
         update_token_if_expired = true;
+        config = loadConfig();
     }
     else if (!auth_header_.empty())
     {
         auth_header = parseAuthHeader(auth_header_);
+        config = loadConfig();
     }
-    config = loadConfig();
 }
 
 
