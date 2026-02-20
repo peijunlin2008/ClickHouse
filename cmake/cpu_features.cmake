@@ -4,55 +4,8 @@
 # All of this is unrelated to the instruction set of the host machine
 # (you can compile for a newer instruction set on old machines and vice versa).
 
-option (ARCH_NATIVE "Add -march=native compiler flag. This makes your binaries non-portable but more performant code may be generated. This option overrides X86_ARCH_LEVEL. Highly not recommended to use." 0)
-
 set(RUSTFLAGS_CPU)
-if (ARCH_NATIVE)
-    set (COMPILER_FLAGS "${COMPILER_FLAGS} -march=native")
-    list(APPEND RUSTFLAGS_CPU "-C" "target-feature=native")
-
-    macro(GET_CPU_FEATURES TEST_FEATURE_RESULT)
-       execute_process(
-            COMMAND sh -c "clang -E - -march=native -###"
-            INPUT_FILE /dev/null
-            OUTPUT_QUIET
-            ERROR_VARIABLE ${TEST_FEATURE_RESULT})
-    endmacro()
-
-    macro(TEST_CPU_FEATURE TEST_FEATURE_RESULT feat flag)
-        if (${TEST_FEATURE_RESULT} MATCHES "\"\\+${feat}\"")
-            set(${flag} ON)
-        else ()
-            set(${flag} OFF)
-        endif ()
-    endmacro()
-
-    # Detect the native microarchitecture level so that X86_ARCH_LEVEL is available for third-party cmake wrappers.
-    # Detection uses clang to query features enabled by -march=native.
-    if (ARCH_AMD64)
-        GET_CPU_FEATURES (TEST_FEATURE_RESULT)
-
-        # Detect the highest supported microarchitecture level.
-        # Check key features from highest to lowest; levels are cumulative.
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} avx512vl _HAS_AVX512VL)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} avx2 _HAS_AVX2)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} sse4.2 _HAS_SSE42)
-
-        if (_HAS_AVX512VL)
-            set (X86_ARCH_LEVEL "v4")
-        elseif (_HAS_AVX2)
-            set (X86_ARCH_LEVEL "v3")
-        elseif (_HAS_SSE42)
-            set (X86_ARCH_LEVEL "v2")
-        else ()
-            set (X86_ARCH_LEVEL "v1")
-        endif ()
-    elseif (ARCH_AARCH64)
-        GET_CPU_FEATURES (TEST_FEATURE_RESULT)
-        TEST_CPU_FEATURE (${TEST_FEATURE_RESULT} aes ENABLE_AES)
-    endif ()
-
-elseif (ARCH_AARCH64)
+if (ARCH_AARCH64)
     # ARM publishes almost every year a new revision of it's ISA [1]. Each version comes with new mandatory and optional features from
     # which CPU vendors can pick and choose. This creates a lot of variability ... We provide two build "profiles", one for maximum
     # compatibility intended to run on all 64-bit ARM hardware released after 2013 (e.g. Raspberry Pi 4), and one for modern ARM server
