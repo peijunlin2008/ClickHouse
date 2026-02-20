@@ -19,8 +19,7 @@ from .settings import Settings
 from .usage import ComputeUsage, StorageUsage
 from .utils import ContextManager, MetaClasses, Shell, Utils
 
-if TYPE_CHECKING:
-    from .info import Info
+from .info import Info
 
 
 class _Colors:
@@ -893,11 +892,6 @@ class Result(MetaClasses.Serializable):
         Returns:
             Formatted string representation of the result
         """
-        # Import here to avoid circular dependency
-        import os
-        import sys
-        from .info import Info
-
         add_frame = not output
         sub_indent = indent + "  "
 

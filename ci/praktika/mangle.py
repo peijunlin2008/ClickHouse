@@ -6,6 +6,7 @@ from typing import List
 from praktika import Workflow
 
 from . import Job
+from .info import Info
 from .settings import Settings
 from .utils import Utils
 
@@ -13,7 +14,6 @@ from .utils import Utils
 def _is_local_run():
     """Check if running locally. Returns False if can't determine (e.g., during workflow generation)."""
     try:
-        from .info import Info
         return Info().is_local_run
     except Exception:
         # During workflow generation, Info can't be initialized - treat as CI mode
@@ -61,9 +61,7 @@ def _get_workflows(
                 continue
         elif py_file.name != Settings.DEFAULT_LOCAL_TEST_WORKFLOW:
             if not _is_local_run():
-                print(
-                    f"Skip [{py_file.name}]"
-                )
+                print(f"Skip [{py_file.name}]")
             continue
         module_name = py_file.name.removeprefix(".py")
         spec = importlib.util.spec_from_file_location(

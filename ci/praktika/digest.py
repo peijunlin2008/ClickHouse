@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List
 
 from .docker import Docker
+from .info import Info
 from .job import Job
 from .settings import Settings
 from .utils import Shell, Utils
@@ -15,7 +16,6 @@ from .utils import Shell, Utils
 def _is_local_run():
     """Check if running locally. Returns False if can't determine (e.g., during workflow generation)."""
     try:
-        from .info import Info
         return Info().is_local_run
     except Exception:
         # During workflow generation, Info can't be initialized - treat as CI mode
