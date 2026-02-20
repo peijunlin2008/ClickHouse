@@ -114,6 +114,6 @@ for fmt in json csv tsv; do
     $CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS ${CLICKHOUSE_TEST_UNIQUE_NAME}_${fmt}_dst" 2>/dev/null
     $CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS ${CLICKHOUSE_TEST_UNIQUE_NAME}_${fmt}_kafka" 2>/dev/null
 done
-timeout 10 rpk topic delete $KAFKA_TOPIC --brokers $KAFKA_BROKER 2>/dev/null
-timeout 10 rpk topic delete $KAFKA_TOPIC_CSV --brokers $KAFKA_BROKER 2>/dev/null
-timeout 10 rpk topic delete $KAFKA_TOPIC_TSV --brokers $KAFKA_BROKER 2>/dev/null
+timeout 10 rpk topic delete $KAFKA_TOPIC --brokers $KAFKA_BROKER > /dev/null 2>&1
+timeout 10 rpk topic delete $KAFKA_TOPIC_CSV --brokers $KAFKA_BROKER > /dev/null 2>&1
+timeout 10 rpk topic delete $KAFKA_TOPIC_TSV --brokers $KAFKA_BROKER > /dev/null 2>&1
