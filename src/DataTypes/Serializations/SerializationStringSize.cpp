@@ -61,7 +61,19 @@ void SerializationStringSize::deserializeBinaryBulkStatePrefix(
         }
         else
         {
-            state = std::make_shared<DeserializeBinaryBulkStateStringWithoutSizeStream>();
+            auto string_state = std::make_shared<DeserializeBinaryBulkStateStringWithoutSizeStream>();
+
+            /// Without a states cache (e.g. StorageLog) we must always read the full
+            /// string data, because the state is not shared with SerializationString
+            /// and we cannot know whether the full column will also be read.
+            ///
+            /// With a states cache (MergeTree), we default to sizes-only reading.
+            /// If SerializationString also reads this column, its
+            /// deserializeBinaryBulkStatePrefix will find this shared state and
+            /// upgrade need_string_data to true.
+            if (!cache)
+                string_state->need_string_data = true;
+            state = string_state;
             addToSubstreamsDeserializeStatesCache(cache, settings.path, state);
         }
         settings.path.pop_back();
@@ -113,7 +125,15 @@ void SerializationStringSize::deserializeWithStringData(
         serialization_string.deserializeBinaryBulk(*string_state.column->assumeMutable(), *stream, rows_offset, limit, avg_value_size_hint);
 
         num_read_rows = string_state.column->size() - prev_size;
-        addColumnWithNumReadRowsToSubstreamsCache(cache, settings.path, string_state.column, num_read_rows);
+
+        /// Cache only the current range's data, not the entire accumulated column.
+        /// string_state.column accumulates data across marks (it is persistent state),
+        /// so on mark 1+ it contains elements from all previous marks plus the current one.
+        /// If we cache the full accumulated column with num_read_rows < column->size(),
+        /// insertDataFromCachedColumn will see the size mismatch and replace the result
+        /// column entirely (e.g. ColumnSparse's values), breaking invariants.
+        auto column_for_cache = string_state.column->cut(prev_size, num_read_rows);
+        addColumnWithNumReadRowsToSubstreamsCache(cache, settings.path, column_for_cache, num_read_rows);
 
         if (settings.update_avg_value_size_hint_callback)
             settings.update_avg_value_size_hint_callback(settings.path, *string_state.column);
@@ -142,7 +162,7 @@ void SerializationStringSize::deserializeWithoutStringData(
     }
     else if (ReadBuffer * stream = settings.getter(settings.path))
     {
-        for (size_t i = 0; i < rows_offset; ++i)
+        for (size_t i = 0; unlikely(i < rows_offset); ++i)
         {
             UInt64 size;
             readVarUInt(size, *stream);
@@ -155,9 +175,9 @@ void SerializationStringSize::deserializeWithoutStringData(
         mutable_column_data.resize(prev_size + limit);
 
         size_t num_read_rows = 0;
-        for (; num_read_rows < limit; ++num_read_rows)
+        for (; likely(num_read_rows < limit); ++num_read_rows)
         {
-            if (stream->eof())
+            if (unlikely(stream->eof()))
                 break;
             UInt64 size;
             readVarUInt(size, *stream);
@@ -193,7 +213,7 @@ void SerializationStringSize::deserializeBinaryBulkWithSizeStream(
         if (rows_offset)
             column->assumeMutable()->insertRangeFrom(*cached_column, cached_column->size() - num_read_rows, num_read_rows);
         else
-            insertDataFromCachedColumn(settings, column, cached_column, num_read_rows, cache);
+            insertDataFromCachedColumn(settings, column, cached_column, num_read_rows, cache, true);
     }
     else if (ReadBuffer * stream = settings.getter(settings.path))
     {
@@ -207,7 +227,7 @@ void SerializationStringSize::deserializeBinaryBulkWithSizeStream(
         {
             ColumnPtr column_for_cache;
             /// If rows_offset != 0 we should keep data without applied offsets in the cache to be able
-            /// to calculate offset for nested data in SerializationArray if the whole array is also read.
+            /// to calculate offset for string data in SerializationString if the whole string is also read.
             /// As we will apply offsets to the current column we cannot put in the cache, so we use cut()
             /// method to create a separate column with all the data from current range.
             if (rows_offset)

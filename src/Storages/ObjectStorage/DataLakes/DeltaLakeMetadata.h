@@ -10,7 +10,7 @@
 #include <Storages/ObjectStorage/StorageObjectStorage.h>
 #include <Storages/ObjectStorage/DataLakes/IDataLakeMetadata.h>
 #include <Storages/ObjectStorage/DataLakes/DeltaLakeMetadataDeltaKernel.h>
-#include <Disks/ObjectStorages/IObjectStorage.h>
+#include <Disks/DiskObjectStorage/ObjectStorages/IObjectStorage.h>
 #include <Poco/JSON/Object.h>
 
 namespace DB
@@ -60,6 +60,10 @@ public:
         const StorageID & /*table_id_*/)
     {
     }
+
+    static bool supportsTotalRows(ContextPtr, ObjectStorageType);
+
+    static bool supportsTotalBytes(ContextPtr, ObjectStorageType);
 
     static DataLakeMetadataPtr create(
         ObjectStoragePtr object_storage,
