@@ -107,7 +107,7 @@ public:
 REGISTER_FUNCTION(Svg)
 {
     FunctionDocumentation::Description description = R"(
-Returns a string representation of a geometry in SVG format. The output SVG can be used directly in web pages to visualize geospatial data.
+Returns a string representation of a geometry in [SVG](https://en.wikipedia.org/wiki/SVG) format. The output SVG can be used directly in web pages to visualize geospatial data.
     )";
     FunctionDocumentation::Syntax syntax = "svg(geometry[, style])";
     FunctionDocumentation::Arguments arguments = {

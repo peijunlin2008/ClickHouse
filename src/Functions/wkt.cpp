@@ -90,7 +90,7 @@ public:
 REGISTER_FUNCTION(WKT)
 {
     FunctionDocumentation::Description description = R"(
-Converts a ClickHouse geometry object to its Well-Known Text (WKT) representation.
+Converts a ClickHouse geometry object to its [Well-Known Text (WKT)](https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry) representation.
     )";
     FunctionDocumentation::Syntax syntax = "wkt(geometry)";
     FunctionDocumentation::Arguments arguments = {

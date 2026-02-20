@@ -2024,7 +2024,7 @@ If either the tuple or div contain non-integer elements then the result is calcu
     factory.registerFunction<FunctionTupleIntDivOrZeroByNumber>(documentation_tupleIntDivOrZeroByNumber);
 
     FunctionDocumentation::Description description_dotProduct = R"(
-Calculates the dot product (scalar product) of two vectors (tuples or arrays of equal size).
+Calculates the [dot product](https://en.wikipedia.org/wiki/Dot_product) (scalar product) of two vectors (tuples or arrays of equal size).
 Returns the sum of the products of the corresponding elements.
     )";
     FunctionDocumentation::Syntax syntax_dotProduct = "dotProduct(vector1, vector2)";
