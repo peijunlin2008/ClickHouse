@@ -70,7 +70,7 @@ endif()
 # The compiler searches -isystem paths before its implicit resource directory, so putting our
 # bundled path here ensures it takes precedence without disrupting #include_next chains (which
 # libcxx relies on to reach the compiler's own stddef.h, stdarg.h, etc.).
-include_directories (SYSTEM "${CMAKE_SOURCE_DIR}/contrib/llvm-project/compiler-rt/include")
+include_directories (SYSTEM "${ClickHouse_SOURCE_DIR}/contrib/llvm-project/compiler-rt/include")
 
 option (SANITIZE_COVERAGE "Instrumentation for code coverage with custom callbacks" OFF)
 
