@@ -376,8 +376,8 @@
             display: grid;
             place-items: center;
             gap: 1rem;
-            grid-template-columns: auto auto auto 1fr auto auto auto;
-            grid-template-areas: "run hint hourglass progress-bar download progress-text theme";
+            grid-template-columns: auto auto auto 1fr auto auto auto auto;
+            grid-template-areas: "run hint hourglass progress-bar copy download progress-text theme";
         }
 
         #run
@@ -392,7 +392,7 @@
             font-size: 100%; /* Otherwise button element will have a lower font size. */
         }
 
-        #run:hover, #run:focus, #download-div:hover, #download-div:focus
+        #run:hover, #run:focus, #copy-div:hover, #copy-div:focus, #download-div:hover, #download-div:focus
         {
             color: var(--button-active-text-color);
             background-color: var(--button-active-color);
@@ -432,6 +432,48 @@
             color: var(--progress-color);
         }
 
+        #copy-div
+        {
+            grid-area: copy;
+            display: none;
+            user-select: none;
+            color: var(--button-text-color);
+            background-color: var(--button-color);
+            padding: 0.25rem 0.65rem;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .copy-balloon
+        {
+            position: absolute;
+            bottom: calc(100% + 0.25rem);
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--button-color);
+            color: var(--button-text-color);
+            padding: 0.25rem 0.5rem;
+            white-space: nowrap;
+            font-size: 0.85em;
+            opacity: 0;
+            animation: balloon-fade 1s ease-out;
+            pointer-events: none;
+        }
+
+        @keyframes balloon-fade
+        {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        #copy-icon
+        {
+            width: 1em;
+            height: 1em;
+            vertical-align: middle;
+        }
+
         #download-div
         {
             grid-area: download;
@@ -448,6 +490,7 @@
         {
             width: 1em;
             height: 1em;
+            vertical-align: middle;
         }
 
         #download-dropdown
@@ -895,6 +938,12 @@
                 <div id="hourglass">⧗</div>
                 <div id="check-mark">✔</div>
                 <div id="progress"></div>
+                <div id="copy-div" class="shadow" title="Copy raw result to clipboard">
+                    <svg id="copy-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                </div>
                 <div id="download-div" class="shadow">
                     <svg id="download" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -1340,6 +1389,7 @@ async function postImpl(posted_request_num, query)
 
     document.getElementById('check-mark').style.display = 'none';
     document.getElementById('download-div').style.display = 'none';
+    document.getElementById('copy-div').style.display = 'none';
     document.getElementById('hourglass').style.display = 'inline-block';
 
     clear();
@@ -1377,6 +1427,7 @@ async function postImpl(posted_request_num, query)
 
             document.getElementById('hourglass').style.display = 'none';
             document.getElementById('download-div').style.display = 'none';
+            document.getElementById('copy-div').style.display = 'none';
             document.documentElement.style.setProperty('--progress', '0');
             return;
         } else if (format == default_format) {
@@ -1451,6 +1502,7 @@ async function postImpl(posted_request_num, query)
         renderError(reply);
         document.getElementById('hourglass').style.display = 'none';
         document.getElementById('download-div').style.display = 'none';
+        document.getElementById('copy-div').style.display = 'none';
         document.documentElement.style.setProperty('--progress', '0');
         return;
     }
@@ -1465,6 +1517,7 @@ async function postImpl(posted_request_num, query)
     document.getElementById('check-mark').style.display = 'inline-block';
     document.getElementById('hourglass').style.display = 'none';
     document.getElementById('download-div').style.display = 'block';
+    document.getElementById('copy-div').style.display = is_raw ? 'block' : 'none';
     last_query_for_download = query;
 
     if (is_raw) {
@@ -1571,6 +1624,7 @@ async function restoreFromHistory(state) {
 
     document.getElementById('check-mark').style.display = 'inline-block';
     document.getElementById('hourglass').style.display = 'none';
+    document.getElementById('copy-div').style.display = is_raw ? 'block' : 'none';
 
     if (is_raw) elapsed_ns = state.elapsed_ns;
 
@@ -2623,6 +2677,19 @@ document.getElementById('toggle-light').onclick = function() {
 document.getElementById('toggle-dark').onclick = function() {
     setColorTheme('dark', true);
 }
+
+// Copy raw result to clipboard
+document.getElementById('copy-div').addEventListener('click', function() {
+    let raw = document.getElementById('data-unparsed');
+    if (raw && raw.textContent) {
+        navigator.clipboard.writeText(raw.textContent);
+        let balloon = document.createElement('span');
+        balloon.className = 'copy-balloon';
+        balloon.textContent = 'Result copied';
+        this.appendChild(balloon);
+        balloon.addEventListener('animationend', () => balloon.remove());
+    }
+});
 
 // Download functionality
 let last_query_for_download = '';
