@@ -1695,6 +1695,7 @@
 
     function renderFooter(nameParams) {
         const footerRight = document.querySelector('#footer .right');
+        footerRight.innerHTML = '';
         function createLinkElement(href, textContent, footer) {
             const a = document.createElement('a');
             a.href = href;

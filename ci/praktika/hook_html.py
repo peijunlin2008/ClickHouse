@@ -221,6 +221,12 @@ class HtmlRunnerHooks:
     @classmethod
     def post_run(cls, _workflow, _job, info_errors):
         result = Result.from_fs(_job.name)
+        env = _Environment.get()
+        if env.WORKFLOW_JOB_DATA:
+            result.add_ext_key_value(
+                "run_url",
+                f"{env.RUN_URL}/job/{env.WORKFLOW_JOB_DATA['check_run_id']}",
+            )
         _ResultS3.upload_result_files_to_s3(result).dump()
         storage_usage = None
         if StorageUsage.exist():
@@ -231,8 +237,6 @@ class HtmlRunnerHooks:
             storage_usage = StorageUsage.from_fs()
             result.ext["storage_usage"] = storage_usage
         _ResultS3.copy_result_to_s3(result)
-
-        env = _Environment.get()
 
         new_sub_results = [result]
         new_result_info = ""
