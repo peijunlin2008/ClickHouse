@@ -235,7 +235,7 @@ def main():
         )
         res = results[-1].is_ok()
 
-    if Info().is_local_run:
+    if res and Info().is_local_run:
         resolved_clickhouse_bin_path = clickhouse_bin_path.resolve()
         Shell.check(
             f"ln -sf {resolved_clickhouse_bin_path} {resolved_clickhouse_bin_path.parent}/clickhouse-server",
