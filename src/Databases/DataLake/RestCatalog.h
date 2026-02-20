@@ -83,7 +83,6 @@ public:
     String getClientSecret() const { return client_secret; }
 
 protected:
-    /// For derived classes: same init but no catalog_credential/auth_header (always empty there), no loadConfig().
     RestCatalog(
         const std::string & warehouse_,
         const std::string & base_url_,
