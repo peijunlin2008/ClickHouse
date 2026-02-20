@@ -221,6 +221,18 @@ def main():
         Shell.check("sccache --show-stats")
         res = results[-1].is_ok()
 
+    if res and Info().is_local_run:
+        resolved_clickhouse_bin_path = clickhouse_bin_path.resolve()
+        Shell.check(
+            f"ln -sf {resolved_clickhouse_bin_path} {resolved_clickhouse_bin_path.parent}/clickhouse-server",
+            strict=True,
+        )
+        Shell.check(
+            f"ln -sf {resolved_clickhouse_bin_path} {resolved_clickhouse_bin_path.parent}/clickhouse-client",
+            strict=True,
+        )
+        Shell.check(f"chmod +x {resolved_clickhouse_bin_path}", strict=True)
+
     if res and JobStages.BUILD in stages:
         commands = [
             "sccache --show-stats",
@@ -234,18 +246,6 @@ def main():
             )
         )
         res = results[-1].is_ok()
-
-    if res and Info().is_local_run:
-        resolved_clickhouse_bin_path = clickhouse_bin_path.resolve()
-        Shell.check(
-            f"ln -sf {resolved_clickhouse_bin_path} {resolved_clickhouse_bin_path.parent}/clickhouse-server",
-            strict=True,
-        )
-        Shell.check(
-            f"ln -sf {resolved_clickhouse_bin_path} {resolved_clickhouse_bin_path.parent}/clickhouse-client",
-            strict=True,
-        )
-        Shell.check(f"chmod +x {resolved_clickhouse_bin_path}", strict=True)
 
     if res and JobStages.CONFIG in stages:
         commands = [
