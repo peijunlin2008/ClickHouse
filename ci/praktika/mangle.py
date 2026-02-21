@@ -237,30 +237,3 @@ def _update_workflow_with_native_jobs(workflow):
             aux_job.requires.append(job.name)
         workflow.jobs.append(aux_job)
 
-    # Propagate transitive dependencies: if B depends on A and C depends on B, then C should also depend on A
-    # To enable complex scenarios in GH Actions: do not block pipeline on failed job/action
-    job_map = {job.name: job for job in workflow.jobs}
-    artifact_map = _get_artifact_to_providing_job_map(workflow)
-    workflow.jobs = copy.deepcopy(
-        workflow.jobs
-    )  # same Job.Config objects may be used in other workflows, thus deep copy
-    for job in workflow.jobs:
-        all_deps = set(
-            job.requires
-        )  # init with original content to preserve artifacts (vs job names) set in .requires
-        to_visit = list(job.requires)
-        visited = set()
-        while to_visit:
-            dep_name = to_visit.pop()
-            if dep_name in visited:
-                continue
-            visited.add(dep_name)
-            if dep_name in job_map:
-                to_visit.extend(job_map[dep_name].requires)
-                all_deps.add(dep_name)
-            elif dep_name in artifact_map:
-                to_visit.extend(job_map[artifact_map[dep_name]].requires)
-                all_deps.add(artifact_map[dep_name])
-            else:
-                assert False, f"dependency [{dep_name}] not found, [{job.name}]"
-        job.requires = sorted(list(all_deps))
