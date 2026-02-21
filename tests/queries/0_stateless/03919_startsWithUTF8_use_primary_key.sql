@@ -46,6 +46,7 @@ SETTINGS
 DROP TABLE test_startsWithUTF8;
 
 
+
 DROP TABLE IF EXISTS test_startsWithUTF8_invalid;
 CREATE TABLE test_startsWithUTF8_invalid
 (
