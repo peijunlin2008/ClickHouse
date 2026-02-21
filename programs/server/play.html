@@ -1165,6 +1165,7 @@ class QueryResultElement extends HTMLElement
     get isExplainGraph() { return this._is_explain_graph; }
     get explainGraph() { return this._explain_graph; }
     set queryText(v) { this._queryText = v; }
+    get rawText() { return this._dataUnparsed.textContent; }
 
     _clearElement(elem)
     {
@@ -2878,14 +2879,24 @@ document.getElementById('toggle-dark').onclick = function() {
 
 // Copy raw result to clipboard
 document.getElementById('copy-div').addEventListener('click', function() {
-    let raw = document.getElementById('data-unparsed');
-    if (raw && raw.textContent) {
-        navigator.clipboard.writeText(raw.textContent);
+    let text = resultEl.rawText;
+    if (!text) return;
+
+    let button = this;
+    let showBalloon = function(message) {
         let balloon = document.createElement('span');
         balloon.className = 'copy-balloon';
-        balloon.textContent = 'Result copied';
-        this.appendChild(balloon);
+        balloon.textContent = message;
+        button.appendChild(balloon);
         balloon.addEventListener('animationend', () => balloon.remove());
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(
+            () => showBalloon('Result copied'),
+            () => showBalloon('Copy failed'));
+    } else {
+        showBalloon('Copy not supported');
     }
 });
 
