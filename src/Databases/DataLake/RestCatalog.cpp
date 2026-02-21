@@ -214,7 +214,7 @@ void RestCatalog::parseCatalogConfigurationSettings(const Poco::JSON::Object::Pt
         result.default_base_location = object->get("default-base-location").extract<String>();
 }
 
-DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool /*update_token*/) const
+DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool update_token) const
 {
     /// Option 1: user specified auth header manually.
     /// Header has format: 'Authorization: <scheme> <token>'.
@@ -223,8 +223,20 @@ DB::HTTPHeaderEntries RestCatalog::getAuthHeaders(bool /*update_token*/) const
         return DB::HTTPHeaderEntries{auth_header.value()};
     }
 
-    /// For base RestCatalog, if catalog_credential is provided, token should be obtained
-    /// by derived classes (OneLakeCatalog, BigLakeCatalog) which override this method.
+    /// Option 2: user provided grant_type, client_id and client_secret.
+    /// We would make OAuthClientCredentialsRequest
+    /// https://github.com/apache/iceberg/blob/3badfe0c1fcf0c0adfc7aa4a10f0b50365c48cf9/open-api/rest-catalog-open-api.yaml#L3498C5-L3498C34
+    if (!client_id.empty())
+    {
+        if (!access_token.has_value() || update_token)
+        {
+            access_token = retrieveAccessToken();
+        }
+
+        DB::HTTPHeaderEntries headers;
+        headers.emplace_back("Authorization", "Bearer " + access_token.value().token);
+        return headers;
+    }
     return {};
 }
 
@@ -252,27 +264,7 @@ OneLakeCatalog::OneLakeCatalog(
     config = loadConfig();
 }
 
-DB::HTTPHeaderEntries OneLakeCatalog::getAuthHeaders(bool update_token) const
-{
-    /// User provided grant_type, client_id and client_secret.
-    /// We would make OAuthClientCredentialsRequest
-    /// https://github.com/apache/iceberg/blob/3badfe0c1fcf0c0adfc7aa4a10f0b50365c48cf9/open-api/rest-catalog-open-api.yaml#L3498C5-L3498C34
-    if (!client_id.empty())
-    {
-        if (!access_token.has_value() || update_token || access_token->isExpired())
-        {
-            access_token = retrieveAccessToken();
-        }
-
-        DB::HTTPHeaderEntries headers;
-        headers.emplace_back("Authorization", "Bearer " + access_token->token);
-        return headers;
-    }
-
-    return RestCatalog::getAuthHeaders(update_token);
-}
-
-AccessToken OneLakeCatalog::retrieveAccessToken() const
+AccessToken RestCatalog::retrieveAccessToken() const
 {
     static constexpr auto oauth_tokens_endpoint = "oauth/tokens";
 
@@ -856,7 +848,7 @@ DB::Names RestCatalog::parseTables(DB::ReadBuffer & buf, const std::string & bas
     String json_str;
     readJSONObjectPossiblyInvalid(json_str, buf);
 
-    LOG_DEBUG(log, "Received tables response for namespace: {}", base_namespace);
+    LOG_DEBUG(log, "Received tables response: {}", json_str);
 
     try
     {
@@ -954,6 +946,7 @@ bool RestCatalog::getTableMetadataImpl(
 
     String json_str;
     readJSONObjectPossiblyInvalid(json_str, *buf);
+    LOG_DEBUG(log, "Receiving table metadata {} {}", table_name, json_str);
 
 #ifdef DEBUG_OR_SANITIZER_BUILD
     /// This log message might contain credentials,
@@ -1228,7 +1221,7 @@ std::pair<std::shared_ptr<IStorageCredentials>, String> RestCatalog::getCredenti
             if (object->has(storage_endpoint_str))
                 storage_endpoint = object->get(storage_endpoint_str).extract<String>();
 
-            LOG_DEBUG(log, "get tokens for location {}", location);
+            LOG_DEBUG(log, "initial tokens {} {} {}", access_key_id, secret_access_key, session_token);
             return {std::make_shared<S3Credentials>(access_key_id, secret_access_key, session_token), storage_endpoint};
         }
         case StorageType::Azure:
@@ -1284,6 +1277,7 @@ ICatalog::CredentialsRefreshCallback RestCatalog::getCredentialsConfigurationCal
 
         String json_str;
         readJSONObjectPossiblyInvalid(json_str, *buf);
+        LOG_DEBUG(log, "Receiving table metadata {} {}", table_name, json_str);
 
         Poco::JSON::Parser parser;
         Poco::Dynamic::Var json = parser.parse(json_str);
