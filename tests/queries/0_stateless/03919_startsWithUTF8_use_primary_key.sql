@@ -34,6 +34,15 @@ SELECT count() FROM test_startsWithUTF8
 WHERE startsWithUTF8(a, concat('a', ''))
 SETTINGS force_primary_key = 1;
 
+SELECT *
+FROM test_startsWithUTF8
+WHERE startsWithUTF8(a, 'a')
+ORDER BY a
+SETTINGS
+    force_primary_key = 1,
+    max_rows_to_read = 4,
+    read_overflow_mode = 'throw';
+
 DROP TABLE test_startsWithUTF8;
 
 
